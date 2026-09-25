@@ -86,4 +86,17 @@ AMOSTRAS = [
     "N/A",
     "WEG W22",
     "SKF",
+    # Rodada 2: respostas curtas comuns
+    "Sim",
+    "Não",
+    "Sob consulta",
+    "Conforme norma NBR 5410",
+    "Ver desenho anexo",
+    "Idem ao original",
+    "Aprox. 25 kg",
+    "Diâmetro externo Ø 150 mm",
+    "Preto",
+    "Cinza claro",
+    "Mancais de rolamento lubrificados a óleo",
+    "PARAFUSO DE FIXAÇÃO DA TAMPA DO MANCAL",
 ]

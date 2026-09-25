@@ -1,19 +1,25 @@
-"""Experimento: tradutor LOCAL (offline) serve para as fichas? PT -> ES.
+"""Experimento (rodada 2): tradutor LOCAL (offline) serve para as fichas? PT -> ES.
 
-Roda no GitHub Actions (o contêiner do Claude não alcança os servidores de
-modelo). Mede, para as mesmas amostras:
+Roda no GitHub Actions (o conteiner do Claude nao alcanca os servidores de
+modelo). A rodada 1 mostrou: Google bloqueado no runner (429), OPUS-MT
+tc-big itc-itc bom mas errando o vocabulario da casa (mancal, porca,
+arruela), Argos recusado (403 no download).
 
-  - Argos pt->es direto (CTranslate2 + SentencePiece, o que o app embutiria);
-  - Argos pivô pt->en->es;
-  - OPUS-MT (Helsinki), convertido para CTranslate2, quando existir;
-  - Google Tradutor via deep_translator (a linha de base de hoje).
+Esta rodada mede:
+  - OPUS tc-big com e sem GLOSSARIO aplicado na origem, beam 4 e 1;
+  - o mesmo modelo pelo caminho que o APP usaria (so ctranslate2 +
+    sentencepiece, sem transformers) -- tem de dar o mesmo resultado;
+  - Argos pt->es, baixado com User-Agent (o 403 pode ser o urllib).
 
-Uso:  python avaliar.py --motores argos,google [--opus]
-Saída: resultados.json + resumo em Markdown ($GITHUB_STEP_SUMMARY).
+Uso:
+  python avaliar.py converter --saida modelo_tc_big      (Linux, com torch)
+  python avaliar.py avaliar --modelo modelo_tc_big [--argos] [--hf]
 """
 import argparse
 import json
 import os
+import re
+import shutil
 import sys
 import time
 import urllib.request
@@ -22,11 +28,34 @@ import zipfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from amostras import AMOSTRAS  # noqa: E402
 
+MODELO_HF = "Helsinki-NLP/opus-mt-tc-big-itc-itc"
+PREFIXO_ES = ">>spa<<"
 PASTA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_modelos")
-ARGOS = {
-    "pt_es": "https://argos-net.com/v1/translate-pt_es-1_0.argosmodel",
-    "pt_en": "https://argos-net.com/v1/translate-pt_en-1_9.argosmodel",
-    "en_es": "https://argos-net.com/v1/translate-en_es-1_0.argosmodel",
+ARGOS_PT_ES = "https://argos-net.com/v1/translate-pt_es-1_0.argosmodel"
+
+# Vocabulario da casa: o que a rodada 1 errou, e so isso.
+GLOSSARIO = {
+    "chave fim de curso": "interruptor de fin de carrera",
+    "fim de curso": "fin de carrera",
+    "conforme desenho": "según plano",
+    "escova de carvão": "escobilla de carbón",
+    "escovas de carvão": "escobillas de carbón",
+    "porta-escova": "portaescobillas",
+    "válvula gaveta": "válvula de compuerta",
+    "temperado e revenido": "templado y revenido",
+    "ao tempo": "a la intemperie",
+    "não aplicável": "no aplicable",
+    "mancais": "cojinetes",
+    "mancal": "cojinete",
+    "porcas": "tuercas",
+    "porca": "tuerca",
+    "arruelas": "arandelas",
+    "arruela": "arandela",
+    "gaxetas": "empaquetaduras",
+    "gaxeta": "empaquetadura",
+    "portinhola": "clapeta",
+    "içamento": "izaje",
+    "zincado": "cincado",
 }
 
 
@@ -38,231 +67,194 @@ def tamanho_mb(pasta):
     return round(total / 1e6, 1)
 
 
-def baixar_argos(chave):
-    os.makedirs(PASTA, exist_ok=True)
-    zip_path = os.path.join(PASTA, f"{chave}.argosmodel")
-    destino = os.path.join(PASTA, chave)
-    if not os.path.isdir(destino):
-        t0 = time.time()
-        urllib.request.urlretrieve(ARGOS[chave], zip_path)
-        print(f"[{chave}] baixado: {os.path.getsize(zip_path)/1e6:.1f} MB em {time.time()-t0:.1f}s")
-        with zipfile.ZipFile(zip_path) as z:
-            z.extractall(destino)
-    for raiz, _, arquivos in os.walk(destino):
-        if "metadata.json" in arquivos:
-            return raiz
-    raise RuntimeError(f"metadata.json nao achado em {destino}")
-
-
-def descrever_pacote(raiz):
-    meta = json.load(open(os.path.join(raiz, "metadata.json"), encoding="utf-8"))
-    print(json.dumps(meta, ensure_ascii=False, indent=1)[:1500])
-    for nome in sorted(os.listdir(raiz)):
-        caminho = os.path.join(raiz, nome)
-        tam = tamanho_mb(caminho) if os.path.isdir(caminho) else round(os.path.getsize(caminho) / 1e6, 2)
-        print(f"   {nome}: {tam} MB")
-    for leia in ("README.md", "README", "LICENSE", "LICENSE.txt"):
-        p = os.path.join(raiz, leia)
-        if os.path.exists(p):
-            print(f"----- {leia} -----")
-            print(open(p, encoding="utf-8", errors="replace").read()[:2500])
-    return meta
-
-
-class Argos:
-    def __init__(self, raiz, threads=0):
-        import ctranslate2
-        import sentencepiece as spm
-        self.meta = json.load(open(os.path.join(raiz, "metadata.json"), encoding="utf-8"))
-        t0 = time.time()
-        self.tr = ctranslate2.Translator(os.path.join(raiz, "model"), device="cpu",
-                                         intra_threads=threads)
-        sp_path = os.path.join(raiz, "sentencepiece.model")
-        if not os.path.exists(sp_path):
-            raise RuntimeError(f"sem sentencepiece.model em {raiz}: {os.listdir(raiz)}")
-        self.sp = spm.SentencePieceProcessor(model_file=sp_path)
-        self.carga = time.time() - t0
-        self.prefixo = self.meta.get("target_prefix") or ""
-
-    def traduzir(self, textos, beam=4):
-        tokens = [self.sp.encode(t, out_type=str) for t in textos]
-        kwargs = {}
-        if self.prefixo:
-            kwargs["target_prefix"] = [[self.prefixo]] * len(tokens)
-        res = self.tr.translate_batch(tokens, beam_size=beam, max_batch_size=32,
-                                      replace_unknowns=True, **kwargs)
-        saida = []
-        for r in res:
-            toks = r.hypotheses[0]
-            if self.prefixo and toks and toks[0] == self.prefixo:
-                toks = toks[1:]
-            saida.append(self.sp.decode(toks).strip())
-        return saida
-
-
 def caixa_de_frase(texto):
-    """TUDO MAIUSCULO -> Primeira maiuscula, resto minusculo (o modelo foi
-    treinado em texto corrido). Devolve (texto, estava_em_caixa_alta)."""
     letras = [c for c in texto if c.isalpha()]
     if letras and all(c.isupper() for c in letras) and len(letras) > 3:
         return texto[:1].upper() + texto[1:].lower(), True
     return texto, False
 
 
-def rodar_argos(resultados, tempos):
-    for chave in ("pt_es", "pt_en", "en_es"):
+def aplicar_glossario(texto):
+    """Troca o termo PT pelo ES ANTES do modelo (o modelo copia o que ja esta
+    em espanhol). Frase inteira no glossario nem vai ao modelo."""
+    chave = texto.strip().lower()
+    if chave in GLOSSARIO:
+        return GLOSSARIO[chave], True
+    for pt in sorted(GLOSSARIO, key=len, reverse=True):
+        es = GLOSSARIO[pt]
+
+        def trocar(m, es=es):
+            original = m.group(0)
+            return es[:1].upper() + es[1:] if original[:1].isupper() else es
+
+        texto = re.sub(rf"(?<![\w-]){re.escape(pt)}(?![\w-])", trocar, texto, flags=re.IGNORECASE)
+    return texto, False
+
+
+class MarianCT2:
+    """O caminho do APP: so ctranslate2 + sentencepiece."""
+
+    def __init__(self, pasta, threads=0):
+        import ctranslate2
+        import sentencepiece as spm
+        t0 = time.time()
+        self.tr = ctranslate2.Translator(pasta, device="cpu", intra_threads=threads)
+        self.src = spm.SentencePieceProcessor(model_file=os.path.join(pasta, "source.spm"))
+        self.tgt = spm.SentencePieceProcessor(model_file=os.path.join(pasta, "target.spm"))
+        self.carga = time.time() - t0
+
+    def traduzir(self, textos, beam=4):
+        fontes = [[PREFIXO_ES] + self.src.encode(t, out_type=str) + ["</s>"] for t in textos]
+        res = self.tr.translate_batch(fontes, beam_size=beam, max_batch_size=32)
+        return [self.tgt.decode(r.hypotheses[0]).strip() for r in res]
+
+
+class ArgosCT2:
+    def __init__(self, raiz):
+        import ctranslate2
+        import sentencepiece as spm
+        t0 = time.time()
+        self.tr = ctranslate2.Translator(os.path.join(raiz, "model"), device="cpu")
+        self.sp = spm.SentencePieceProcessor(model_file=os.path.join(raiz, "sentencepiece.model"))
+        self.carga = time.time() - t0
+
+    def traduzir(self, textos, beam=4):
+        res = self.tr.translate_batch([self.sp.encode(t, out_type=str) for t in textos],
+                                      beam_size=beam, max_batch_size=32, replace_unknowns=True)
+        return [self.sp.decode(r.hypotheses[0]).strip() for r in res]
+
+
+def rodar(motor, nome, resultados, tempos, glossario, beam):
+    pares = [caixa_de_frase(t) for t in AMOSTRAS]
+    entradas, prontas = [], {}
+    for i, (texto, _) in enumerate(pares):
+        if glossario:
+            texto, inteira = aplicar_glossario(texto)
+            if inteira:
+                prontas[i] = texto
+        entradas.append(texto)
+    idx = [i for i in range(len(entradas)) if i not in prontas]
+    t0 = time.time()
+    saida = motor.traduzir([entradas[i] for i in idx], beam=beam)
+    tempos[f"{nome}_s"] = round(time.time() - t0, 2)
+    final = dict(prontas)
+    final.update(zip(idx, saida))
+    resultados[nome] = [final[i].upper() if pares[i][1] else final[i] for i in range(len(pares))]
+
+
+def converter(saida):
+    import ctranslate2
+    from huggingface_hub import HfApi, hf_hub_download
+    info = HfApi().model_info(MODELO_HF)
+    print(f"{MODELO_HF} revisao {info.sha} licenca {getattr(info, 'card_data', None) and info.card_data.get('license')}")
+    t0 = time.time()
+    ctranslate2.converters.TransformersConverter(MODELO_HF).convert(saida, quantization="int8", force=True)
+    for nome in ("source.spm", "target.spm", "README.md"):
+        shutil.copy(hf_hub_download(MODELO_HF, nome, revision=info.sha), os.path.join(saida, nome))
+    json.dump({"modelo": MODELO_HF, "revisao": info.sha}, open(os.path.join(saida, "origem.json"), "w"))
+    print(f"convertido em {time.time()-t0:.1f}s, {tamanho_mb(saida)} MB")
+    for nome in sorted(os.listdir(saida)):
+        print("  ", nome, round(os.path.getsize(os.path.join(saida, nome)) / 1e6, 2), "MB")
+
+
+def baixar_argos():
+    os.makedirs(PASTA, exist_ok=True)
+    destino = os.path.join(PASTA, "argos_pt_es")
+    zip_path = destino + ".zip"
+    ultimo = None
+    for ua in ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+               "ArgosTranslate", "LibreTranslate"):
         try:
-            raiz = baixar_argos(chave)
-            print(f"\n===== pacote {chave} =====")
-            descrever_pacote(raiz)
-            tempos[f"tamanho_{chave}_MB"] = tamanho_mb(raiz)
+            req = urllib.request.Request(ARGOS_PT_ES, headers={"User-Agent": ua})
+            with urllib.request.urlopen(req, timeout=120) as r, open(zip_path, "wb") as f:
+                shutil.copyfileobj(r, f)
+            print(f"argos baixado com UA {ua[:20]}: {os.path.getsize(zip_path)/1e6:.1f} MB")
+            break
         except Exception as e:
-            print(f"[{chave}] FALHOU ao baixar/abrir: {type(e).__name__}: {e}")
-            tempos[f"erro_{chave}"] = str(e)
-
-    try:
-        direto = Argos(baixar_argos("pt_es"))
-        tempos["argos_carga_s"] = round(direto.carga, 2)
-        for beam in (4, 1):
-            t0 = time.time()
-            saida = direto.traduzir(AMOSTRAS, beam=beam)
-            tempos[f"argos_direto_beam{beam}_s"] = round(time.time() - t0, 2)
-            resultados[f"argos_direto_b{beam}"] = saida
-        # caixa alta -> caixa de frase, traduz, volta para maiusculas
-        pares = [caixa_de_frase(t) for t in AMOSTRAS]
-        t0 = time.time()
-        saida = direto.traduzir([p[0] for p in pares], beam=4)
-        tempos["argos_direto_caixa_s"] = round(time.time() - t0, 2)
-        resultados["argos_direto_caixa"] = [s.upper() if alta else s
-                                            for s, (_, alta) in zip(saida, pares)]
-        # uma por vez (o pior caso de latencia)
-        t0 = time.time()
-        for t in AMOSTRAS[:20]:
-            direto.traduzir([t], beam=4)
-        tempos["argos_uma_por_vez_20_s"] = round(time.time() - t0, 2)
-    except Exception as e:
-        print(f"argos direto FALHOU: {type(e).__name__}: {e}")
-        tempos["erro_argos_direto"] = str(e)
-
-    try:
-        pt_en = Argos(baixar_argos("pt_en"))
-        en_es = Argos(baixar_argos("en_es"))
-        pares = [caixa_de_frase(t) for t in AMOSTRAS]
-        t0 = time.time()
-        ingles = pt_en.traduzir([p[0] for p in pares], beam=4)
-        espanhol = en_es.traduzir(ingles, beam=4)
-        tempos["argos_pivo_s"] = round(time.time() - t0, 2)
-        resultados["argos_pivo_ingles"] = ingles
-        resultados["argos_pivo"] = [s.upper() if alta else s
-                                    for s, (_, alta) in zip(espanhol, pares)]
-    except Exception as e:
-        print(f"argos pivo FALHOU: {type(e).__name__}: {e}")
-        tempos["erro_argos_pivo"] = str(e)
+            ultimo = e
+            print(f"argos UA {ua[:20]}: {e}")
+    else:
+        raise RuntimeError(f"argos inacessivel: {ultimo}")
+    with zipfile.ZipFile(zip_path) as z:
+        z.extractall(destino)
+    for raiz, _, arquivos in os.walk(destino):
+        if "metadata.json" in arquivos:
+            print(open(os.path.join(raiz, "metadata.json"), encoding="utf-8").read()[:800])
+            for leia in ("README.md", "LICENSE"):
+                if os.path.exists(os.path.join(raiz, leia)):
+                    print(open(os.path.join(raiz, leia), encoding="utf-8", errors="replace").read()[:1500])
+            print("tamanho", tamanho_mb(raiz), "MB")
+            return raiz
+    raise RuntimeError("metadata.json nao achado")
 
 
-def rodar_opus(resultados, tempos, candidatos):
-    """Converte cada candidato do Hugging Face para CTranslate2 (int8)."""
+def comparar_hf(pasta, resultados, tempos):
+    """O caminho do app (sentencepiece puro) tem de bater com o do transformers."""
     import ctranslate2
     import transformers
-    for modelo, prefixo in candidatos:
-        nome = "opus_" + modelo.split("/")[-1]
-        saida_dir = os.path.join(PASTA, nome)
-        try:
-            t0 = time.time()
-            if not os.path.isdir(saida_dir):
-                conv = ctranslate2.converters.TransformersConverter(modelo)
-                conv.convert(saida_dir, quantization="int8", force=True)
-            tempos[f"{nome}_conversao_s"] = round(time.time() - t0, 1)
-            tempos[f"{nome}_MB"] = tamanho_mb(saida_dir)
-            tok = transformers.AutoTokenizer.from_pretrained(modelo)
-            t0 = time.time()
-            tr = ctranslate2.Translator(saida_dir, device="cpu")
-            tempos[f"{nome}_carga_s"] = round(time.time() - t0, 2)
-            pares = [caixa_de_frase(t) for t in AMOSTRAS]
-            fontes = [tok.convert_ids_to_tokens(tok.encode((prefixo + " " if prefixo else "") + p[0]))
-                      for p in pares]
-            t0 = time.time()
-            res = tr.translate_batch(fontes, beam_size=4, max_batch_size=32)
-            tempos[f"{nome}_s"] = round(time.time() - t0, 2)
-            saida = [tok.decode(tok.convert_tokens_to_ids(r.hypotheses[0]), skip_special_tokens=True)
-                     for r in res]
-            resultados[nome] = [s.upper() if alta else s for s, (_, alta) in zip(saida, pares)]
-            print(f"[{nome}] ok")
-        except Exception as e:
-            print(f"[{nome}] FALHOU: {type(e).__name__}: {e}")
-            tempos[f"erro_{nome}"] = f"{type(e).__name__}: {e}"
+    tok = transformers.AutoTokenizer.from_pretrained(MODELO_HF)
+    tr = ctranslate2.Translator(pasta, device="cpu")
+    pares = [caixa_de_frase(t) for t in AMOSTRAS]
+    fontes = [tok.convert_ids_to_tokens(tok.encode(f"{PREFIXO_ES} {p[0]}")) for p in pares]
+    res = tr.translate_batch(fontes, beam_size=4, max_batch_size=32)
+    saida = [tok.decode(tok.convert_tokens_to_ids(r.hypotheses[0]), skip_special_tokens=True) for r in res]
+    resultados["tcbig_hf_b4"] = [s.upper() if a else s for s, (_, a) in zip(saida, pares)]
+    iguais = sum(a == b for a, b in zip(resultados["tcbig_hf_b4"], resultados.get("tcbig_b4", [])))
+    tempos["tcbig_app_igual_hf"] = f"{iguais}/{len(AMOSTRAS)}"
 
 
-def rodar_google(resultados, tempos):
-    from deep_translator import GoogleTranslator
-    saida = []
+def avaliar(args):
+    resultados = {"pt": AMOSTRAS}
+    tempos = {"amostras": len(AMOSTRAS), "cpus": os.cpu_count()}
+    motor = MarianCT2(args.modelo)
+    tempos["tcbig_MB"] = tamanho_mb(args.modelo)
+    tempos["tcbig_carga_s"] = round(motor.carga, 2)
+    for beam in (4, 1):
+        rodar(motor, f"tcbig_b{beam}", resultados, tempos, glossario=False, beam=beam)
+        rodar(motor, f"tcbig_b{beam}_glos", resultados, tempos, glossario=True, beam=beam)
     t0 = time.time()
-    for t in AMOSTRAS:
+    for t in AMOSTRAS[:20]:
+        motor.traduzir([t], beam=4)
+    tempos["tcbig_uma_por_vez_20_s"] = round(time.time() - t0, 2)
+    if args.hf:
+        comparar_hf(args.modelo, resultados, tempos)
+    if args.argos:
         try:
-            saida.append(GoogleTranslator(source="pt", target="es").translate(t))
+            argos = ArgosCT2(baixar_argos())
+            tempos["argos_carga_s"] = round(argos.carga, 2)
+            rodar(argos, "argos_b4", resultados, tempos, glossario=False, beam=4)
+            rodar(argos, "argos_b4_glos", resultados, tempos, glossario=True, beam=4)
         except Exception as e:
-            saida.append(f"<ERRO {type(e).__name__}>")
-    tempos["google_sequencial_s"] = round(time.time() - t0, 2)
-    resultados["google"] = saida
+            tempos["erro_argos"] = f"{type(e).__name__}: {e}"
 
-
-def listar_opus():
-    """Quais modelos OPUS-MT existem com pt na origem e es no destino."""
-    try:
-        from huggingface_hub import HfApi
-        api = HfApi()
-        achados = []
-        for termo in ("opus-mt-pt", "opus-mt-tc-big-pt", "opus-mt-itc", "opus-mt-tc-big-itc",
-                      "opus-mt-ROMANCE", "opus-mt-roa", "opus-mt-tc-big-roa"):
-            for m in api.list_models(author="Helsinki-NLP", search=termo, limit=200):
-                achados.append(m.id)
-        achados = sorted(set(achados))
-        print("\nOPUS-MT candidatos:\n  " + "\n  ".join(achados))
-        return achados
-    except Exception as e:
-        print(f"listar OPUS falhou: {e}")
-        return []
+    json.dump({"resultados": resultados, "tempos": tempos},
+              open("resultados.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    colunas = list(resultados)
+    linhas = ["| " + " | ".join(colunas) + " |", "|" + "---|" * len(colunas)]
+    for i in range(len(AMOSTRAS)):
+        linhas.append("| " + " | ".join(str(resultados[c][i]).replace("|", "/") for c in colunas) + " |")
+    resumo = ("## Tempos\n\n```\n" + json.dumps(tempos, ensure_ascii=False, indent=1)
+              + "\n```\n\n## Traducoes\n\n" + "\n".join(linhas) + "\n")
+    print(resumo)
+    if os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+            f.write(resumo)
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--motores", default="argos,google")
-    ap.add_argument("--opus", default="")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    c = sub.add_parser("converter")
+    c.add_argument("--saida", required=True)
+    a = sub.add_parser("avaliar")
+    a.add_argument("--modelo", required=True)
+    a.add_argument("--argos", action="store_true")
+    a.add_argument("--hf", action="store_true")
     args = ap.parse_args()
-
-    resultados = {"pt": AMOSTRAS}
-    tempos = {"amostras": len(AMOSTRAS)}
-    motores = set(args.motores.split(","))
-    if "argos" in motores:
-        rodar_argos(resultados, tempos)
-    if "google" in motores:
-        rodar_google(resultados, tempos)
-    if "opus" in motores:
-        existentes = listar_opus()
-        candidatos = []
-        for modelo in existentes:
-            nome = modelo.lower()
-            if nome.endswith(("-pt-es", "-por-spa")):
-                candidatos.append((modelo, ""))            # direto
-            elif nome.endswith(("-itc-itc", "-roa-roa")):
-                candidatos.append((modelo, ">>spa<<"))     # multilingue
-        print(f"[opus] vai converter: {candidatos}")
-        rodar_opus(resultados, tempos, candidatos[:4])
-
-    json.dump({"resultados": resultados, "tempos": tempos},
-              open("resultados.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-
-    colunas = [c for c in resultados if c != "argos_pivo_ingles"]
-    linhas = ["| " + " | ".join(colunas) + " |", "|" + "---|" * len(colunas)]
-    for i in range(len(AMOSTRAS)):
-        linhas.append("| " + " | ".join(str(resultados[c][i]).replace("|", "/") for c in colunas) + " |")
-    resumo = "## Tempos\n\n```\n" + json.dumps(tempos, ensure_ascii=False, indent=1) + \
-             "\n```\n\n## Traducoes\n\n" + "\n".join(linhas) + "\n"
-    print(resumo)
-    destino = os.environ.get("GITHUB_STEP_SUMMARY")
-    if destino:
-        with open(destino, "a", encoding="utf-8") as f:
-            f.write(resumo)
+    if args.cmd == "converter":
+        converter(args.saida)
+    else:
+        avaliar(args)
 
 
 if __name__ == "__main__":
