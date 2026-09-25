@@ -1,6 +1,6 @@
-# Experimento DESCARTAVEL (branch de desenvolvimento do Claude, nunca a oficial):
-# mede se um tradutor LOCAL da conta das respostas das fichas, PT -> ES.
-# O conteiner do Claude nao alcanca os servidores de modelo; o runner alcanca.
+# Experimento DESCARTAVEL (branch de desenvolvimento do Claude, nunca a oficial).
+# Rodada 3: o CODIGO DE PRODUCAO do tradutor local contra o modelo de verdade,
+# no Linux e no Windows. O conteiner do Claude nao alcanca o Hugging Face.
 name: Experimento traducao local
 
 on:
@@ -9,12 +9,16 @@ on:
     paths:
       - "experimentos/traducao_local/**"
       - ".github/workflows/experimento-traducao.yml"
+      - "sigft/core/tradutor_local.py"
+      - "sigft/services/traducao_respostas.py"
+      - "tools/preparar_tradutor.py"
+      - "tests/test_tradutor_local.py"
 
 permissions:
   contents: read
 
 jobs:
-  qualidade-linux:
+  prova-linux:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
@@ -28,28 +32,29 @@ jobs:
       - name: Instalar
         run: |
           python -m pip install --upgrade pip
-          pip install ctranslate2 sentencepiece huggingface_hub sacremoses
+          pip install -r requirements-dev.txt
+          pip install requests openpyxl python-dotenv pillow
+          pip install ctranslate2 sentencepiece huggingface_hub
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install "transformers<5"
-      - name: Converter o tc-big para CTranslate2
-        working-directory: experimentos/traducao_local
-        run: python avaliar.py converter --saida modelo_tc_big
-      - name: Avaliar
-        working-directory: experimentos/traducao_local
-        run: python avaliar.py avaliar --modelo modelo_tc_big --argos --hf
-      - uses: actions/upload-artifact@v4
-        with:
-          name: modelo-tc-big
-          path: experimentos/traducao_local/modelo_tc_big
-          retention-days: 3
-      - uses: actions/upload-artifact@v4
+      - name: Preparar o modelo (script de producao)
+        run: |
+          python tools/preparar_tradutor.py
+          python tools/preparar_tradutor.py --verificar
+          ls -la recursos/tradutor_pt_es
+      - name: Testes com o modelo de verdade
+        run: python -m pytest -q -rs tests/test_tradutor_local.py tests/test_traducao_respostas.py tests/test_preparar_tradutor.py
+      - name: As 88 respostas pelo caminho de producao
         if: always()
+        run: python experimentos/traducao_local/avaliar_producao.py
+      - uses: actions/upload-artifact@v4
         with:
-          name: resultados-linux
-          path: experimentos/traducao_local/resultados.json
+          name: tradutor-pt-es
+          path: recursos/tradutor_pt_es
+          retention-days: 3
 
-  velocidade-windows:
-    needs: qualidade-linux
+  prova-windows:
+    needs: prova-linux
     runs-on: windows-latest
     timeout-minutes: 30
     env:
@@ -60,19 +65,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Instalar (so o que o app levaria)
+      - name: Instalar (so o que o app leva)
         run: |
           python -m pip install --upgrade pip
-          pip install ctranslate2 sentencepiece
+          pip install -r requirements-dev.txt
+          pip install requests openpyxl python-dotenv pillow ctranslate2 sentencepiece
       - uses: actions/download-artifact@v4
         with:
-          name: modelo-tc-big
-          path: experimentos/traducao_local/modelo_tc_big
-      - name: Avaliar
-        working-directory: experimentos/traducao_local
-        run: python avaliar.py avaliar --modelo modelo_tc_big
-      - uses: actions/upload-artifact@v4
+          name: tradutor-pt-es
+          path: recursos/tradutor_pt_es
+      - name: Testes com o modelo de verdade
+        run: python -m pytest -q -rs tests/test_tradutor_local.py tests/test_traducao_respostas.py
+      - name: As 88 respostas pelo caminho de producao
         if: always()
-        with:
-          name: resultados-windows
-          path: experimentos/traducao_local/resultados.json
+        run: python experimentos/traducao_local/avaliar_producao.py
