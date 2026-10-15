@@ -25,7 +25,8 @@ import relatorios_v2 as R
 AQUI = pathlib.Path(__file__).resolve().parent
 NOME = "Sobressalentes v2"
 
-TABELAS = ["Calendario", "PrecosAconex", "Itens", "Listas", "Atividades", "Eventos", "ListaEvento"]
+# a aba Atividades da mapeadora saiu em 15/10/2026 (o Luan vai registrar atividades de outro jeito)
+TABELAS = ["Calendario", "PrecosAconex", "Itens", "Listas", "Eventos", "ListaEvento"]
 S, I, D, DT, B, P = "string", "int64", "double", "dateTime", "boolean", "pct"
 ESQUEMA = {   # coluna, tipo — a consulta e "fechada" com SelectColumns + TransformColumnTypes nestes tipos
     "Calendario": [("Data", DT), ("Ano", I), ("Mes", I), ("Mes Ano", S), ("Inicio do Mes", DT), ("Inicio da Semana", DT)],
@@ -52,9 +53,6 @@ ESQUEMA = {   # coluna, tipo — a consulta e "fechada" com SelectColumns + Tran
                                 "Revisao Lista de Precos", "Situacao Lista de Precos")]
               + [("Ordem Situacao Lista", I), ("Ordem Situacao Lista de Precos", I)]
               + [("Tem Responsavel", B), ("Revisao Desatualizada", B)],
-    "Atividades": [(c, S) for c in ("Lista", "Frente", "Atividade", "Status Atividade", "Com Quem Esta", "Detalhe", "Situacao")]
-                  + [(c, DT) for c in ("Inicio Previsto", "Inicio Real", "Termino Previsto", "Termino Real", "Alteracao do Status")]
-                  + [("Criticidade", I), ("Concluida", B)],
     "Eventos": [("Evento", S), ("Grupo", S), ("Tipo Evento", S), ("Percentual", P), ("Descricao Evento", S), ("Mes de Referencia", S)],
     "ListaEvento": [("Lista", S), ("Evento", S)],
 }
@@ -70,7 +68,7 @@ OCULTAS = {("Itens", "Ordem Etapa"), ("Itens", "Ordem Etapa Cliente"), ("Itens",
            ("Listas", "Ordem Situacao Lista"), ("Listas", "Ordem Situacao Lista de Precos"),
            ("PrecosAconex", "Ordem Situacao Aconex")}
 TIPO_EXPRESSAO = {"PastaPMIBEfetiva": "Text", "DataReferencia": "Date"}
-RELACOES = [("Itens", "Lista", "Listas", "Lista", False), ("Atividades", "Lista", "Listas", "Lista", False),
+RELACOES = [("Itens", "Lista", "Listas", "Lista", False),
             ("PrecosAconex", "Lista", "Listas", "Lista", False), ("ListaEvento", "Lista", "Listas", "Lista", True),
             ("ListaEvento", "Evento", "Eventos", "Evento", False), ("Itens", "Data Email", "Calendario", "Data", False)]
 

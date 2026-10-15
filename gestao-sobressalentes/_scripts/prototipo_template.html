@@ -137,7 +137,6 @@ footer { color: var(--muted); font-size: 12px; max-width: 1280px; margin: 0 auto
     </div>
     <div class="card" id="c-fila" style="margin-bottom:14px"></div>
     <div class="grade">
-      <div class="card" id="c-ativ"></div>
       <div class="card" id="c-precos"></div>
     </div>
     <div class="card" id="c-qual"></div>
@@ -358,7 +357,6 @@ function interno() {
   barrasEmpilhadas(c4, lmrL, SL, {rotuloFim: l => `mais antiga: ${l.maxd} d`});
 
   filaDeTrabalho(F);
-  atividades();
   precos("c-precos", true);
   situacaoListas("c-listas", true);
   qualidade();
@@ -400,17 +398,6 @@ function filaDeTrabalho(F) {
   box.replaceChildren(el("div", {class: "card-top"}, el("div", {}, el("h2", {}, "Fila de trabalho do CMI"),
     el("p", {class: "leg-sub"}, "A próxima ação de cada ficha, na ordem: cobrar Itaipu, corrigir, LMR, valorização, fornecedor, emitir, entregar."))), chips, busca, area);
   desenhar();
-}
-
-function atividades() {
-  const A = D.atividades.filter(a => (!estado.lista || a.lista === estado.lista) && a.sit !== "CONCLUÍDA")
-    .sort((a, b) => ({"ATRASADA": 0, "TRAVADA": 1, "EM DIA": 2, "NÃO INICIADA": 3}[a.sit] ?? 4) - ({"ATRASADA": 0, "TRAVADA": 1, "EM DIA": 2, "NÃO INICIADA": 3}[b.sit] ?? 4)
-      || (a.fim_prev || "9").localeCompare(b.fim_prev || "9"));
-  const n = contar(A, "sit");
-  const corpo = cabecalho("c-ativ", "Plano de ação (aba Atividades)", `${fmt(A.length)} abertas · ${n["ATRASADA"] || 0} atrasadas · ${n["TRAVADA"] || 0} travadas`);
-  const sit = s => el("span", {class: "chip"}, s === "ATRASADA" ? icone("critical") : s === "TRAVADA" ? icone("serious") : null, s);
-  corpo.append(tabela([{t: "Frente", v: "frente"}, {t: "Atividade", v: "atividade"}, {t: "Situação", v: a => sit(a.sit)},
-    {t: "Término previsto", v: a => br(a.fim_prev)}, {t: "Com quem", v: "quem"}], A));
 }
 
 // ---------------- listas de sobressalentes e listas de preços (Aconex) ----------------
@@ -620,7 +607,7 @@ if (location.hash.includes("itaipu")) {
 if (location.hash.includes("escuro")) document.documentElement.dataset.theme = "dark";
 if (location.hash.includes("claro")) document.documentElement.dataset.theme = "light";
 document.getElementById("ref").textContent = `Dados de ${br(D.ref)} · ${fmt(nP(D.itens))} fichas em ${fmt(new Set(D.itens.map(i => i.l)).size)} listas · prazo de autorização: 15 dias úteis`;
-document.getElementById("rodape").textContent = `Fonte: _STATUS_PMIB (item a item), listas de preços (PB021 e PB020-0x), mapeadora (cadastro, atividades e follow-up de preços). Gerado por _scripts/gerar_prototipo_dashboard.py em ${br(D.gerado)}.`;
+document.getElementById("rodape").textContent = `Fonte: _STATUS_PMIB (item a item), export do Aconex do DocManager (situação das listas de preços), arquivos das listas de preços (PB021 e PB020-0x), mapeadora (cadastro das listas e ligação das listas de preços). Gerado por _scripts/gerar_prototipo_dashboard.py em ${br(D.gerado)}.`;
 render();
 </script>
 </body>

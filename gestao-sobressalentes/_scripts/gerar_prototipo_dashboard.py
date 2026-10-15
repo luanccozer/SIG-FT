@@ -218,20 +218,8 @@ def montar(hoje: dt.date, raiz: pathlib.Path = R.PASTA_PMIB, mapeadora: pathlib.
         x["lp"], x["lprev"] = (pr["lp"], pr["rev"]) if pr else (None, None)
         x["lpst"] = (pr["st"] or "Sem informação") if pr else R.SEM_LISTA_DE_PRECOS
 
-    # ---------------- atividades ----------------
-    atv = []
-    for _, a in mapa["atividades"].iterrows():
-        status = R.normalizar(a.get("STATUS"))
-        fim_prev = iso(a.get("PREVISAO DE TERMINO"))
-        concl = a.get("CONCLUIDA") is True or status == "CONCLUIDA"
-        sit = ("CONCLUÍDA" if concl else "TRAVADA" if status == "TRAVADA" else
-               "ATRASADA" if fim_prev and fim_prev < hoje.isoformat() else
-               "NÃO INICIADA" if not iso(a.get("DATA DE INICIO")) else "EM DIA")
-        atv.append({"lista": a.get("LISTA"), "frente": a.get("GRUPO"), "atividade": a.get("DESCRICAO"), "sit": sit,
-                    "fim_prev": fim_prev, "quem": a.get("COM QUEM ESTA") if isinstance(a.get("COM QUEM ESTA"), str) else None})
-
     return {"ref": hoje.isoformat(), "gerado": dt.date.today().isoformat(), "itens": registros, "listas": listas,
-            "precos": precos_out, "atividades": atv,
+            "precos": precos_out,
             "qualidade": qualidade(itens, precos, arquivos_preco, mapa, f, raiz, precos_out, aconex is not None)}
 
 

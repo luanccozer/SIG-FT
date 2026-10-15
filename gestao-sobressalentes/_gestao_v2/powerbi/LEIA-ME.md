@@ -6,6 +6,16 @@ atualizado: 2026-10-05
 
 # Power BI v2 — como montar
 
+> [!success] v4.2 (15/10/2026, noite): o painel não depende mais da aba Atividades da mapeadora
+> - Pedido do Luan: as atividades vão ser registradas de outro jeito, talvez numa coluna nova da mapeadora.
+> - Saíram a consulta e a tabela `Atividades`, as 3 medidas (abertas, atrasadas, travadas) e a relação com
+>   `Listas`. Nenhuma página usava. O arquivo de consultas passou a se chamar `04 - Listas e Eventos.pq`.
+> - No painel HTML saiu o card "Plano de ação (aba Atividades)".
+> - Pode apagar ou reorganizar a aba à vontade. Se a coluna nova vier, é só pedir para o painel lê-la.
+> - No Box desde 15/10, 19h30: projeto inteiro, sem cache. Clique em Atualizar ao abrir.
+>   - O que o Luan salvou às 19:16 está em `%LOCALAPPDATA%\Sobressalentes-v2\backup_pbi_20261015_1916`.
+>   - Na leitura final, as letras dos cartões do slide já não cortam.
+
 > [!success] v4.1 (15/10/2026): filtros no slide e versão "clássica"
 > - Os dois slides do relatório Itaipu têm filtros pequenos de **Especificação técnica** e **Capítulo** no topo,
 >   sincronizados com as outras páginas.
@@ -184,7 +194,6 @@ pelo SIG-FT** e gravados no `_STATUS_PMIB`; o Power BI só lê (decisão de 04/1
    | De (muitos) | Para (um) | Filtro cruzado |
    |---|---|---|
    | `Itens[Lista]` | `Listas[Lista]` | único |
-   | `Atividades[Lista]` | `Listas[Lista]` | único |
    | `PrecosAconex[Lista]` | `Listas[Lista]` | único |
    | `ListaEvento[Lista]` | `Listas[Lista]` | **ambos** |
    | `ListaEvento[Evento]` | `Eventos[Evento]` | único |

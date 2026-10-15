@@ -185,14 +185,6 @@ DEFINE
         // listas com ficha e sem nenhuma lista de preços registrada na aba de follow-up
         COUNTROWS ( FILTER ( Listas, [Fichas] > 0 && CALCULATE ( COUNTROWS ( PrecosAconex ) ) = 0 ) )
 
-    // ---------------- Plano de ação (aba Atividades) ----------------
-    MEASURE Atividades[Atividades Abertas] =
-        CALCULATE ( COUNTROWS ( Atividades ), Atividades[Situacao] <> "CONCLUÍDA" )
-    MEASURE Atividades[Atividades Atrasadas] =
-        CALCULATE ( COUNTROWS ( Atividades ), Atividades[Situacao] = "ATRASADA" )
-    MEASURE Atividades[Atividades Travadas] =
-        CALCULATE ( COUNTROWS ( Atividades ), Atividades[Situacao] = "TRAVADA" )
-
     // ---------------- Eventos de pagamento ----------------
     MEASURE Eventos[% do Evento Cumprido] =
         // ENTREGA: itens físicos entregues; APROVAÇÃO: fichas aprovadas — nas listas ligadas ao evento

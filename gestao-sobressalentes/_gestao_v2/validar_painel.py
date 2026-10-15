@@ -20,7 +20,7 @@ O que e comparado (os dados embutidos em <script id="dados">, nao o desenho):
     dias de atraso, situacao LMR, pendencia, valor, data do e-mail, secoes;
   - cada lista: nome, ET, capitulo, status real, situacao no PMIB, situacao da ultima revisao no Aconex
     e a lista de precos atual (codigo, revisao, situacao no Aconex);
-  - listas de precos, atividades e os achados de qualidade (titulo -> quantidade);
+  - listas de precos e os achados de qualidade (titulo -> quantidade). A aba Atividades saiu do painel em 15/10/2026;
   - a pagina abre sem rede (nenhum script/estilo externo) e tem os filtros de ET e Capitulo.
 
 Requisitos: pandas e openpyxl reais (nao os dubles da suite de testes do SIG-FT).
@@ -82,7 +82,6 @@ def comparar(esp: dict, obt: dict, html: str) -> list[str]:
     bloco("itens", lambda x: (x["l"], x["p"]), CAMPOS_FICHA)
     bloco("listas", lambda x: x["l"], CAMPOS_LISTA)
     bloco("precos", lambda x: x["lp"], CAMPOS_PRECO)
-    bloco("atividades", lambda x: (x.get("lista"), x.get("atividade")), ("sit", "fim_prev"))
     eq = {q["titulo"]: q["n"] for q in esp["qualidade"]}
     oq = {q["titulo"]: q["n"] for q in obt.get("qualidade") or []}
     if eq != oq:

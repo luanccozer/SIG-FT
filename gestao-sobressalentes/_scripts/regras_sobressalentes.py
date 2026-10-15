@@ -492,19 +492,12 @@ def ler_listas_precos(raiz: pathlib.Path = PASTA_PMIB) -> tuple[pd.DataFrame, pd
 
 
 def ler_mapeadora(caminho: pathlib.Path = MAPEADORA) -> dict[str, pd.DataFrame]:
-    """Aba principal (uma linha por lista), Atividades e Follow-up das listas de precos."""
+    """Aba principal (uma linha por lista) e Follow-up das listas de precos. A aba Atividades nao e lida desde
+    15/10/2026 (o Luan vai registrar atividades de outro jeito)."""
     out = {}
     listas = pd.read_excel(caminho, sheet_name="Acompanhamento Sobressalente", header=1, dtype=object).iloc[:, :35]
     listas.columns = [normalizar(c) for c in listas.columns]
     out["listas"] = listas[listas["N DOCUMENTO ITAIPU"].notna()].reset_index(drop=True)
-    try:
-        atv = pd.read_excel(caminho, sheet_name="Atividades", dtype=object)
-        atv.columns = [normalizar(c) for c in atv.columns]
-        atv["LISTA"] = atv["CODIGO ITAIPU"].where(atv["NV"] == 1).ffill()
-        atv["GRUPO"] = atv["DESCRICAO"].where(atv["NV"] == 1).ffill()
-        out["atividades"] = atv[atv["NV"] == 2].reset_index(drop=True)
-    except ValueError:
-        out["atividades"] = pd.DataFrame()
     try:
         fu = pd.read_excel(caminho, sheet_name="Lista de preços Follow-up", dtype=object)
         fu.columns = [normalizar(c) for c in fu.columns]

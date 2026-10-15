@@ -173,6 +173,15 @@ procurement, atraso de Itaipu em 15 d.u.) e um Power BI com visão interna e vis
 - **Entrega no Box**: o modelo mudou (consultas novas), então vai o projeto inteiro, sem cache. É preciso clicar
   em Atualizar ao abrir.
 
+## 2026-10-15 (noite) — painel sem a aba Atividades
+- O Luan vai registrar as atividades de outro jeito, talvez numa coluna nova da mapeadora. Pediu para tirar a
+  dependência da aba Atividades.
+- **Power BI**: saíram a tabela, as 3 medidas e a relação; nenhuma página usava. Testado: atualiza em 33 s.
+- **HTML**: saiu o card "Plano de ação".
+- **SIG-FT**: a T7b ganhou o item correspondente.
+- O Luan salvou o Power BI do Box nesta máquina às 19:16, sem mudança de conteúdo. Backup em
+  `%LOCALAPPDATA%\Sobressalentes-v2\backup_pbi_20261015_1916`; versão nova entregue às 19:30.
+
 ## Proximas sessões
 1. **SIG-FT** (a partir de 05/10, na nuvem): T0 cabeçalho na linha 5 (módulo PDM); T1 gravar sem
    openpyxl; T2 situação/dias de atraso; T3 revisão em uso → mapeadora; T4 export de autorizados.

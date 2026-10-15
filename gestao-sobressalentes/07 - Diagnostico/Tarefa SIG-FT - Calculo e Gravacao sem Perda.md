@@ -450,7 +450,12 @@ antiga, traga-a antes.
 6. **Lista repetida na mapeadora** conta uma vez (vale a primeira linha, como no Power BI).
 7. **Achados de qualidade novos**: "listas repetidas na mapeadora", "listas de preços sem lista de sobressalentes
    correspondente" e "listas de preços do Aconex fora da aba de follow-up".
-8. **Template**: copie o `prototipo_template.html` novo **sem mudar** para `sigft/assets/painel_template.html`. Ele traz
+8. **Sem a aba Atividades** (decisão do Luan, 15/10/2026: as atividades vão ser registradas de outro jeito).
+   - O painel não lê mais a aba Atividades da mapeadora: saem a leitura, `dados.atividades` e o card "Plano de
+     ação".
+   - `validar_painel.py` não compara mais atividades.
+   - A mapeadora pode perder ou mudar essa aba sem quebrar nada.
+9. **Template**: copie o `prototipo_template.html` novo **sem mudar** para `sigft/assets/painel_template.html`. Ele traz
    o card "Listas de sobressalentes e listas de preços" nas duas visões.
 
 **Kit**: `fixtures/kit_gestao_pmib/` ganhou os casos (a T3 continua KIT OK):

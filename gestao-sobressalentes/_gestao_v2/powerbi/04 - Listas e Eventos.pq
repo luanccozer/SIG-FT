@@ -92,39 +92,6 @@ in
 
 
 // =====================================================================
-// CONSULTA: Atividades   — aba "Atividades" da mapeadora (plano de ação)
-// =====================================================================
-let
-    Arquivo = File.Contents(PastaPMIBEfetiva & "\Mapeamento Listas de Sobressalentes.xlsx"),
-    Tabela = fxLerTabela(Arquivo, "Atividades", "NV"),
-    ComLista = Table.AddColumn(Tabela, "Lista", each if [NV] = 1 then [CODIGO ITAIPU] else null),
-    ComFrente = Table.AddColumn(ComLista, "Frente", each if [NV] = 1 then [DESCRICAO] else null),
-    Preenchida = Table.FillDown(ComFrente, {"Lista", "Frente"}),
-    SoAtividades = Table.SelectRows(Preenchida, each [NV] <> 1 and fxNorm([DESCRICAO]) <> ""),   // NV vazio conta como atividade
-    Selecionada = Table.SelectColumns(SoAtividades, {"Lista", "Frente", "DESCRICAO", "DATA PREVISTA DE INICIO", "DATA DE INICIO",
-        "PREVISAO DE TERMINO", "DATA DE TERMINO", "STATUS", "ALTERACAO DO STATUS", "COM QUEM ESTA", "DETALHE", "CRITICIDADE", "CONCLUIDA"}, MissingField.UseNull),
-    Renomeada = Table.RenameColumns(Selecionada, {
-        {"DESCRICAO", "Atividade"}, {"DATA PREVISTA DE INICIO", "Inicio Previsto"}, {"DATA DE INICIO", "Inicio Real"},
-        {"PREVISAO DE TERMINO", "Termino Previsto"}, {"DATA DE TERMINO", "Termino Real"}, {"STATUS", "Status Atividade"},
-        {"ALTERACAO DO STATUS", "Alteracao do Status"}, {"COM QUEM ESTA", "Com Quem Esta"}, {"DETALHE", "Detalhe"},
-        {"CRITICIDADE", "Criticidade"}, {"CONCLUIDA", "Concluida"}}),
-    Datas = Table.TransformColumns(Renomeada, {
-        {"Inicio Previsto", fxData, type date}, {"Inicio Real", fxData, type date}, {"Termino Previsto", fxData, type date},
-        {"Termino Real", fxData, type date}, {"Alteracao do Status", fxData, type date}}),
-    ComConcluida = Table.TransformColumns(Datas, {{"Concluida", each _ = true or fxNorm(_) = "TRUE" or fxNorm(_) = "VERDADEIRO", type logical}}),
-    ComSituacao = Table.AddColumn(ComConcluida, "Situacao", each
-        if [Concluida] or fxNorm([Status Atividade]) = "CONCLUIDA" then "CONCLUÍDA"
-        else if fxNorm([Status Atividade]) = "TRAVADA" then "TRAVADA"
-        else if [Termino Previsto] <> null and [Termino Previsto] < DataReferencia then "ATRASADA"
-        else if [Inicio Real] = null then "NÃO INICIADA"
-        else "EM DIA", type text),
-    Tipada = Table.TransformColumnTypes(ComSituacao, {{"Lista", type text}, {"Frente", type text}, {"Atividade", type text},
-        {"Status Atividade", type text}, {"Com Quem Esta", type text}, {"Detalhe", type text}, {"Criticidade", Int64.Type}})
-in
-    Tipada
-
-
-// =====================================================================
 // CONSULTA: Eventos   — "Extrato dos Eventos dos Sobressalentes.xlsx"
 // (fica na pasta 15 - PDM, um nível acima de PastaPMIBEfetiva)
 // Tipo ENTREGA = parcela paga no recebimento; APROVAÇÃO = na aprovação.

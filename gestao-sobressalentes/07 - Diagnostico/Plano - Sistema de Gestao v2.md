@@ -145,7 +145,7 @@ O protótipo `_gerado/prototipo-dashboard.html` já mostra as duas, com os dados
 | Seções concluídas — fornecedor × CMI | Fichas enviadas ao longo do tempo |
 | Autorização de Itaipu e compromisso LMR, por lista | Pedidos de autorização, com data do pedido e prazo |
 | **Fila de trabalho** (a próxima ação de cada ficha), filtro por pendência e busca | Listas de preços aguardando a SM.DT |
-| Plano de ação (aba Atividades), listas de preços, **qualidade dos dados** | Situação por lista |
+| Listas de preços, **qualidade dos dados** (o plano de ação da aba Atividades saiu em 15/10/2026) | Situação por lista |
 
 **Fora da visão do cliente:** nomes, procurement, observações, US$, fila, LMR, qualidade.
 Roteiro de montagem: [[LEIA-ME|_gestao_v2/powerbi/LEIA-ME]].
