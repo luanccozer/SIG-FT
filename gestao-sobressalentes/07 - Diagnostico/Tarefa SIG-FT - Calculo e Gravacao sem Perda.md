@@ -429,25 +429,41 @@ antiga, traga-a antes.
    - `srev`: situação da última revisão (coluna STATUS DA REVISÃO); a lista que só existe como `_STATUS_PMIB` fica
      `Fora da mapeadora`;
    - `lp`, `lprev` e `lpst`: a **lista de preços atual** — código, revisão e situação.
-3. **Lista de preços de uma lista.**
-   - O vínculo vem da coluna LISTA DE SOBRESSALENTES do follow-up. Vazia, a PB021 aponta pelo próprio código
-     (`…&MPB021` → `…&MPB020`).
-   - Entre várias, vale primeiro a PB021, depois a mais recente.
+3. **Situação de cada lista de preços: do export do Aconex** (correção de 15/10/2026: a aba de follow-up é manual e
+   estava desatualizada; tinha 21 de 28 e status velhos).
+   - O export é o `Aconex_Historico_*.xlsx` do DocManager Itaipu, aba `Documentos`. É o mesmo arquivo que o Gestão
+     PMIB pede (`caminho_api`). Na referência: o mais recente de `Box\DocManager Itaipu` (`R.PASTA_DOCMANAGER`).
+   - É lista de preços o código com `PB021` ou `PB020-0x` que **não** seja código de lista da mapeadora (a lista do
+     SMF termina em `-01`).
+   - Vale só a revisão atual (`Current` = True).
+   - A situação vem da coluna **Status**; a coluna "Status da Revisão" mistura idiomas.
+   - Sem export, volta para a aba de follow-up (campo `fonte`: `Aconex`, `follow-up` ou `pasta`).
+   - Status novos: `For Partial Handover` (vem com espaço na frente) e `Para análise`.
+4. **Lista de preços de uma lista.**
+   - O vínculo vem da coluna LISTA DE SOBRESSALENTES do follow-up. Vazia (ou a lista de preços não está na aba), vale
+     o próprio código: `…&MPB021` → `…&MPB020`, e `…&MPB020-01` → `…&MPB020`.
+   - Entre várias, vale primeiro a que **está no Aconex** (follow-up). A PB021 que só existe na pasta não esconde
+     uma lista de preços já postada (correção de 15/10). Entre as do Aconex, vale primeiro a PB021, depois a mais
+     recente.
    - Sem nenhuma, `Sem lista de preços`.
-4. **PB021 que está na pasta e não está no follow-up** é `Em elaboração (CMI)`, com situação `EM ELABORAÇÃO`: ainda
-   não foi para o Aconex.
-5. **Lista repetida na mapeadora** conta uma vez (vale a primeira linha, como no Power BI).
-6. **Achados de qualidade novos**: "listas repetidas na mapeadora" e "listas de preços sem lista de sobressalentes
-   correspondente".
-7. **Template**: copie o `prototipo_template.html` novo **sem mudar** para `sigft/assets/painel_template.html`. Ele traz
+5. **PB021 que está na pasta e não está no Aconex** é `Em elaboração (CMI)`, com situação `EM ELABORAÇÃO`.
+6. **Lista repetida na mapeadora** conta uma vez (vale a primeira linha, como no Power BI).
+7. **Achados de qualidade novos**: "listas repetidas na mapeadora", "listas de preços sem lista de sobressalentes
+   correspondente" e "listas de preços do Aconex fora da aba de follow-up".
+8. **Template**: copie o `prototipo_template.html` novo **sem mudar** para `sigft/assets/painel_template.html`. Ele traz
    o card "Listas de sobressalentes e listas de preços" nas duas visões.
 
 **Kit**: `fixtures/kit_gestao_pmib/` ganhou os casos (a T3 continua KIT OK):
 - **TESTE01**: *Para assinatura*. Tem uma PB020-01 não aprovada, substituída por uma PB021 *Em processo* que liga
   pelo código.
-- **TESTE02**: *Aprovado com comentários*, com a lista de preços aprovada com comentários.
+- **TESTE02**: *Aprovado com comentários*, com a lista de preços aprovada com comentários. Tem também uma PB021 só
+  na pasta (`#ST00=TESTE02&MPB021.xlsx`); a atual continua a aprovada.
 - **TESTE03**: *Não aprovado*. Só tem o arquivo `#ST00=TESTE03&MPB021.xlsx` na pasta (*Em elaboração*).
 - **TESTE99**: uma PB021 sem lista correspondente (é o achado de qualidade).
+- **`docmanager/Aconex_Historico_10.10.26_08h00m.xlsx`**: o export do Aconex do painel.
+  - A PB020-01 de TESTE01 tem `Current` = False e não conta.
+  - A TESTE99 vem com ` For Partial Handover`.
+  - Passe a pasta ao `gerar_painel(..., docmanager=…)`.
 
 **Pronto quando**:
 - `validar_painel.py` diz **PAINEL OK** no kit. Ele agora confere `srev`, `lp`, `lprev`, `lpst` e a situação de

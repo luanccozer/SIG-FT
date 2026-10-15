@@ -110,6 +110,13 @@ código PMIB **não são dominio da EN.DT**, e sim da SM.DT.
     também (já tinham revisão aprovada).
   - O Status Real é o critério da equipe: "existe revisão aprovada". A STATUS DA REVISÃO diz o que acontece com a
     última revisão.
+- **O export do Aconex está no Box** (15/10): `Box\DocManager Itaipu\Aconex_Historico_DD.MM.AA_HHhMMm.xlsx`.
+  O DocManager Itaipu gera um por dia (aba `Documentos`, uma linha por revisão, cerca de 92 mil linhas).
+  - `Current` = true marca a revisão atual.
+  - Use a coluna `Status`. A `Status da Revisão` mistura português, espanhol e inglês ("Apto para Firma",
+    "Approved with Comments").
+  - PB020-0x antigo substituído por PB021 fica sem nenhuma linha `Current`.
+  - A lista do SMF tem código terminado em `-01` (`#ITA0=A01AAM10&EPB020-01`): parece lista de preços antiga, mas não é.
 - **Power BI recusa tabela com duas colunas de mesmo nome** ("identical native reference name"). O gerador agora
   barra isso ao gerar.
 - **5 fichas aparecem em duas listas** (mesmo PMIB): por isso "Fichas" no Power BI (PMIB distinto) dá 1.352 e a

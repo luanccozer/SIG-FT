@@ -7,7 +7,7 @@ Confere o painel HTML gerado pelo SIG-FT (T7 do roteiro) contra a implementacao 
        (pode ser a mesma copia em que o Gestao PMIB ja rodou — a referencia le a pasta como esta)
     2. gere o painel pelo SIG-FT com hoje = 2026-10-10:
          gerar_painel(pasta_pmib="/tmp/kit/status", mapeadora="/tmp/kit/mapeadora_sintetica.xlsx",
-                      saida="/tmp/kit/painel.html", hoje=date(2026, 10, 10))
+                      docmanager="/tmp/kit/docmanager", saida="/tmp/kit/painel.html", hoje=date(2026, 10, 10))
     3. python validar_painel.py /tmp/kit /tmp/kit/painel.html
        -> "PAINEL OK" ou a lista do que nao bate (sai com codigo 1)
 
@@ -42,12 +42,13 @@ sys.path.insert(0, str(AQUI.parent / "_scripts"))
 
 CAMPOS_FICHA = ("st", "q", "t", "en", "ap", "sa", "du", "sl", "pe", "v", "dt", "ok")
 CAMPOS_LISTA = ("nome", "et", "cap", "sr", "sit", "srev", "lp", "lprev", "lpst")   # srev/lp*: desde 14/10/2026
-CAMPOS_PRECO = ("geracao", "rev", "situacao", "lista", "st")
+CAMPOS_PRECO = ("geracao", "rev", "situacao", "lista", "st", "fonte")   # fonte: Aconex | follow-up | pasta
 
 
 def referencia(pasta: pathlib.Path) -> dict:
     import gerar_prototipo_dashboard as G
-    return G.limpar(G.montar(HOJE, pasta / "status", pasta / "mapeadora_sintetica.xlsx"))
+    # docmanager/: o export do Aconex de onde sai a situacao das listas de precos (T7b, 15/10/2026)
+    return G.limpar(G.montar(HOJE, pasta / "status", pasta / "mapeadora_sintetica.xlsx", pasta / "docmanager"))
 
 
 def dados_do_html(html: str) -> dict:

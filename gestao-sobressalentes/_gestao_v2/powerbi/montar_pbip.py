@@ -190,9 +190,11 @@ def escrever_modelo(raiz: pathlib.Path, consultas: dict[str, str], medidas: list
             exp += [f'expression PastaPMIB = {valor} meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=false]',
                     f"\tlineageTag: {tag()}", "\tqueryGroup: Parametros", "", "\tannotation PBI_ResultType = Text", ""]
             continue
-        tipo = "Function" if m.lstrip().startswith("(") else TIPO_EXPRESSAO.get(n, "Table")
+        parametro = "IsParameterQuery" in m
+        tipo = "Function" if m.lstrip().startswith("(") else "Text" if parametro else TIPO_EXPRESSAO.get(n, "Table")
+        grupo = "Parametros" if parametro else "Funcoes" if tipo == "Function" else "Apoio"
         exp += [f"expression {nome(n)} =", recuo(m, 2), f"\tlineageTag: {tag()}",
-                f"\tqueryGroup: {'Funcoes' if tipo == 'Function' else 'Apoio'}", "",
+                f"\tqueryGroup: {grupo}", "",
                 f"\tannotation PBI_ResultType = {tipo}", ""]
     (d / "expressions.tmdl").write_text("\n".join(exp) + "\n", encoding="utf-8")
 

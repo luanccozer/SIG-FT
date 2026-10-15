@@ -152,6 +152,7 @@ def filtro(campo: Campo, valores: list[str], negar: bool = False) -> dict:
 CLASSICO = {"fundo": "#FFFFFF", "borda": "#2B2A8C", "titulo": "#1E1B78", "numero": "#1F1C99", "texto": "#1E1B78",
             "fonte": "wf_standard-font, helvetica, arial, sans-serif", "fonte_texto": "DIN", "raio": 4}
 COR_ACONEX_CLASSICO = {"Aprovado": "#08A64A", "Aprovado com comentários": "#6FCB93", "Para assinatura": "#2C8BF6",
+                       "For Partial Handover": "#13A89E", "Para análise": "#8CC2FA",
                        "Em processo": "#8CC2FA", "Informativo": "#8CC2FA", "Não aprovado": "#F42B3B",
                        "Cancelado (Void)": "#9A9A9A", "Em elaboração (CMI)": "#F5A31A", "Não emitido": "#1F1C99",
                        "Sem lista": "#9A9A9A", "Sem lista de preços": "#1F1C99", "Fora da mapeadora": "#9A9A9A",
@@ -363,6 +364,7 @@ def filtro_medida_positiva(campo: Campo) -> dict:
 
 
 COR_ACONEX = {"Aprovado": COR["verde"], "Aprovado com comentários": "#78CFA9", "Para assinatura": COR["azul"],
+              "For Partial Handover": "#13A89E", "Para análise": COR["ambar"],
               "Em processo": COR["ambar"], "Informativo": COR["azul_claro"], "Não aprovado": COR["vermelho"],
               "Cancelado (Void)": COR["cinza"], "Em elaboração (CMI)": COR["laranja"], "Não emitido": "#C9C7C0",
               "Sem lista": "#C9C7C0", "Sem lista de preços": "#C9C7C0", "Fora da mapeadora": COR["cinza"],

@@ -19,6 +19,25 @@ atualizado: 2026-10-05
 > - **Letras maiores nos dois slides** (o Luan achou pequenas; o padrão da tela, 9 a 11 pt, some numa projeção):
 >   - títulos dos visuais 13, eixos e valores das barras 12, números grandes 28, tabela 11, título da página 18;
 >   - modo `grande=True` da `Pagina` (`TAM_SLIDE` em `relatorios_v2.py`). As outras páginas não mudaram.
+> - **A situação das listas de preços vem do Aconex** (15/10), e não mais da aba manual "Lista de preços Follow-up".
+>   - A aba estava desatualizada: tinha 21 das 28 listas de preços do Aconex, e vários status velhos.
+>   - A fonte é o export diário do DocManager Itaipu (`Box\DocManager Itaipu\Aconex_Historico_*.xlsx`, o mais
+>     recente, aba `Documentos`), na revisão atual (`Current`) e na coluna **Status**.
+>   - É lista de preços o código `PB021`/`PB020-0x` que não seja código de lista.
+>   - A aba de follow-up só liga a lista de preços à lista de sobressalentes. Sem ela, liga pelo código.
+>   - Parâmetro opcional `PastaDocManager`: vazio, usa a pasta `DocManager Itaipu` ao lado da pasta do Consórcio no Box.
+>     Sem export, volta para a aba de follow-up.
+>   - Resultado em 15/10: **18 listas com lista de preços no Aconex** (UG 7, CC 4, SAE 4, IC 1, SAM 1, SMF 1).
+>     A UG tinha 2 pela aba.
+>   - Status novo: *For Partial Handover*, nas 3 listas de refrigeração da UG.
+> - **Correção da regra da lista de preços de cada lista** (15/10).
+>   - Antes, a PB021 que só existe na pasta passava na frente de uma lista de preços já postada no Aconex. A UG
+>     aparecia com 2 listas "com preços" em vez de 4.
+>   - Agora vale primeiro a que está no Aconex. "Em elaboração (CMI)" só aparece quando não há nenhuma no Aconex.
+>   - Total com lista de preços no Aconex: 12 → 16.
+>   - Limite que continua: a fonte é a aba "Lista de preços Follow-up", que é manual. Há listas de preços PB020 nas
+>     pastas que não estão nela (ex.: `#ST00=M00QEB10&EPB020-01`).
+>   - Ler o export do Aconex DocManager (o mesmo que o Gestão PMIB usa) resolveria isso sem digitação.
 > - Ajustes do Luan preservados: o hífen no título do slide ("Sobressalentes - situação geral"). Os filtros de ET e
 >   Capítulo não oferecem "(Em branco)".
 > - Entrega no Box: só as duas pastas `.Report`. O modelo (`.SemanticModel`) ficou como o Luan salvou em 15/10, com o

@@ -123,6 +123,7 @@ ACONEX = {
 #   TESTE02: PB020-01 aprovada com comentarios (a atual)
 #   TESTE99: PB021 sem lista de sobressalentes correspondente (achado de qualidade)
 #   TESTE03: so o arquivo PB021 na pasta, fora do follow-up -> "Em elaboracao (CMI)"
+#   TESTE02 tambem tem um arquivo PB021 so na pasta: a atual continua a PB020-01 do Aconex (aprovada)
 FOLLOW_UP = [
     ("#ST00=TESTE01&MPB020-01", "0A", "Não Aprovado", dt.date(2026, 3, 10), "#ST00=TESTE01&MPB020"),
     ("#ST00=TESTE01&MPB021", "0B", "Em Processo", dt.date(2026, 9, 20), None),
@@ -187,6 +188,33 @@ def montar_lista_precos_na_pasta(destino: pathlib.Path) -> None:
     wb.save(destino)
 
 
+# export do Aconex para o PAINEL (aba Documentos, como o do DocManager Itaipu): a situacao das listas de precos vem
+# daqui, revisao atual (Current). Casos: a PB020-01 de TESTE01 foi substituida (Current False, nao conta); a TESTE99
+# nao tem lista de sobressalentes correspondente e vem com espaco na frente do status (" For Partial Handover").
+ACONEX_PAINEL = [  # codigo, current, revisao, status, data
+    ("#ST00=TESTE01&MPB020", "True", "1", "Aprovado", "01/10/2026"),
+    ("#ST00=TESTE02&MPB020", "True", "0B", "Aprovado", "01/10/2026"),
+    ("#ST00=TESTE03&MPB020", "True", "0", "Aprovado", "01/10/2026"),
+    ("#ST00=TESTE01&MPB020-01", "False", "0A", "Não Aprovado", "10/03/2026"),
+    ("#ST00=TESTE01&MPB021", "True", "0B", "Em Processo", "20/09/2026"),
+    ("#ST00=TESTE02&MPB020-01", "True", "0A", "Aprovado com Comentários", "02/05/2026"),
+    ("#ST00=TESTE99&MPB021", "True", "0A", " For Partial Handover", "01/08/2026"),
+]
+
+
+def montar_aconex_painel(destino: pathlib.Path) -> None:
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Documentos"
+    ws.append(["No. do Documento", "Tracking ID", "Current", "Título", "Controle do Emissor", "Revisão", "Status",
+               "Data de Alteração", "Especialidade", "Subespecialidade"])
+    for i, (cod, cur, rev, st, data) in enumerate(ACONEX_PAINEL, start=1):
+        ws.append([cod, f"TRK-P{i:02d}", cur, f"DOCUMENTO DE TESTE {i}", f"TESTE-CMI-P{i:02d}", rev, st, data,
+                   "TEXTO DE TESTE", "TEXTO DE TESTE"])
+    wb.save(destino)
+
+
 def montar_docmanager(destino: pathlib.Path) -> None:
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -244,6 +272,8 @@ def main() -> None:
     montar_isca(KIT / "status" / "testes_autospec" / t1.name)
     montar_mapeadora(KIT / "mapeadora_sintetica.xlsx")
     montar_lista_precos_na_pasta(KIT / "status" / "#ST00=TESTE03&MPB021.xlsx")
+    montar_lista_precos_na_pasta(KIT / "status" / "#ST00=TESTE02&MPB021.xlsx")   # nao tira a PB020-01 do Aconex
+    montar_aconex_painel(KIT / "docmanager" / "Aconex_Historico_10.10.26_08h00m.xlsx")   # painel (T7b)
     montar_docmanager(KIT / "docmanager_sintetico.xlsx")
 
     # referencia: recalcula uma COPIA do TESTE01 com HOJE fixo e le o resultado

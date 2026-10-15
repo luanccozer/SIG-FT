@@ -165,7 +165,13 @@ procurement, atraso de Itaipu em 15 d.u.) e um Power BI com visão interna e vis
   - letras maiores nos dois slides (o Luan achou pequenas).
 - **Cuidado**: o Luan estava com o Power BI do Box aberto nesta máquina (salvou às 17:15), e meu script de teste
   fechou todo `PBIDesktop` às 17:16. O script agora só fecha o que ele mesmo abriu.
-- **Entrega no Box**: só as pastas `.Report`. O modelo salvo pelo Luan, com o cache de dados, fica como está.
+- O Luan apontou que a UG tem mais de 2 listas de preços no Aconex e indicou o export
+  `Box\DocManager Itaipu\Aconex_Historico_15.10.26_08h56m.xlsx`.
+  - A aba "Lista de preços Follow-up" estava desatualizada (21 de 28 listas de preços; status velhos).
+  - Power BI e HTML passaram a ler a situação do export (revisão atual). A UG ficou com 7; o total, com 18.
+  - Kit de teste ganhou `docmanager/Aconex_Historico_10.10.26_08h00m.xlsx`; T7b atualizada.
+- **Entrega no Box**: o modelo mudou (consultas novas), então vai o projeto inteiro, sem cache. É preciso clicar
+  em Atualizar ao abrir.
 
 ## Proximas sessões
 1. **SIG-FT** (a partir de 05/10, na nuvem): T0 cabeçalho na linha 5 (módulo PDM); T1 gravar sem

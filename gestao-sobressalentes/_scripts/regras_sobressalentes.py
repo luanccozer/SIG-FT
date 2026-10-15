@@ -31,6 +31,8 @@ warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 BOX = pathlib.Path.home() / "Box" / "CMI - Consórcio Itaipu" / "11 - Ger. Engenharia" / "15 - PDM"
 PASTA_PMIB = BOX / "SOBRESSALENTES - PMIB"
 MAPEADORA = PASTA_PMIB / "Mapeamento Listas de Sobressalentes.xlsx"
+# export diario do Aconex feito pelo DocManager Itaipu (Aconex_Historico_DD.MM.AA_HHhMMm.xlsx, aba Documentos)
+PASTA_DOCMANAGER = pathlib.Path.home() / "Box" / "DocManager Itaipu"
 
 # Pastas e arquivos que nao sao controle vivo (copias, testes, backups, comentarios do Aconex)
 IGNORAR_PASTAS = ("00 - OBSOLETO", "10- TESTES", "TESTES_AUTOSPEC", "\\DATASHEETS\\", "BACKUP", "OBSOLETO")
@@ -216,6 +218,8 @@ STATUS_ACONEX = {
     "APROVADO": "Aprovado",
     "APROVADO COM COMENTARIOS": "Aprovado com comentários",
     "PARA ASSINATURA": "Para assinatura",
+    "FOR PARTIAL HANDOVER": "For Partial Handover",
+    "PARA ANALISE": "Para análise",
     "EM PROCESSO": "Em processo",
     "INFORMATIVO": "Informativo",
     "NAO APROVADO": "Não aprovado",
@@ -227,7 +231,8 @@ SEM_LISTA_DE_PRECOS = "Sem lista de preços"
 FORA_DA_MAPEADORA = "Fora da mapeadora"
 EM_ELABORACAO = "Em elaboração (CMI)"     # PB021 na pasta, ainda fora do follow-up (nao foi para o Aconex)
 SEM_INFORMACAO = "Sem informação"
-ORDEM_STATUS_ACONEX = ["Aprovado", "Aprovado com comentários", "Para assinatura", "Em processo", "Informativo",
+ORDEM_STATUS_ACONEX = ["Aprovado", "Aprovado com comentários", "Para assinatura", "For Partial Handover", "Para análise",
+                       "Em processo", "Informativo",
                        "Não aprovado", "Cancelado (Void)", EM_ELABORACAO, "Não emitido", "Sem lista",
                        SEM_LISTA_DE_PRECOS, FORA_DA_MAPEADORA, SEM_INFORMACAO]
 
@@ -247,7 +252,37 @@ def lista_da_lista_de_precos(codigo, lista_informada) -> str | None:
     if normalizar(informada) not in ("", "NAN"):
         return informada
     c = "" if codigo is None else str(codigo).strip()
-    return c[:-5] + "PB020" if c.upper().endswith("PB021") else None
+    if c.upper().endswith("PB021"):
+        return c[:-5] + "PB020"
+    if re.search(r"PB020-0\d$", c, re.I):       # codigo antigo: ...&MPB020-01 -> ...&MPB020
+        return c[:-3]
+    return None
+
+
+def ultimo_export_aconex(pasta: pathlib.Path = PASTA_DOCMANAGER) -> pathlib.Path | None:
+    """O export mais recente do Aconex (pela data de modificacao do arquivo, como o Power BI)."""
+    if not pasta or not pathlib.Path(pasta).is_dir():
+        return None
+    arqs = [p for p in pathlib.Path(pasta).glob("Aconex_Historico_*.xlsx") if not p.name.startswith("~$")]
+    return max(arqs, key=lambda p: p.stat().st_mtime) if arqs else None
+
+
+def ler_aconex_precos(pasta: pathlib.Path = PASTA_DOCMANAGER, listas: set[str] | None = None) -> pd.DataFrame | None:
+    """Listas de precos no Aconex, revisao ATUAL (coluna Current): codigo PB021 ou PB020-0x que nao seja codigo de
+    lista de sobressalentes (a lista do SMF termina em -01). Sem export -> None (o chamador usa a aba de follow-up)."""
+    arq = ultimo_export_aconex(pasta)
+    if arq is None:
+        return None
+    df = ler_tabela(arq, "Documentos", chave="NO. DO DOCUMENTO", max_vazias=50)
+    if df.empty:
+        return None
+    cod = df["NO. DO DOCUMENTO"].astype(str).str.strip()
+    atual = df["CURRENT"].map(lambda v: normalizar(v) in ("TRUE", "VERDADEIRO", "1", "SIM"))
+    preco = cod.str.contains(r"PB021|PB020-0\d", case=False, regex=True) & ~cod.isin(listas or set())
+    out = df[atual & preco].copy()
+    out["CODIGO"] = cod[atual & preco]
+    out["ARQUIVO"] = arq.name
+    return out.drop_duplicates("CODIGO").reset_index(drop=True)
 
 
 def ignorado(caminho: pathlib.Path) -> bool:

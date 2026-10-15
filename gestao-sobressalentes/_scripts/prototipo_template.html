@@ -415,10 +415,12 @@ function atividades() {
 
 // ---------------- listas de sobressalentes e listas de preços (Aconex) ----------------
 // mesma ordem e mesmas cores do Power BI (fxOrdemStatusAconex / COR_ACONEX)
-const ORDEM_ACONEX = ["Aprovado", "Aprovado com comentários", "Para assinatura", "Em processo", "Informativo", "Não aprovado",
+const ORDEM_ACONEX = ["Aprovado", "Aprovado com comentários", "Para assinatura", "For Partial Handover", "Para análise",
+  "Em processo", "Informativo", "Não aprovado",
   "Cancelado (Void)", "Em elaboração (CMI)", "Não emitido", "Sem lista", "Sem lista de preços", "Fora da mapeadora", "Sem informação"];
 const claro = v => `color-mix(in srgb, var(--${v}) 50%, var(--surface))`;
 const COR_ACONEX = {"Aprovado": cor("s3"), "Aprovado com comentários": claro("s3"), "Para assinatura": cor("s1"),
+  "For Partial Handover": "#13A89E", "Para análise": cor("s4"),
   "Em processo": cor("s4"), "Informativo": cor("o1"), "Não aprovado": cor("critical"), "Cancelado (Void)": cor("deemph"),
   "Em elaboração (CMI)": cor("s2"), "Não emitido": claro("deemph"), "Sem lista": claro("deemph"),
   "Sem lista de preços": claro("deemph"), "Fora da mapeadora": cor("deemph"), "Sem informação": cor("deemph")};

@@ -68,11 +68,14 @@ let
         else let s = fxStatusAconex([Status da Revisao]) in if s = null then "Sem informação" else s, type text),
     ComOrdemLista = Table.AddColumn(ComSituacaoLista, "Ordem Situacao Lista", each fxOrdemStatusAconex([Situacao Lista]), Int64.Type),
 
-    // lista de preços ATUAL de cada lista: PB021 antes do código antigo; entre iguais, a mais recente
-    PrecosV = Table.SelectRows(Table.SelectColumns(PrecosAconex, {"Lista", "Lista de Precos", "Revisao", "Situacao Aconex", "Geracao", "Data Aconex"}),
-        each [Lista] <> null),
-    PrecosOrd = Table.Buffer(Table.Sort(Table.AddColumn(PrecosV, "P21", each if [Geracao] = "PB021" then 1 else 0, Int64.Type),
-        {{"P21", Order.Descending}, {"Data Aconex", Order.Descending}, {"Revisao", Order.Descending}})),
+    // lista de preços ATUAL de cada lista: a que está no Aconex (follow-up) antes da PB021 que só existe na pasta;
+    // entre as do Aconex, PB021 antes do código antigo e, entre iguais, a mais recente
+    PrecosV = Table.SelectRows(Table.SelectColumns(PrecosAconex, {"Lista", "Lista de Precos", "Revisao", "Situacao Aconex", "Geracao",
+        "Data Aconex", "Origem"}), each [Lista] <> null),
+    PrecosChave = Table.AddColumn(Table.AddColumn(PrecosV, "NoAconex", each if Text.StartsWith([Origem], "Aconex") then 1 else 0, Int64.Type),
+        "P21", each if [Geracao] = "PB021" then 1 else 0, Int64.Type),
+    PrecosOrd = Table.Buffer(Table.Sort(PrecosChave,
+        {{"NoAconex", Order.Descending}, {"P21", Order.Descending}, {"Data Aconex", Order.Descending}, {"Revisao", Order.Descending}})),
     PrecoAtual = Table.Distinct(PrecosOrd, {"Lista"}),
     ComPreco = Table.ExpandTableColumn(Table.NestedJoin(ComOrdemLista, {"Lista"}, PrecoAtual, {"Lista"}, "LP", JoinKind.LeftOuter), "LP",
         {"Lista de Precos", "Revisao", "Situacao Aconex"}, {"Lista de Precos Atual", "Revisao Lista de Precos", "Situacao LP"}),

@@ -180,6 +180,8 @@ let
         #"APROVADO" = "Aprovado",
         #"APROVADO COM COMENTARIOS" = "Aprovado com comentários",
         #"PARA ASSINATURA" = "Para assinatura",
+        #"FOR PARTIAL HANDOVER" = "For Partial Handover",
+        #"PARA ANALISE" = "Para análise",
         #"EM PROCESSO" = "Em processo",
         #"INFORMATIVO" = "Informativo",
         #"NAO APROVADO" = "Não aprovado",
@@ -197,7 +199,8 @@ in
 // ---------------------------------------------------------------------
 (rotulo as nullable text) as number =>
 let
-    Ordem = {"Aprovado", "Aprovado com comentários", "Para assinatura", "Em processo", "Informativo", "Não aprovado",
+    Ordem = {"Aprovado", "Aprovado com comentários", "Para assinatura", "For Partial Handover", "Para análise",
+             "Em processo", "Informativo", "Não aprovado",
              "Cancelado (Void)", "Em elaboração (CMI)", "Não emitido", "Sem lista", "Sem lista de preços",
              "Fora da mapeadora", "Sem informação"},
     p = List.PositionOf(Ordem, rotulo)
@@ -217,7 +220,52 @@ let
 in
     if i <> "" then i
     else if Text.EndsWith(Text.Upper(c), "PB021") then Text.Start(c, Text.Length(c) - 5) & "PB020"
+    else if Text.Length(c) > 9 and Text.Upper(Text.Middle(c, Text.Length(c) - 8, 7)) = "PB020-0" then Text.Start(c, Text.Length(c) - 3)
     else null
+
+
+// ---------------------------------------------------------------------
+// CONSULTA: PastaDocManager   (parâmetro OPCIONAL — vazio = Box\DocManager Itaipu)
+// Pasta onde o DocManager Itaipu grava o export diário do Aconex
+// (Aconex_Historico_DD.MM.AA_HHhMMm.xlsx). Só preencha se estiver em outro lugar.
+// ---------------------------------------------------------------------
+"" meta [IsParameterQuery = true, Type = "Text", IsParameterQueryRequired = false]
+
+
+// ---------------------------------------------------------------------
+// CONSULTA: AconexListasDePrecos  — listas de preços no export do Aconex mais
+//   recente, revisão ATUAL (coluna Current). null quando não há export: a consulta
+//   PrecosAconex volta para a aba "Lista de preços Follow-up" da mapeadora.
+// ---------------------------------------------------------------------
+let
+    Existe = (p as text) as logical => (try Table.RowCount(Table.FirstN(Folder.Contents(p), 1)) >= 0 otherwise false),
+    Manual = if PastaDocManager <> null and Text.Trim(PastaDocManager) <> "" and Existe(Text.Trim(PastaDocManager))
+             then Text.Trim(PastaDocManager) else null,
+    Padrao = Text.BeforeDelimiter(PastaPMIBEfetiva, "\CMI - Consórcio Itaipu") & "\DocManager Itaipu",
+    Pasta = if Manual <> null then Manual else if Existe(Padrao) then Padrao else null,
+    Resultado =
+        if Pasta = null then null
+        else
+            let
+                Arquivos = Table.SelectRows(Folder.Contents(Pasta), each
+                    Text.StartsWith([Name], "Aconex_Historico_") and Text.EndsWith(Text.Lower([Name]), ".xlsx")),
+                Ultimo = if Table.RowCount(Arquivos) = 0 then null
+                         else Table.First(Table.Sort(Arquivos, {{"Date modified", Order.Descending}})),
+                Docs = if Ultimo = null then null else fxLerTabela(Ultimo[Content], "Documentos", "NO. DO DOCUMENTO"),
+                Atuais = if Docs = null then null else Table.SelectRows(Docs, each
+                    let v = Record.Field(_, "NO. DO DOCUMENTO"), c = if v = null then "" else Text.Upper(Text.Trim(Text.From(v))) in
+                    List.Contains({"TRUE", "VERDADEIRO", "1", "SIM"}, fxNorm([CURRENT]))
+                    and (Text.Contains(c, "PB021") or Text.Contains(c, "PB020-0"))),
+                Saida = if Atuais = null then null else Table.TransformColumns(
+                    Table.RenameColumns(Table.SelectColumns(Atuais, {"NO. DO DOCUMENTO", "REVISAO", "STATUS", "DATA DE ALTERACAO"}),
+                        {{"NO. DO DOCUMENTO", "Lista de Precos"}, {"REVISAO", "Revisao"}, {"STATUS", "Status Aconex"},
+                         {"DATA DE ALTERACAO", "Data Aconex"}}),
+                    {{"Lista de Precos", each Text.Trim(Text.From(_)), type text}, {"Revisao", each Text.From(_), type text},
+                     {"Status Aconex", each Text.Trim(Text.From(_)), type text}, {"Data Aconex", fxData, type date}})
+            in
+                Saida
+in
+    Resultado
 
 
 // ---------------------------------------------------------------------

@@ -98,7 +98,14 @@ def nome_curto(descricao: str | None, lista: str) -> str:
     return d.strip()[:70]
 
 
-def montar(hoje: dt.date, raiz: pathlib.Path = R.PASTA_PMIB, mapeadora: pathlib.Path = R.MAPEADORA) -> dict:
+def situacao_preco(st: str) -> str:
+    n = R.normalizar(st)
+    return ("APROVADA SM.DT" if n.startswith("APROVADO") else "CANCELADA" if n == "VOID" else
+            "NÃO APROVADA" if n == "NAO APROVADO" else "EMITIDA")
+
+
+def montar(hoje: dt.date, raiz: pathlib.Path = R.PASTA_PMIB, mapeadora: pathlib.Path = R.MAPEADORA,
+           docmanager: pathlib.Path | None = R.PASTA_DOCMANAGER) -> dict:
     precos, arquivos_preco = R.ler_listas_precos(raiz)
     itens = R.ler_itens(raiz, hoje=hoje, precos=precos)
     mapa = R.ler_mapeadora(mapeadora)
@@ -165,30 +172,45 @@ def montar(hoje: dt.date, raiz: pathlib.Path = R.PASTA_PMIB, mapeadora: pathlib.
                 x[k] = None
 
     # ---------------- listas de precos ----------------
+    # A situacao vem do export do Aconex (DocManager, revisao atual). A aba "Lista de precos Follow-up" (manual) so
+    # liga a lista de precos a lista de sobressalentes; sem o export, ela e a fonte (como antes de 15/10/2026).
     fu = mapa["precos_followup"]
+    fu_lista = ({str(c).strip(): l for c, l in zip(fu["N DOCUMENTO ITAIPU"], fu["LISTA DE SOBRESSALENTES"])}
+                if len(fu) else {})
+    cod_listas = set(listas_m["N DOCUMENTO ITAIPU"].astype(str).str.strip())
+    aconex = R.ler_aconex_precos(docmanager, cod_listas) if docmanager else None
     precos_out = []
-    codigos_fu = set()
-    for _, p in fu.iterrows():
-        lp = str(p["N DOCUMENTO ITAIPU"]).strip()
-        codigos_fu.add(lp)
-        st = "" if pd.isna(p.get("STATUS DA REVISAO")) else str(p.get("STATUS DA REVISAO"))
-        rev = p.get("ULTIMA REVISAO EMITIDA")
-        precos_out.append({"lp": lp, "geracao": "PB021" if "PB021" in lp else "PB020-0x", "rev": "" if pd.isna(rev) else str(rev),
-                           "status": st, "st": R.status_aconex(st), "data": iso(p.get("DATA DE ATUALIZACAO")),
-                           "lista": R.lista_da_lista_de_precos(lp, p.get("LISTA DE SOBRESSALENTES")),
-                           "situacao": "APROVADA SM.DT" if R.normalizar(st).startswith("APROVADO") else
-                                       "CANCELADA" if R.normalizar(st) == "VOID" else
-                                       "NÃO APROVADA" if R.normalizar(st) == "NAO APROVADO" else "EMITIDA"})
+    if aconex is not None:
+        for _, p in aconex.iterrows():
+            lp = p["CODIGO"]
+            st = "" if pd.isna(p.get("STATUS")) else str(p.get("STATUS")).strip()
+            rev = p.get("REVISAO")
+            precos_out.append({"lp": lp, "geracao": "PB021" if "PB021" in lp else "PB020-0x", "rev": "" if pd.isna(rev) else str(rev),
+                               "status": st, "st": R.status_aconex(st), "data": iso(p.get("DATA DE ALTERACAO")),
+                               "lista": R.lista_da_lista_de_precos(lp, fu_lista.get(lp)), "situacao": situacao_preco(st),
+                               "fonte": "Aconex"})
+    else:
+        for _, p in fu.iterrows():
+            lp = str(p["N DOCUMENTO ITAIPU"]).strip()
+            st = "" if pd.isna(p.get("STATUS DA REVISAO")) else str(p.get("STATUS DA REVISAO"))
+            rev = p.get("ULTIMA REVISAO EMITIDA")
+            precos_out.append({"lp": lp, "geracao": "PB021" if "PB021" in lp else "PB020-0x", "rev": "" if pd.isna(rev) else str(rev),
+                               "status": st, "st": R.status_aconex(st), "data": iso(p.get("DATA DE ATUALIZACAO")),
+                               "lista": R.lista_da_lista_de_precos(lp, p.get("LISTA DE SOBRESSALENTES")),
+                               "situacao": situacao_preco(st), "fonte": "follow-up"})
+    codigos_fu = {p["lp"] for p in precos_out}
     for _, a in arquivos_preco.iterrows():
         cod = a["ARQUIVO_PRECO"]
         if a["GERACAO"] == "PB021" and cod not in codigos_fu:
             precos_out.append({"lp": cod, "geracao": "PB021", "rev": "", "status": "arquivo na pasta — falta no follow-up",
                                "st": R.EM_ELABORACAO, "data": a["MODIFICADO"], "lista": R.lista_da_lista_de_precos(cod, None),
-                               "situacao": "EM ELABORAÇÃO"})
+                               "situacao": "EM ELABORAÇÃO", "fonte": "pasta"})
 
-    # lista de precos ATUAL de cada lista: PB021 antes do codigo antigo; entre iguais, a mais recente no Aconex
+    # lista de precos ATUAL de cada lista: a que esta no Aconex antes da PB021 que so existe na pasta; entre as do
+    # Aconex, PB021 antes do codigo antigo e, entre iguais, a mais recente (= Power BI, consulta Listas)
     atual: dict[str, dict] = {}
-    for pr in sorted(precos_out, key=lambda x: (x["geracao"] == "PB021", x["data"] or "", x["rev"] or "")):
+    chave = lambda x: (x["st"] != R.EM_ELABORACAO, x["geracao"] == "PB021", x["data"] or "", x["rev"] or "")  # noqa: E731
+    for pr in sorted(precos_out, key=chave):
         if pr["lista"]:
             atual[pr["lista"]] = pr
     for x in listas:
@@ -209,14 +231,15 @@ def montar(hoje: dt.date, raiz: pathlib.Path = R.PASTA_PMIB, mapeadora: pathlib.
                     "fim_prev": fim_prev, "quem": a.get("COM QUEM ESTA") if isinstance(a.get("COM QUEM ESTA"), str) else None})
 
     return {"ref": hoje.isoformat(), "gerado": dt.date.today().isoformat(), "itens": registros, "listas": listas,
-            "precos": precos_out, "atividades": atv, "qualidade": qualidade(itens, precos, arquivos_preco, mapa, f, raiz)}
+            "precos": precos_out, "atividades": atv,
+            "qualidade": qualidade(itens, precos, arquivos_preco, mapa, f, raiz, precos_out, aconex is not None)}
 
 
 # --------------------------------------------------------------------------
 # Qualidade dos dados — cada achado diz onde corrigir
 # --------------------------------------------------------------------------
 def qualidade(itens: pd.DataFrame, precos: pd.DataFrame, arquivos_preco: pd.DataFrame, mapa: dict, fichas: pd.DataFrame,
-              raiz: pathlib.Path = R.PASTA_PMIB) -> list[dict]:
+              raiz: pathlib.Path = R.PASTA_PMIB, precos_out: list[dict] | None = None, do_aconex: bool = False) -> list[dict]:
     q = []
     nome = lambda l: l  # noqa: E731
 
@@ -290,15 +313,20 @@ def qualidade(itens: pd.DataFrame, precos: pd.DataFrame, arquivos_preco: pd.Data
                              "a lista uma vez (vale a primeira linha); apagar as linhas a mais.",
                   "exemplos": [f"{c} ({int((cods == c).sum())} linhas)" for c in repetidas][:4]})
 
-    if len(fu):
-        orfas = []
-        for _, p in fu.iterrows():
-            alvo = R.lista_da_lista_de_precos(p["N DOCUMENTO ITAIPU"], p.get("LISTA DE SOBRESSALENTES"))
-            if alvo is None or alvo not in set(cods):
-                orfas.append(f"{str(p['N DOCUMENTO ITAIPU']).strip()} → {alvo or 'sem lista'}")
+    if precos_out:
+        orfas = [f"{p['lp']} → {p['lista'] or 'sem lista'}" for p in precos_out
+                 if p["fonte"] != "pasta" and (p["lista"] is None or p["lista"] not in set(cods))]
+        if do_aconex and len(fu):
+            na_aba = set(fu["N DOCUMENTO ITAIPU"].astype(str).str.strip())
+            faltam = sorted(p["lp"] for p in precos_out if p["fonte"] == "Aconex" and p["lp"] not in na_aba)
+            if faltam:
+                q.append({"titulo": "listas de preços do Aconex fora da aba de follow-up", "n": len(faltam),
+                          "detalhe": "A situação já vem do export do Aconex; a aba só serve para ligar a lista de preços à "
+                                     "lista de sobressalentes (sem ela, liga pelo código).",
+                          "exemplos": faltam[:4]})
         if orfas:
             q.append({"titulo": "listas de preços sem lista de sobressalentes correspondente", "n": len(orfas),
-                      "detalhe": "Nem a coluna LISTA DE SOBRESSALENTES do follow-up nem o próprio código (PB021 → PB020) "
+                      "detalhe": "Nem a coluna LISTA DE SOBRESSALENTES do follow-up nem o próprio código (PB021 → PB020, -0x) "
                                  "apontam para uma lista da mapeadora. Conferir o código no follow-up.",
                       "exemplos": orfas[:4]})
 
@@ -351,10 +379,12 @@ def main() -> int:
     ap.add_argument("--mapeadora", type=pathlib.Path, default=R.MAPEADORA)
     ap.add_argument("--saida", type=pathlib.Path, default=SAIDA)
     ap.add_argument("--hoje", type=dt.date.fromisoformat, default=dt.date.today(), help="AAAA-MM-DD")
+    ap.add_argument("--docmanager", type=pathlib.Path, default=R.PASTA_DOCMANAGER,
+                    help="pasta com os Aconex_Historico_*.xlsx (o mais recente vale)")
     args = ap.parse_args()
     if not args.mapeadora.exists():
         sys.exit(f"Mapeadora nao encontrada:\n  {args.mapeadora}\nO Box esta sincronizado?")
-    dados = limpar(montar(args.hoje, args.pasta, args.mapeadora))
+    dados = limpar(montar(args.hoje, args.pasta, args.mapeadora, args.docmanager))
     args.saida.parent.mkdir(parents=True, exist_ok=True)
     args.saida.write_text(gerar_html(dados), encoding="utf-8")
     print(f"OK: {args.saida}  ({len(dados['itens'])} fichas, {len(dados['listas'])} listas, "
