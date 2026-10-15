@@ -38,6 +38,9 @@ atualizado: 2026-10-05
 >   - Limite que continua: a fonte é a aba "Lista de preços Follow-up", que é manual. Há listas de preços PB020 nas
 >     pastas que não estão nela (ex.: `#ST00=M00QEB10&EPB020-01`).
 >   - Ler o export do Aconex DocManager (o mesmo que o Gestão PMIB usa) resolveria isso sem digitação.
+> - **No Box desde 15/10, 18h10**: o projeto inteiro (o modelo mudou), sem cache. Ao abrir, clique em Atualizar.
+>   O que o Luan salvou às 17:15 (com cache) está em `%LOCALAPPDATA%\Sobressalentes-v2\backup_pbi_20261015`
+>   nesta máquina.
 > - Ajustes do Luan preservados: o hífen no título do slide ("Sobressalentes - situação geral"). Os filtros de ET e
 >   Capítulo não oferecem "(Em branco)".
 > - Entrega no Box: só as duas pastas `.Report`. O modelo (`.SemanticModel`) ficou como o Luan salvou em 15/10, com o

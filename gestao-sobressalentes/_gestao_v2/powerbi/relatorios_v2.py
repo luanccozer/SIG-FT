@@ -194,6 +194,8 @@ class Pagina:
         if e and not sem_caixa:
             vco["background"] = [{"properties": {"show": lit(True), "color": cor(e["fundo"]), "transparency": lit(0)}}]
             vco["border"] = [{"properties": {"show": lit(True), "color": cor(e["borda"]), "radius": lit(e["raio"])}}]
+        if self.tam and tipo == "card" and not sem_caixa:   # numero grande + rotulo: margem interna menor
+            vco["padding"] = [{"properties": {"top": lit(2), "bottom": lit(2), "left": lit(8), "right": lit(8)}}]
         if sem_caixa:
             vco["background"] = [{"properties": {"show": lit(False)}}]
             vco["border"] = [{"properties": {"show": lit(False)}}]
