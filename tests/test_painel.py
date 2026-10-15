@@ -191,3 +191,58 @@ def test_painel_com_arquivo_bloqueado_levanta_para_a_tela_decidir(tmp_path, monk
         monkeypatch.setattr(Path, "write_text", _bloqueado)
         with pytest.raises(PermissionError):
             painel.gerar_painel(kit / "status", kit / "mapeadora_sintetica.xlsx", kit / "painel.html", hoje=HOJE)
+
+
+# ===========================================================================
+# D. Listas de sobressalentes e de preços  [2026-10-15]
+# ===========================================================================
+@pytest.mark.parametrize("status, situacao", [
+    ("Aprovado", "APROVADA SM.DT"), ("Aprovado com comentários", "APROVADA SM.DT"), ("Void", "CANCELADA"),
+    ("Não aprovado", "NÃO APROVADA"), ("Emitido", "EMITIDA"), (None, "EMITIDA"),
+])
+def test_situacao_da_lista_de_precos(status, situacao):
+    assert painel.situacao_preco(status) == situacao
+
+
+def test_o_template_tem_o_quadro_de_listas_e_precos_nas_duas_visoes():
+    html = painel.caminho_do_template().read_text(encoding="utf-8")
+    assert 'id="c-docs"' in html and 'id="c-docs-ib"' in html
+    assert 'documentos("c-docs", true)' in html and 'documentos("c-docs-ib", false)' in html
+
+
+@precisa_do_kit
+def test_pb021_na_aba_principal_vira_lista_de_precos_no_painel(tmp_path):
+    """Regra do Luan: final PB021 é lista de preços. A PB021 que entrou na aba
+    principal da mapeadora (antes de o código decidir) sai das listas de
+    sobressalentes e entra nas de preços, pareada com a PB020 de mesma raiz.
+    E cada lista de sobressalentes leva o STATUS DA REVISÃO do Aconex."""
+    kit = tmp_path / "kit"
+    shutil.copytree(KIT, kit)
+    with openpyxl_de_verdade(), pandas_de_verdade(painel):
+        from openpyxl import load_workbook
+
+        mapeadora = kit / "mapeadora_sintetica.xlsx"
+        wb = load_workbook(mapeadora)
+        ws = wb["Acompanhamento Sobressalente"]
+        ws.cell(row=3, column=4).value = "Aprovado"
+        linha = ws.max_row + 1
+        ws.cell(row=linha, column=1).value = "#ST00=TESTE02&MPB021"
+        ws.cell(row=linha, column=3).value = "0"
+        ws.cell(row=linha, column=4).value = "Aprovado"
+        ws.cell(row=linha, column=8).value = "TEXTO DE TESTE - LISTA DE PREÇOS 2"
+        wb.save(mapeadora)
+
+        dados = painel.montar(HOJE, kit / "status", mapeadora)
+
+    listas = {x["l"]: x for x in dados["listas"]}
+    precos = {x["lp"]: x for x in dados["precos"]}
+    assert "#ST00=TESTE02&MPB021" not in listas
+    assert listas["#ST00=TESTE01&MPB020"]["st"] == "Aprovado"
+    assert precos["#ST00=TESTE02&MPB021"] == {
+        "lp": "#ST00=TESTE02&MPB021", "geracao": "PB021", "rev": "0", "status": "Aprovado", "data": None,
+        "lista": "#ST00=TESTE02&MPB020", "situacao": "APROVADA SM.DT"}
+
+
+@pytest.mark.parametrize("valor, esperado", [(" Aprovado ", "Aprovado"), (None, ""), (float("nan"), ""), (1, "1")])
+def test_texto_de_celula_nao_mostra_nan(valor, esperado):
+    assert painel.texto(valor) == esperado

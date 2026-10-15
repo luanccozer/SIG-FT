@@ -74,6 +74,37 @@ def raiz(codigo: object) -> str:
     return achado.group(1) if achado else texto
 
 
+# [2026-10-15] Pela revisão do ITAIPU-REF-0013 a lista de preços tem código
+# próprio: a de sobressalentes termina em PB020, a de preços em PB021. Regra do
+# Luan: "tudo o que for final PB021 será lista de preços", qualquer que seja o
+# título. Antes só o título decidia, e as PB021 com outro título ficavam fora
+# do follow-up.
+SUFIXO_PRECOS = "PB021"
+SUFIXO_SOBRESSALENTES = "PB020"
+
+
+def eh_codigo_de_precos(codigo: object) -> bool:
+    """O código (sem o sequencial) termina em PB021?"""
+    return raiz(codigo).upper().endswith(SUFIXO_PRECOS)
+
+
+def raiz_da_lista(codigo: object) -> str:
+    """A raiz onde mora a lista de SOBRESSALENTES desta lista de preços.
+
+    `#ST00=Q01GDB00&MPB021-01` -> `#ST00=Q01GDB00&MPB020`. Para o código
+    antigo (PB020-0x) é a própria raiz: as duas famílias dividem a raiz.
+    """
+    r = raiz(codigo)
+    if eh_codigo_de_precos(r):
+        return r[: -len(SUFIXO_PRECOS)] + SUFIXO_SOBRESSALENTES
+    return r
+
+
+def _e_de_precos(linha: dict) -> bool:
+    """A linha do Aconex é de lista de preços: pelo código (PB021) ou pelo título."""
+    return eh_codigo_de_precos(linha.get(COL_DOC)) or eh_lista_de_precos(linha.get(COL_TITULO))
+
+
 def eh_lista_de_precos(titulo: object) -> bool:
     """A lista COM PREÇOS se identifica pelo título, não pelo código.
 
@@ -143,14 +174,17 @@ def parear(lista_de_precos: dict, historico, indice=None, por_tracking=None) -> 
         por_tracking = _registros_por_tracking(historico)
 
     codigo = str(lista_de_precos.get(COL_DOC) or "").strip()
-    minha_raiz = raiz(codigo)
+    # PB021: a lista de sobressalentes está na raiz PB020 correspondente;
+    # PB020-0x: na mesma raiz. As duas são procuradas.
+    minha_raiz = raiz_da_lista(codigo)
+    raizes = [minha_raiz] + ([raiz(codigo)] if raiz(codigo) != minha_raiz else [])
     meu_tracking = lista_de_precos.get(COL_TRACKING)
 
     # Os trackings que aparecem sob esta raiz, tirando o da própria lista de
     # preços. É o passo "pesquisa o XXXXX e acha qualquer um que tenha o
     # tracking ID".
     trackings = []
-    for linha in indice.get(minha_raiz, []):
+    for linha in (lin for r in raizes for lin in indice.get(r, [])):
         tracking = linha.get(COL_TRACKING)
         if tracking == meu_tracking or tracking in trackings:
             continue
@@ -173,7 +207,7 @@ def parear(lista_de_precos: dict, historico, indice=None, por_tracking=None) -> 
         atual = _vigente(por_tracking.get(tracking, []))
         if atual is None:
             continue
-        if eh_lista_de_precos(atual.get(COL_TITULO)):
+        if _e_de_precos(atual):
             continue
         melhor = atual
         break
@@ -204,13 +238,15 @@ def parear(lista_de_precos: dict, historico, indice=None, por_tracking=None) -> 
 
 
 def listas_de_precos_vigentes(historico):
-    """As listas COM PREÇOS vigentes, na ordem do histórico."""
+    """As listas COM PREÇOS vigentes, na ordem do histórico: todo código
+    final PB021, mais as antigas (PB020-0x) reconhecidas pelo título."""
     return [
         linha
         for linha in historico
         if linha.get(COL_CURRENT) is True
-        and eh_de_sobressalentes(linha.get(COL_TITULO))
-        and eh_lista_de_precos(linha.get(COL_TITULO))
+        and (eh_codigo_de_precos(linha.get(COL_DOC))
+             or (eh_de_sobressalentes(linha.get(COL_TITULO))
+                 and eh_lista_de_precos(linha.get(COL_TITULO))))
     ]
 
 

@@ -133,6 +133,7 @@ footer { color: var(--muted); font-size: 12px; max-width: 1280px; margin: 0 auto
       <div class="card" id="c-lmr"></div>
     </div>
     <div class="card" id="c-fila" style="margin-bottom:14px"></div>
+    <div class="card" id="c-docs" style="margin-bottom:14px"></div>
     <div class="grade">
       <div class="card" id="c-ativ"></div>
       <div class="card" id="c-precos"></div>
@@ -149,6 +150,7 @@ footer { color: var(--muted); font-size: 12px; max-width: 1280px; margin: 0 auto
       <div class="card" id="c-aut-ib"></div>
       <div class="card" id="c-precos-ib"></div>
     </div>
+    <div class="card" id="c-docs-ib" style="margin-bottom:14px"></div>
     <div class="card" id="c-listas-ib"></div>
   </section>
 </main>
@@ -356,6 +358,7 @@ function interno() {
   filaDeTrabalho(F);
   atividades();
   precos("c-precos", true);
+  documentos("c-docs", true);
   qualidade();
 }
 const br = iso => iso ? iso.split("-").reverse().join("/") : "—";
@@ -420,6 +423,32 @@ function precos(card, interno) {
     {t: "Status Aconex", v: "status"}, {t: "Data", v: p => br(p.data)}, {t: "Lista de sobressalentes", v: p => nomeLista[p.lista] || p.lista || "—"}], linhas));
 }
 
+// Uma linha por lista de sobressalentes: o status dela no Aconex e o da lista
+// de preços que a copia (código final PB021; a PB020-0x é o legado).
+const ORDEM_PRECO = {"APROVADA SM.DT": 0, "EMITIDA": 1, "NÃO APROVADA": 2, "CANCELADA": 3};
+function precoDaLista(l) {
+  return D.precos.filter(p => p.lista === l && p.situacao !== "CANCELADA")
+    .sort((a, b) => (b.geracao === "PB021") - (a.geracao === "PB021") || (b.data || "").localeCompare(a.data || ""))[0] || null;
+}
+function documentos(card, interno) {
+  const F = fichas();
+  const L = listasFiltradas().filter(l => interno || l.sit !== "SÓ _STATUS_PMIB")
+    .map(l => ({...l, fichas: nP(F.filter(i => i.l === l.l)), preco: precoDaLista(l.l)}))
+    .sort((a, b) => (ORDEM_PRECO[a.preco?.situacao] ?? 9) - (ORDEM_PRECO[b.preco?.situacao] ?? 9) || a.nome.localeCompare(b.nome));
+  const comPreco = L.filter(l => l.preco), aprov = comPreco.filter(l => l.preco.situacao === "APROVADA SM.DT");
+  const corpo = cabecalho(card, "Listas de sobressalentes e listas de preços",
+    `${fmt(L.length)} listas de sobressalentes · ${fmt(comPreco.length)} com lista de preços · ` +
+    `${fmt(aprov.length)} com preço aprovado pela SM.DT · ${fmt(L.length - comPreco.length)} sem lista de preços`);
+  const sitPreco = l => !l.preco ? el("span", {class: "chip"}, icone("warning"), "sem lista de preços")
+    : el("span", {class: "chip"}, l.preco.situacao === "APROVADA SM.DT" ? icone("good") : l.preco.situacao === "NÃO APROVADA" ? icone("critical") : null, l.preco.situacao);
+  corpo.append(tabela([
+    {t: "Lista de sobressalentes", v: "nome"}, ...(interno ? [{t: "Código", v: "l"}] : []), {t: "Rev.", v: l => l.rev && !["None", "nan"].includes(l.rev) ? l.rev : "—"},
+    {t: "Status Aconex", v: "st"}, ...(interno ? [{t: "Status real", v: "sr"}] : []), {t: "Fichas", v: l => fmt(l.fichas), n: 1},
+    {t: "Lista de preços", v: l => l.preco ? l.preco.lp : "—"}, {t: "Rev. preços", v: l => l.preco?.rev || "—"},
+    ...(interno ? [{t: "Status Aconex (preços)", v: l => l.preco?.status || "—"}] : []), {t: "Situação da lista de preços", v: sitPreco},
+  ], L));
+}
+
 function qualidade() {
   const corpo = cabecalho("c-qual", "Qualidade dos dados", "O que faz o número do painel divergir da realidade. Cada item diz onde corrigir.");
   corpo.append(el("div", {class: "qual"}, ...D.qualidade.map(q => el("div", {class: "item"},
@@ -465,6 +494,7 @@ function itaipu() {
   barrasEmpilhadas(c3, autL, SA, {rotuloFim: rotuloAtraso});
 
   precos("c-precos-ib", false);
+  documentos("c-docs-ib", false);
 
   const porLista = Object.entries(agrupar(F, "l")).map(([l, arr]) => ({
     nome: nomeLista[l] || l, total: arr.length,

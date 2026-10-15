@@ -39,6 +39,30 @@ VAULT = AQUI.parent
 SAIDA = VAULT / "_gerado" / "prototipo-dashboard.html"
 MODELO = AQUI / "prototipo_template.html"
 
+# [2026-10-15] Codigo final PB021 = lista de precos (regra do Luan), qualquer que
+# seja o titulo e a aba da mapeadora em que esteja. A lista de sobressalentes
+# dela e a PB020 de mesma raiz. Porte de `sigft/services/lista_precos.py`.
+_PB021 = re.compile(r"PB021(-\d{1,2})?$", re.I)
+
+
+def eh_pb021(codigo) -> bool:
+    return bool(_PB021.search(str(codigo or "").strip()))
+
+
+def lista_da_pb021(codigo) -> str:
+    return _PB021.sub("PB020", str(codigo or "").strip())
+
+
+def texto(v) -> str:
+    """Célula como texto; vazia ou NaN viram ""."""
+    return v.strip() if isinstance(v, str) else "" if v is None or v != v else str(v).strip()
+
+
+def situacao_preco(status) -> str:
+    st = R.normalizar(status)
+    return ("APROVADA SM.DT" if st.startswith("APROVADO") else "CANCELADA" if st == "VOID" else
+            "NÃO APROVADA" if st == "NAO APROVADO" else "EMITIDA")
+
 
 def iso(v) -> str | None:
     if isinstance(v, (dt.datetime, pd.Timestamp)):
@@ -137,20 +161,25 @@ def montar(hoje: dt.date, raiz: pathlib.Path = R.PASTA_PMIB, mapeadora: pathlib.
                      if l not in sistemas})
     listas = []
     vistos = set()
+    precos_na_principal = []   # final PB021 e lista de precos, mesmo na aba principal
     for _, m in listas_m.iterrows():
         l = str(m["N DOCUMENTO ITAIPU"]).strip()
+        if eh_pb021(l):
+            precos_na_principal.append(m)
+            continue
         vistos.add(l)
         s = sistemas.get(l, {})
         listas.append({"l": l, "nome": nome_exibicao(s["SISTEMA"]) if s.get("SISTEMA") else nome_curto(m.get("DESCRICAO"), l),
                        "area": sem_prefixo(s["AREA"]) if s.get("AREA") else None,
                        "et": m.get("ESPECIFICACAO TECNICA"), "cap": m.get("CAPITULO"), "sr": m.get("STATUS REAL"), "rev": str(m.get("ULTIMA REVISAO EMITIDA")),
+                       "st": texto(m.get("STATUS DA REVISAO")) or None, "data": iso(m.get("DATA DE ATUALIZACAO")),
                        "resp": m.get("RESPONSAVEL") if isinstance(m.get("RESPONSAVEL"), str) else None,
                        "proc": m.get("PROCUREMENT") if isinstance(m.get("PROCUREMENT"), str) else None,
                        "ev": m.get("EVENTOS DE PAGAMENTOS RELACIONADOS"), "sit": m.get("SITUACAO NO PMIB")})
     for l, s in sistemas.items():
         if l not in vistos:
-            listas.append({"l": l, "nome": nome_exibicao(s["SISTEMA"]), "area": sem_prefixo(s["AREA"]), "sr": None, "rev": None, "resp": None,
-                           "proc": None, "ev": None, "sit": "SÓ _STATUS_PMIB"})
+            listas.append({"l": l, "nome": nome_exibicao(s["SISTEMA"]), "area": sem_prefixo(s["AREA"]), "sr": None, "rev": None, "st": None, "data": None,
+                           "resp": None, "proc": None, "ev": None, "sit": "SÓ _STATUS_PMIB"})
     contagem = collections.Counter(x["nome"] for x in listas)
     for x in listas:   # nomes repetidos (ex.: 50 Hz e 60 Hz na mesma pasta) ganham o prefixo RDS-PP
         if contagem[x["nome"]] > 1:
@@ -164,16 +193,18 @@ def montar(hoje: dt.date, raiz: pathlib.Path = R.PASTA_PMIB, mapeadora: pathlib.
     fu = mapa["precos_followup"]
     precos_out = []
     codigos_fu = set()
-    for _, p in fu.iterrows():
+    linhas_preco = [(p, str(p.get("LISTA DE SOBRESSALENTES") or "").strip()) for _, p in fu.iterrows()]
+    linhas_preco += [(m, "") for m in precos_na_principal]
+    for p, lista in linhas_preco:
         lp = str(p["N DOCUMENTO ITAIPU"]).strip()
+        if lp in codigos_fu:
+            continue
         codigos_fu.add(lp)
-        st = str(p.get("STATUS DA REVISAO") or "")
-        precos_out.append({"lp": lp, "geracao": "PB021" if "PB021" in lp else "PB020-0x", "rev": str(p.get("ULTIMA REVISAO EMITIDA") or ""),
+        st = texto(p.get("STATUS DA REVISAO"))
+        precos_out.append({"lp": lp, "geracao": "PB021" if eh_pb021(lp) else "PB020-0x", "rev": str(p.get("ULTIMA REVISAO EMITIDA") or ""),
                            "status": st, "data": iso(p.get("DATA DE ATUALIZACAO")),
-                           "lista": str(p.get("LISTA DE SOBRESSALENTES") or "").strip() or None,
-                           "situacao": "APROVADA SM.DT" if R.normalizar(st).startswith("APROVADO") else
-                                       "CANCELADA" if R.normalizar(st) == "VOID" else
-                                       "NÃO APROVADA" if R.normalizar(st) == "NAO APROVADO" else "EMITIDA"})
+                           "lista": lista or (lista_da_pb021(lp) if eh_pb021(lp) else None),
+                           "situacao": situacao_preco(st)})
     for _, a in arquivos_preco.iterrows():
         cod = a["ARQUIVO_PRECO"]
         if a["GERACAO"] == "PB021" and cod not in codigos_fu:

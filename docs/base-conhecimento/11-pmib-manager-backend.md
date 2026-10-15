@@ -53,6 +53,13 @@ a de `services/autorizacao.py`; o template é `sigft/assets/painel_template.html
 **Power BI v2 continua sendo o painel oficial** — os números têm de bater com ele; `tests/test_painel.py` roda o
 `validar_painel.py` do cofre (PAINEL OK). Painel bloqueado/aberto: `[AVISO]` e o fluxo segue (não desfaz nada).
 
+**Listas de preços = código final PB021** (regra do Luan, 2026-10-15). `lista_precos.listas_de_precos_vigentes` pega
+todo vigente terminado em PB021 (com ou sem sequencial `-NN`), mais as antigas PB020-0x pelo título ("PREÇO" +
+"SOBRESSALENTES"). A PB021 é pareada com a lista de sobressalentes na raiz PB020 correspondente
+(`lista_precos.raiz_da_lista`). O painel tira da lista de sobressalentes qualquer PB021 da aba principal da mapeadora e a
+mostra como lista de preços; o quadro "Listas de sobressalentes e listas de preços" (as duas visões) junta, por lista,
+revisão, STATUS DA REVISÃO do Aconex, fichas e a lista de preços dela com a situação (`painel.situacao_preco`).
+
 A mapeadora continua gravada pelo openpyxl (não tem comentário em thread nem lista de extensão). Se passar a
 ter, o passo 4 escreve um `[AVISO]` antes de gravar.
 
@@ -178,6 +185,7 @@ Gerenciador de PMIB.
   - Contém 'SOBRESSALENTES' no Título
   - Não contém 'PREÇOS' ou 'PREÇO'
   - Não termina com '-01'
+  - Código não termina em PB021 (`lista_precos.eh_codigo_de_precos`; desde 2026-10-15: final PB021 é lista de preços, qualquer que seja o título)
   - Tracking ID não está em tracking_ids_existentes
 - **Substep C (linha 354-381)**: inserção interativa
   - Callback `callback_confirm(df_reais_novos)` retorna DataFrame selecionado

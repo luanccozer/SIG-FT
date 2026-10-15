@@ -48,7 +48,7 @@ import zipfile
 
 import pandas as pd
 
-from sigft.services import autorizacao, status_pmib_arquivos
+from sigft.services import autorizacao, lista_precos, status_pmib_arquivos
 
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
@@ -364,6 +364,18 @@ def ler_itens(raiz: pathlib.Path, hoje: dt.date, precos: pd.DataFrame) -> pd.Dat
     return itens
 
 
+def texto(v) -> str:
+    """Célula como texto; vazia ou NaN viram ""."""
+    return v.strip() if isinstance(v, str) else "" if v is None or v != v else str(v).strip()
+
+
+def situacao_preco(status) -> str:
+    """O STATUS DA REVISÃO do Aconex, lido para a lista de preços."""
+    st = normalizar(status)
+    return ("APROVADA SM.DT" if st.startswith("APROVADO") else "CANCELADA" if st == "VOID" else
+            "NÃO APROVADA" if st == "NAO APROVADO" else "EMITIDA")
+
+
 # --------------------------------------------------------------------------
 # Nomes de exibição
 # --------------------------------------------------------------------------
@@ -482,8 +494,12 @@ def montar(hoje: dt.date, raiz, mapeadora, callback_log=None) -> dict:
                      .to_dict("index").items() if lst not in sistemas})
     listas = []
     vistos = set()
+    precos_na_principal = []   # [2026-10-15] final PB021 é lista de preços, mesmo na aba principal
     for _, m in listas_m.iterrows():
         lst = str(m["N DOCUMENTO ITAIPU"]).strip()
+        if lista_precos.eh_codigo_de_precos(lst):
+            precos_na_principal.append(m)
+            continue
         vistos.add(lst)
         s = sistemas.get(lst, {})
         listas.append({"l": lst,
@@ -491,13 +507,16 @@ def montar(hoje: dt.date, raiz, mapeadora, callback_log=None) -> dict:
                        "area": sem_prefixo(s["AREA"]) if s.get("AREA") else None,
                        "et": m.get("ESPECIFICACAO TECNICA"), "cap": m.get("CAPITULO"), "sr": m.get("STATUS REAL"),
                        "rev": str(m.get("ULTIMA REVISAO EMITIDA")),
+                       "st": texto(m.get("STATUS DA REVISAO")) or None,
+                       "data": iso(m.get("DATA DE ATUALIZACAO")),
                        "resp": m.get("RESPONSAVEL") if isinstance(m.get("RESPONSAVEL"), str) else None,
                        "proc": m.get("PROCUREMENT") if isinstance(m.get("PROCUREMENT"), str) else None,
                        "ev": m.get("EVENTOS DE PAGAMENTOS RELACIONADOS"), "sit": m.get("SITUACAO NO PMIB")})
     for lst, s in sistemas.items():
         if lst not in vistos:
             listas.append({"l": lst, "nome": nome_exibicao(s["SISTEMA"]), "area": sem_prefixo(s["AREA"]), "sr": None,
-                           "rev": None, "resp": None, "proc": None, "ev": None, "sit": "SÓ _STATUS_PMIB"})
+                           "rev": None, "st": None, "data": None, "resp": None, "proc": None, "ev": None,
+                           "sit": "SÓ _STATUS_PMIB"})
     contagem = collections.Counter(x["nome"] for x in listas)
     for x in listas:   # nomes repetidos (ex.: 50 Hz e 60 Hz na mesma pasta) ganham o prefixo RDS-PP
         if contagem[x["nome"]] > 1:
@@ -508,20 +527,26 @@ def montar(hoje: dt.date, raiz, mapeadora, callback_log=None) -> dict:
                 x[k] = None
 
     # ---------------- listas de preços ----------------
+    # Fontes, nesta ordem: a aba de follow-up; as PB021 que estão na aba
+    # principal (lá entraram antes de o código decidir); os arquivos PB021 da
+    # pasta. Código final PB021 = lista de preços (regra do Luan, 2026-10-15).
     fu = mapa["precos_followup"]
     precos_out = []
     codigos_fu = set()
-    for _, p in fu.iterrows():
+    linhas_preco = [(p, str(p.get("LISTA DE SOBRESSALENTES") or "").strip()) for _, p in fu.iterrows()]
+    linhas_preco += [(m, "") for m in precos_na_principal]
+    for p, lista in linhas_preco:
         lp = str(p["N DOCUMENTO ITAIPU"]).strip()
+        if lp in codigos_fu:
+            continue
         codigos_fu.add(lp)
-        st = str(p.get("STATUS DA REVISAO") or "")
-        precos_out.append({"lp": lp, "geracao": "PB021" if "PB021" in lp else "PB020-0x",
+        pb021 = lista_precos.eh_codigo_de_precos(lp)
+        st = texto(p.get("STATUS DA REVISAO"))
+        precos_out.append({"lp": lp, "geracao": "PB021" if pb021 else "PB020-0x",
                            "rev": str(p.get("ULTIMA REVISAO EMITIDA") or ""),
                            "status": st, "data": iso(p.get("DATA DE ATUALIZACAO")),
-                           "lista": str(p.get("LISTA DE SOBRESSALENTES") or "").strip() or None,
-                           "situacao": "APROVADA SM.DT" if normalizar(st).startswith("APROVADO") else
-                                       "CANCELADA" if normalizar(st) == "VOID" else
-                                       "NÃO APROVADA" if normalizar(st) == "NAO APROVADO" else "EMITIDA"})
+                           "lista": lista or (lista_precos.raiz_da_lista(lp) if pb021 else None),
+                           "situacao": situacao_preco(st)})
     for _, a in arquivos_preco.iterrows():
         cod = a["ARQUIVO_PRECO"]
         if a["GERACAO"] == "PB021" and cod not in codigos_fu:

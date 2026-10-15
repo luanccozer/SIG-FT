@@ -11,7 +11,7 @@ import warnings
 
 from sigft import config
 from sigft.core.excel import headers, locking, status_sheet, travas
-from sigft.services import autorizacao, status_pmib_arquivos
+from sigft.services import autorizacao, lista_precos, status_pmib_arquivos
 
 # Configurações iniciais
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
@@ -869,7 +869,9 @@ class PMIBManager:
             (df_vigentes['Título'].str.contains('SOBRESSALENTES', case=False, na=False)) &
             (~df_vigentes['Título'].str.contains('PREÇOS', case=False, na=False)) &
             (~df_vigentes['Título'].str.contains('PREÇO', case=False, na=False)) &
-            (~df_vigentes['No. do Documento'].str.endswith('-01', na=False))
+            (~df_vigentes['No. do Documento'].str.endswith('-01', na=False)) &
+            # [2026-10-15] final PB021 é lista de preços, qualquer que seja o título
+            (~df_vigentes['No. do Documento'].map(lista_precos.eh_codigo_de_precos).astype(bool))
         ].copy()
 
         df_reais_novos = df_novos_cand[~df_novos_cand['Tracking ID'].isin(tracking_ids_existentes)]

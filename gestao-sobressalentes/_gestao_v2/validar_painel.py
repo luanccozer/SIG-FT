@@ -18,7 +18,7 @@ Confere o painel HTML gerado pelo SIG-FT (T7 do roteiro) contra a implementacao 
 O que e comparado (os dados embutidos em <script id="dados">, nao o desenho):
   - cada ficha (lista|PMIB): status, com quem, tipo, entregue, apto, situacao da autorizacao,
     dias de atraso, situacao LMR, pendencia, valor, data do e-mail, secoes;
-  - cada lista: nome, ET, capitulo, status real, situacao no PMIB;
+  - cada lista: nome, ET, capitulo, status real, status da revisao (Aconex), situacao no PMIB;
   - listas de precos, atividades e os achados de qualidade (titulo -> quantidade);
   - a pagina abre sem rede (nenhum script/estilo externo) e tem os filtros de ET e Capitulo.
 
@@ -40,7 +40,7 @@ HOJE = dt.date(2026, 10, 10)
 sys.path.insert(0, str(AQUI.parent / "_scripts"))
 
 CAMPOS_FICHA = ("st", "q", "t", "en", "ap", "sa", "du", "sl", "pe", "v", "dt", "ok")
-CAMPOS_LISTA = ("nome", "et", "cap", "sr", "sit")
+CAMPOS_LISTA = ("nome", "et", "cap", "sr", "st", "sit")
 CAMPOS_PRECO = ("geracao", "rev", "situacao", "lista")
 
 

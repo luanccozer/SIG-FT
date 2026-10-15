@@ -258,6 +258,85 @@ def test_levantar_em_historico_vazio_nao_quebra():
 
 
 # =============================================================================
+# D2. Código final PB021 = lista de preços  [2026-10-15]
+# =============================================================================
+# Pela revisão do ITAIPU-REF-0013 a lista de preços ganhou código próprio:
+# a lista de sobressalentes é `...PB020` e a de preços, `...PB021`. Regra do
+# Luan: "tudo o que for final PB021 será lista de preços" -- qualquer que seja
+# o título. Antes, só o título ("PREÇO" + "SOBRESSALENTES") decidia, e as
+# PB021 com outro título não chegavam ao follow-up.
+
+TITULO_PB021_SEM_PRECO = "ATUALIZAÇÃO TECNOLÓGICA - SISTEMA DE EXCITAÇÃO"
+
+
+def test_codigo_final_pb021_e_lista_de_precos():
+    assert lp.eh_codigo_de_precos("#ST00=Q01GDB00&MPB021")
+    assert lp.eh_codigo_de_precos("#st00=q01gdb00&mpb021")
+    assert lp.eh_codigo_de_precos("#ST00=Q01GDB00&MPB021-01")
+    assert lp.eh_codigo_de_precos(" #ST00=Q01GDB00&MPB021 ")
+
+
+def test_codigo_pb020_nao_e_lista_de_precos_pelo_codigo():
+    assert not lp.eh_codigo_de_precos("#ST00=Q01GDB00&MPB020")
+    assert not lp.eh_codigo_de_precos("#ST00=Q01GDB00&MPB020-02")
+    assert not lp.eh_codigo_de_precos("#ST00=PB021X&MPB020")   # PB021 no meio não conta
+    assert not lp.eh_codigo_de_precos(None)
+
+
+def test_raiz_da_lista_de_sobressalentes_troca_pb021_por_pb020():
+    assert lp.raiz_da_lista("#ST00=Q01GDB00&MPB021") == "#ST00=Q01GDB00&MPB020"
+    assert lp.raiz_da_lista("#ST00=Q01GDB00&MPB021-01") == "#ST00=Q01GDB00&MPB020"
+    assert lp.raiz_da_lista("#ITA0=A01AAM10&EPB020-02") == "#ITA0=A01AAM10&EPB020"
+
+
+def test_levantar_pega_pb021_vigente_mesmo_sem_preco_no_titulo():
+    historico = [
+        doc("#ST00=Q01GDB00&MPB020", TITULO_LISTA, 1),
+        doc("#ST00=Q01GDB00&MPB021", TITULO_PB021_SEM_PRECO, 2),
+        doc("#ST00=Q01GDB00&MPB021", TITULO_PB021_SEM_PRECO, 2, current=False),
+    ]
+    resultado = lp.levantar(historico)
+    assert [r["precos"][lp.COL_DOC] for r in resultado] == ["#ST00=Q01GDB00&MPB021"]
+
+
+def test_pb021_pareia_com_a_pb020_de_mesma_raiz():
+    historico = [
+        doc("#ST00=Q01GDB00&MPB020", TITULO_LISTA, 1),
+        doc("#ST00=Q01GDB00&MPB021", TITULO_PB021_SEM_PRECO, 2),
+    ]
+    par = lp.parear(historico[1], historico)
+    assert par["desfecho"] == lp.PAR_ENCONTRADO
+    assert par["lista"] == "#ST00=Q01GDB00&MPB020"
+
+
+def test_pb021_com_rdspp_mudado_acha_a_lista_pelo_tracking():
+    historico = [
+        doc("#ST00=Q01GDB00&MPB020", TITULO_LISTA, 1, current=False),
+        doc("#ST00=Q01GDB99&MPB020", TITULO_LISTA, 1),
+        doc("#ST00=Q01GDB00&MPB021", TITULO_PRECOS, 2),
+    ]
+    par = lp.parear(historico[2], historico)
+    assert par["desfecho"] == lp.RDSPP_MUDOU
+    assert par["lista"] == "#ST00=Q01GDB99&MPB020"
+    assert par["raiz_apontada"] == "#ST00=Q01GDB00&MPB020"
+
+
+def test_pb021_sem_pb020_e_orfa():
+    historico = [doc("#ST00=Q01GDB00&MPB021", TITULO_PRECOS, 2)]
+    assert lp.parear(historico[0], historico)["desfecho"] == lp.ORFA
+
+
+def test_outra_pb021_nunca_e_o_par():
+    """Duas PB021 de mesma raiz (revisões com tracking diferente) não se
+    pareiam entre si: a família de preços é reconhecida pelo código."""
+    historico = [
+        doc("#ST00=Q01GDB00&MPB021", TITULO_PB021_SEM_PRECO, 2),
+        doc("#ST00=Q01GDB00&MPB021-01", TITULO_PB021_SEM_PRECO, 3),
+    ]
+    assert lp.parear(historico[0], historico)["desfecho"] == lp.ORFA
+
+
+# =============================================================================
 # E. O texto que vai para OBSERVAÇÕES
 # =============================================================================
 
