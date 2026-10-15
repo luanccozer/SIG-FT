@@ -149,7 +149,7 @@ procurement, atraso de Itaipu em 15 d.u.) e um Power BI com visão interna e vis
   - roteiro ganhou a **T7b**: portar isto para o painel do SIG-FT, que a T7 portou em 06/10;
   - kit de teste com os casos;
   - `validar_painel.py` confere os campos novos e recusa o painel de hoje.
-- **Ambiente**: o Windows limpou `%TEMP%	omlib` (DLLs do TOM) e o scratchpad. Baixei de novo os pacotes NuGet
+- **Ambiente**: o Windows limpou `%TEMP%\tomlib` (DLLs do TOM) e o scratchpad. Baixei de novo os pacotes NuGet
   oficiais.
 
 ## Proximas sessões
