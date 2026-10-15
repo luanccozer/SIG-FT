@@ -15,23 +15,6 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install -q -r requirements.txt
-      - name: smoke com plataforma inexistente (dump da pilha aos 40 s)
-        shell: python
-        run: |
-          import os, subprocess, sys, textwrap
-          codigo = textwrap.dedent('''
-              import faulthandler, runpy, sys
-              faulthandler.dump_traceback_later(40, exit=True)
-              sys.argv = ["frontend.py"] + sys.argv[1:]
-              runpy.run_path("frontend.py", run_name="__main__")
-          ''')
-          for args in (["--smoke"],):
-              amb = {**os.environ, "QT_QPA_PLATFORM": "inexistente", "SIGFT_DADOS_DIR": os.path.abspath("dados")}
-              try:
-                  r = subprocess.run([sys.executable, "-c", codigo, *args], env=amb, capture_output=True, text=True, timeout=90)
-                  print("ARGS", args, "CODIGO", r.returncode)
-                  print("STDOUT", r.stdout[-4000:])
-                  print("STDERR", r.stderr[-8000:])
-              except subprocess.TimeoutExpired as e:
-                  print("TIMEOUT", args, (e.stdout or b"")[-3000:], (e.stderr or b"")[-6000:])
-          print(open("conferencia-da-janela.txt", encoding="utf-8").read() if os.path.exists("conferencia-da-janela.txt") else "SEM RELATORIO")
+      - run: python -m pip install -q -r requirements-dev.txt
+      - name: test_qt_corte no Windows
+        run: python -m pytest -q tests/test_qt_corte.py -p no:cacheprovider
