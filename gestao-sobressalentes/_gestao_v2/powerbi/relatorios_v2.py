@@ -147,11 +147,31 @@ def filtro(campo: Campo, valores: list[str], negar: bool = False) -> dict:
             "filter": {"Version": 2, "From": [{"Name": "f", "Entity": campo.t, "Type": 0}], "Where": [{"Condition": cond}]}}
 
 
+# Estilo "classico": o do painel antigo de sobressalentes (fundo branco, bordas e titulos azul-marinho, fonte DIN).
+# "fonte" vai nos visuais (o nome interno do DIN no Power BI e wf_standard-font); "fonte_texto" vai na caixa de texto.
+CLASSICO = {"fundo": "#FFFFFF", "borda": "#2B2A8C", "titulo": "#1E1B78", "numero": "#1F1C99", "texto": "#1E1B78",
+            "fonte": "wf_standard-font, helvetica, arial, sans-serif", "fonte_texto": "DIN", "raio": 4}
+COR_ACONEX_CLASSICO = {"Aprovado": "#08A64A", "Aprovado com comentários": "#6FCB93", "Para assinatura": "#2C8BF6",
+                       "Em processo": "#8CC2FA", "Informativo": "#8CC2FA", "Não aprovado": "#F42B3B",
+                       "Cancelado (Void)": "#9A9A9A", "Em elaboração (CMI)": "#F5A31A", "Não emitido": "#1F1C99",
+                       "Sem lista": "#9A9A9A", "Sem lista de preços": "#1F1C99", "Fora da mapeadora": "#9A9A9A",
+                       "Sem informação": "#9A9A9A"}
+
+
+# Letras para projetar (o slide de Itaipu): o padrao da tela (9-11 pt) fica pequeno numa apresentacao.
+TAM_SLIDE = {"titulo_visual": 13, "eixo": 12, "rotulo": 12, "kpi": 28, "kpi_rotulo": 12, "tabela": 11,
+             "pag": "18pt", "sub": "10pt", "nota": 10, "filtro_cab": 10, "filtro_item": 11}
+
+
 class Pagina:
-    def __init__(self, nome_exibicao: str):
+    def __init__(self, nome_exibicao: str, estilo: dict | None = None, filtros: list[dict] | None = None,
+                 grande: bool = False):
         self.id = uuid.uuid4().hex[:20]
         self.nome = nome_exibicao
         self.visuais: list[dict] = []
+        self.estilo = estilo          # None = tema do relatorio; CLASSICO = formatacao propria em cada visual
+        self.filtros = filtros or []  # filtros de pagina (aparecem no painel Filtros e podem ser tirados)
+        self.tam = TAM_SLIDE if grande else None   # letras maiores (slide)
 
     def _add(self, tipo, x, y, w, h, query=None, objetos=None, titulo=None, filtros=None, sem_caixa=False,
              extra=None):
@@ -162,8 +182,17 @@ class Pagina:
         if objetos:
             v["objects"] = objetos
         vco = {}
+        e = self.estilo
         if titulo is not None:
-            vco["title"] = [{"properties": {"show": lit(True), "text": lit(titulo)}}]
+            vco["title"] = [{"properties": {"show": lit(True), "text": lit(titulo.upper() if e else titulo)}}]
+            if e:
+                vco["title"][0]["properties"].update({"fontColor": cor(e["titulo"]), "fontFamily": lit(e["fonte"]),
+                                                       "bold": lit(True), "fontSize": lit(11)})
+            if self.tam:
+                vco["title"][0]["properties"]["fontSize"] = lit(self.tam["titulo_visual"])
+        if e and not sem_caixa:
+            vco["background"] = [{"properties": {"show": lit(True), "color": cor(e["fundo"]), "transparency": lit(0)}}]
+            vco["border"] = [{"properties": {"show": lit(True), "color": cor(e["borda"]), "radius": lit(e["raio"])}}]
         if sem_caixa:
             vco["background"] = [{"properties": {"show": lit(False)}}]
             vco["border"] = [{"properties": {"show": lit(False)}}]
@@ -181,10 +210,13 @@ class Pagina:
         self.visuais.append(cont)
 
     def titulo(self, x, y, w, h, titulo, subtitulo):
-        par = [{"textRuns": [{"value": titulo, "textStyle": {"fontWeight": "bold", "fontSize": "15pt",
-                                                             "color": COR["tinta"], "fontFamily": "Segoe UI"}}]},
-               {"textRuns": [{"value": subtitulo, "textStyle": {"fontSize": "9pt", "color": COR["tinta2"],
-                                                                "fontFamily": "Segoe UI"}}]}]
+        e = self.estilo
+        c1, c2, f = (e["titulo"], e["texto"], e["fonte_texto"]) if e else (COR["tinta"], COR["tinta2"], "Segoe UI")
+        par = [{"textRuns": [{"value": titulo.upper() if e else titulo,
+                              "textStyle": {"fontWeight": "bold", "fontSize": self.tam["pag"] if self.tam else "15pt",
+                                            "color": c1, "fontFamily": f}}]},
+               {"textRuns": [{"value": subtitulo, "textStyle": {"fontSize": self.tam["sub"] if self.tam else "9pt",
+                                                                "color": c2, "fontFamily": f}}]}]
         self._add("textbox", x, y, w, h, objetos={"general": [{"properties": {"paragraphs": par}}]}, sem_caixa=True)
 
     def logo(self, x, y, w, h, item):
@@ -193,14 +225,24 @@ class Pagina:
                 "PackageName": "RegisteredResources", "PackageType": 1, "ItemName": item}}}}}],
             "imageScaling": [{"properties": {"imageScalingType": lit("Fit")}}]})
 
-    def kpi(self, x, y, w, h, campo: Campo, cor_valor: str | None = None, tamanho: int | None = None):
+    def kpi(self, x, y, w, h, campo: Campo, cor_valor: str | None = None, tamanho: int | None = None,
+            tamanho_rotulo: int | None = None):
         campo = para_cartao(campo)
         objetos = {}
         rotulo = {}
-        if cor_valor:
-            rotulo["color"] = cor(cor_valor)
-        if tamanho:
-            rotulo["fontSize"] = lit(tamanho)
+        e = self.estilo
+        if cor_valor or e:
+            rotulo["color"] = cor(cor_valor or e["numero"])
+        if tamanho or self.tam:
+            rotulo["fontSize"] = lit(tamanho or self.tam["kpi"])
+        categoria = {}
+        if e:
+            rotulo["fontFamily"] = lit(e["fonte"])
+            categoria.update({"color": cor(e["texto"]), "fontFamily": lit(e["fonte"])})
+        if tamanho_rotulo or self.tam:
+            categoria["fontSize"] = lit(tamanho_rotulo or self.tam["kpi_rotulo"])
+        if categoria:
+            objetos["categoryLabels"] = [{"properties": categoria}]
         if rotulo:
             objetos["labels"] = [{"properties": rotulo}]
         self._add("card", x, y, w, h, query={"queryState": {"Values": {"projections": [campo.proj()]}}},
@@ -209,8 +251,9 @@ class Pagina:
     def nota(self, x, y, w, h, campo: Campo):
         """Texto pequeno vindo de medida (data de atualizacao)."""
         self._add("card", x, y, w, h, query={"queryState": {"Values": {"projections": [campo.proj()]}}}, sem_caixa=True,
-                  objetos={"labels": [{"properties": {"fontSize": lit(9), "color": cor(COR["tinta2"]),
-                                                      "fontFamily": lit("Segoe UI")}}],
+                  objetos={"labels": [{"properties": {"fontSize": lit(self.tam["nota"] if self.tam else 9),
+                                                      "color": cor(self.estilo["texto"] if self.estilo else COR["tinta2"]),
+                                                      "fontFamily": lit(self.estilo["fonte"] if self.estilo else "Segoe UI")}}],
                            "categoryLabels": [{"properties": {"show": lit(False)}}]})
 
     def barras(self, x, y, w, h, categoria: Campo, valor: Campo, titulo: str, ordem: str = "valor",
@@ -229,6 +272,14 @@ class Pagina:
                 "Right": {"Literal": {"Value": "'" + valor_cat.replace("'", "''") + "'"}}}}}]}})
         objetos = {"valueAxis": [{"properties": {"show": lit(False), "showAxisTitle": lit(False)}}],
                    "categoryAxis": [{"properties": {"showAxisTitle": lit(False), "maxMarginFactor": lit(margem)}}]}
+        if self.estilo:
+            e = self.estilo
+            objetos["categoryAxis"][0]["properties"].update({"labelColor": cor(e["texto"]), "fontFamily": lit(e["fonte"])})
+            objetos["labels"] = [{"properties": {"show": lit(True), "color": cor(e["texto"]), "fontFamily": lit(e["fonte"])}}]
+        if self.tam:
+            objetos["categoryAxis"][0]["properties"]["fontSize"] = lit(self.tam["eixo"])
+            objetos.setdefault("labels", [{"properties": {"show": lit(True)}}])[0]["properties"]["fontSize"] = \
+                lit(self.tam["rotulo"])
         if pontos:
             objetos["dataPoint"] = pontos
         self._add("clusteredBarChart", x, y, w, h, query=q, titulo=titulo, filtros=filtros, objetos=objetos)
@@ -252,13 +303,29 @@ class Pagina:
         if compacta:   # cabe sem rolagem: linha baixa, cabecalho numa linha so
             objetos["grid"] = [{"properties": {"rowPadding": lit(1)}}]
             objetos["columnHeaders"] = [{"properties": {"wordWrap": lit(False)}}]
+        if self.estilo:
+            e = self.estilo
+            objetos.setdefault("columnHeaders", [{"properties": {}}])[0]["properties"].update(
+                {"fontColor": cor(e["titulo"]), "fontFamily": lit(e["fonte"]), "bold": lit(True)})
+            objetos["total"][0]["properties"].update({"fontColor": cor(e["titulo"]), "fontFamily": lit(e["fonte"])})
+        if self.tam:
+            tam = lit(self.tam["tabela"])
+            objetos["values"][0]["properties"]["fontSize"] = tam
+            objetos.setdefault("columnHeaders", [{"properties": {}}])[0]["properties"]["fontSize"] = tam
+            objetos["total"][0]["properties"]["fontSize"] = tam
         self._add("tableEx", x, y, w, h, query=q, titulo=titulo, filtros=filtros, objetos=objetos)
 
     def segmentacao(self, x, y, w, h, campo: Campo, titulo: str, grupo: str | None = None):
+        """Filtro em lista suspensa; sem a opcao "(Em branco)" (vem do relacionamento sem par)."""
         extra = {"syncGroup": {"groupName": grupo, "fieldChanges": True, "filterChanges": True}} if grupo else None
         self._add("slicer", x, y, w, h, query={"queryState": {"Values": {"projections": [campo.proj(ativo=True)]}}},
                   objetos={"data": [{"properties": {"mode": lit("Dropdown")}}],
-                           "header": [{"properties": {"text": lit(titulo)}}]}, extra=extra)
+                           **({"items": [{"properties": {"textSize": lit(self.tam["filtro_item"])}}]} if self.tam else {}),
+                           "header": [{"properties": {"text": lit(titulo.upper() if self.estilo else titulo),
+                                                      **({"textSize": lit(self.tam["filtro_cab"])} if self.tam else {}),
+                                                      **({"fontColor": cor(self.estilo["titulo"]),
+                                                          "fontFamily": lit(self.estilo["fonte"])} if self.estilo else {})}}]},
+                  extra=extra, filtros=[NAO_VAZIO(campo)])
 
 
 def cabecalho(pg: Pagina, titulo: str, subtitulo: str, itaipu: bool = False) -> None:
@@ -412,6 +479,7 @@ def relatorio_interno() -> list[Pagina]:
 
 def relatorio_itaipu() -> list[Pagina]:
     p0 = slide_itaipu()
+    p0c = slide_itaipu(classico=True)
     p1 = Pagina("Panorama")
     cabecalho(p1, "Sobressalentes — panorama", "Fichas técnicas no PMIB e entregas · contrato 4500063671", itaipu=True)
     linha_kpis(p1, 100, [(M("Fichas", "Fichas técnicas"), None), (M("Fichas Emitidas", "Enviadas a Itaipu"), None),
@@ -444,47 +512,56 @@ def relatorio_itaipu() -> list[Pagina]:
                                    Campo("PrecosAconex", "Data Aconex", rotulo="Emitida em")],
               "Listas de preços aguardando a SM.DT",
               filtros=[filtro(Campo("PrecosAconex", "Situacao Preco"), ["EMITIDA"])], pesos=[3, 0.6, 1.1])
-    return [p0, p1, p2]
+    return [p0, p0c, p1, p2]
 
 
-def slide_itaipu() -> Pagina:
-    """Uma pagina que cabe num slide 16:9 para Itaipu: listas, listas de precos, fichas e entrega, sem filtro e
-    sem rolagem (tudo agregado; a tabela e por especificacao tecnica)."""
-    pg = Pagina("Resumo (1 slide)")
+def slide_itaipu(classico: bool = False) -> Pagina:
+    """Uma pagina que cabe num slide 16:9 para Itaipu: listas, listas de precos, fichas e entrega, sem rolagem
+    (tudo agregado; a tabela e por especificacao tecnica). Filtros de ET e Capitulo pequenos no topo (sincronizados
+    com as outras paginas) e o filtro de pagina "sem a SEM_LISTA" ja aplicado (pode ser tirado no painel Filtros).
+    classico=True: a mesma pagina com o visual do painel antigo (fundo branco, bordas azuis)."""
+    sem_lista = filtro(Campo("Listas", "Lista"), ["SEM_LISTA"], negar=True)
+    pg = Pagina("Resumo (1 slide, clássico)" if classico else "Resumo (1 slide)",
+                estilo=CLASSICO if classico else None, filtros=[sem_lista], grande=True)
+    ca = COR_ACONEX_CLASSICO if classico else COR_ACONEX
+    verde, azul, ambar, vermelho = (("#08A64A", "#2C8BF6", "#F5A31A", "#F42B3B") if classico
+                                    else (COR["verde"], COR["azul"], COR["ambar"], COR["vermelho"]))
+    etapas = ({"Em preparação (CMI)": "#8CC2FA", "Em análise Itaipu": "#2C8BF6", "Aprovada": "#08A64A"} if classico
+              else {"Em preparação (CMI)": COR["azul_claro"], "Em análise Itaipu": COR["azul"], "Aprovada": COR["verde"]})
     pg.logo(MARGEM, 14, 110, 48, LOGO_IB)
-    pg.titulo(150, 6, 820, 52, "Sobressalentes — situação geral",
-              "Atualização Tecnológica de Itaipu · contrato 4500063671 · listas no Aconex, fichas no PMIB e entregas")
-    pg.nota(144, 56, 128, 26, M("Atualizado em"))
+    pg.titulo(150, 4, 580, 56, "Sobressalentes - situação geral",   # hífen: ajuste do Luan em 15/10
+              "Atualização Tecnológica de Itaipu · contrato 4500063671")
+    pg.nota(144, 60, 150, 24, M("Atualizado em"))
+    pg.segmentacao(744, 10, 206, 60, Campo("Listas", "Especificacao Tecnica"),
+                   "Espec. técnica" if classico else "Especificação técnica", "ET")
+    pg.segmentacao(958, 10, 206, 60, Campo("Listas", "Capitulo"), "Capítulo", "Capitulo")
     pg.logo(1176, 12, 80, 60, LOGO_CMI)
     cadastro = lambda: filtro(Campo("Listas", "Origem Cadastro"), ["MAPEADORA"])  # noqa: E731
     w3 = (W - 2 * MARGEM - 2 * VAO) / 3
     xs = [MARGEM + i * (w3 + VAO) for i in range(3)]
-    pg.kpi(xs[0], 92, w3, 84, L("Listas Aprovadas (texto)", "Listas de sobressalentes aprovadas (EN.DT)"), COR["verde"])
-    pg.barras(xs[0], 186, w3, 240, Campo("Listas", "Situacao Lista", rotulo="Situação"), L("Listas"),
-              "Última revisão no Aconex", ordem="categoria", cores=COR_ACONEX, margem=48, filtros=[cadastro()])
-    pg.kpi(xs[1], 92, w3, 84, L("Listas com Lista de Preços no Aconex (texto)", "Listas com lista de preços no Aconex (SM.DT)"),
-           COR["azul"])
-    pg.barras(xs[1], 186, w3, 240, Campo("Listas", "Situacao Lista de Precos", rotulo="Situação"), L("Listas"),
-              "Lista de preços de cada lista", ordem="categoria", cores=COR_ACONEX, margem=48, filtros=[cadastro()])
-    pg.kpi(xs[2], 92, w3, 84, M("Enviadas a Itaipu (texto)", "Fichas técnicas enviadas a Itaipu"), None)
-    pg.barras(xs[2], 186, w3, 240, Campo("Itens", "Etapa Cliente", rotulo="Etapa"), M("Fichas"),
-              "Fichas técnicas no PMIB", ordem="categoria", margem=40,
-              cores={"Em preparação (CMI)": COR["azul_claro"], "Em análise Itaipu": COR["azul"],
-                     "Aprovada": COR["verde"]})
-    hk = (696 - 442 - 2 * 10) / 3
-    for i, (campo, c) in enumerate([(M("Itens Físicos Entregues", "Itens físicos entregues"), COR["verde"]),
-                                    (M("Pedidos de Autorização Pendentes", "Autorizações de entrega pendentes"),
-                                     COR["ambar"]),
-                                    (M("Autorizações Atrasadas Itaipu", "Além de 15 dias úteis"), COR["vermelho"])]):
-        pg.kpi(MARGEM, 442 + i * (hk + 10), 300, hk, campo, c, tamanho=18)
-    pg.tabela(MARGEM + 316, 442, W - 2 * MARGEM - 316, 254,
+    pg.kpi(xs[0], 90, w3, 82, L("Listas Aprovadas (texto)", "Listas de sobressalentes aprovadas (EN.DT)"), verde)
+    pg.barras(xs[0], 180, w3, 254, Campo("Listas", "Situacao Lista", rotulo="Situação"), L("Listas"),
+              "Última revisão no Aconex", ordem="categoria", cores=ca, margem=48, filtros=[cadastro()])
+    pg.kpi(xs[1], 90, w3, 82, L("Listas com Lista de Preços no Aconex (texto)", "Listas com lista de preços no Aconex (SM.DT)"),
+           azul)
+    pg.barras(xs[1], 180, w3, 254, Campo("Listas", "Situacao Lista de Precos", rotulo="Situação"), L("Listas"),
+              "Lista de preços de cada lista", ordem="categoria", cores=ca, margem=48, filtros=[cadastro()])
+    pg.kpi(xs[2], 90, w3, 82, M("Enviadas a Itaipu (texto)", "Fichas técnicas enviadas a Itaipu"), None)
+    pg.barras(xs[2], 180, w3, 254, Campo("Itens", "Etapa Cliente", rotulo="Etapa"), M("Fichas"),
+              "Fichas técnicas no PMIB", ordem="categoria", margem=40, cores=etapas)
+    hk = (696 - 446 - 2 * 8) / 3
+    for i, (campo, c) in enumerate([(M("Itens Físicos Entregues", "Itens físicos entregues"), verde),
+                                    (M("Pedidos de Autorização Pendentes", "Autorizações de entrega pendentes"), ambar),
+                                    (M("Autorizações Atrasadas Itaipu", "Além de 15 dias úteis"), vermelho)]):
+        pg.kpi(MARGEM, 446 + i * (hk + 8), 300, hk, campo, c, tamanho=22, tamanho_rotulo=11)
+    pg.tabela(MARGEM + 316, 446, W - 2 * MARGEM - 316, 250,
               [Campo("Listas", "Especificacao Tecnica", rotulo="Especificação técnica"),
                L("Listas Cadastradas", "Listas"), L("Listas Aprovadas EN.DT", "Aprovadas"),
                L("Listas com Lista de Preços no Aconex", "Com preços"), M("Fichas"),
                M("Fichas Emitidas", "Enviadas"), M("Fichas Aprovadas", "Fichas aprov."),
                M("Itens Físicos Entregues", "Entregues")],
               "Por especificação técnica", ordenar=M("Fichas"), total=True, compacta=True,
-              pesos=[3.4, 0.8, 1, 1, 0.8, 0.9, 1, 0.9], filtros=[NAO_VAZIO(Campo("Listas", "Especificacao Tecnica"))])
+              pesos=[3.6, 0.8, 1.1, 1.1, 0.8, 1, 1.2, 1], filtros=[NAO_VAZIO(Campo("Listas", "Especificacao Tecnica"))])
     return pg
 
 
@@ -523,9 +600,14 @@ def escrever_relatorio(raiz: pathlib.Path, paginas: list[Pagina], exibicao: str,
     for pg in paginas:
         pd = d / "pages" / pg.id
         (pd / "visuals").mkdir(parents=True)
-        (pd / "page.json").write_text(json.dumps({"$schema": f"{SCH}/page/2.1.0/schema.json", "name": pg.id,
-                                                  "displayName": pg.nome, "displayOption": "FitToPage",
-                                                  "height": H, "width": W}, ensure_ascii=False, indent=2), encoding="utf-8")
+        pagina = {"$schema": f"{SCH}/page/2.1.0/schema.json", "name": pg.id, "displayName": pg.nome,
+                  "displayOption": "FitToPage", "height": H, "width": W}
+        if pg.estilo:
+            fundo = [{"properties": {"color": cor(pg.estilo["fundo"]), "transparency": lit(0)}}]
+            pagina["objects"] = {"background": fundo, "outspace": fundo}
+        if pg.filtros:
+            pagina["filterConfig"] = {"filters": pg.filtros}
+        (pd / "page.json").write_text(json.dumps(pagina, ensure_ascii=False, indent=2), encoding="utf-8")
         for v in pg.visuais:
             (pd / "visuals" / v["name"]).mkdir()
             (pd / "visuals" / v["name"] / "visual.json").write_text(json.dumps(v, ensure_ascii=False, indent=2),

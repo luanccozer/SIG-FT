@@ -6,6 +6,27 @@ atualizado: 2026-10-05
 
 # Power BI v2 — como montar
 
+> [!success] v4.1 (15/10/2026): filtros no slide e versão "clássica"
+> - Os dois slides do relatório Itaipu têm filtros pequenos de **Especificação técnica** e **Capítulo** no topo,
+>   sincronizados com as outras páginas.
+> - Os dois vêm com o filtro de página **Lista ≠ SEM_LISTA** já aplicado. Ele fica no painel Filtros; tire de lá
+>   para ver tudo.
+> - **"Resumo (1 slide, clássico)"**: a mesma página com o visual do painel antigo de sobressalentes.
+>   - Fundo branco, bordas e títulos azul-marinho em maiúsculas, fonte DIN.
+>   - Cores antigas: verde aprovado, vermelho não aprovado, azul-marinho não emitido, azul-claro em processo.
+>   - Formatação aplicada visual a visual (`CLASSICO` em `relatorios_v2.py`). O nome interno do DIN nos visuais é
+>     `wf_standard-font`; o nome "DIN" só funciona na caixa de texto.
+> - **Letras maiores nos dois slides** (o Luan achou pequenas; o padrão da tela, 9 a 11 pt, some numa projeção):
+>   - títulos dos visuais 13, eixos e valores das barras 12, números grandes 28, tabela 11, título da página 18;
+>   - modo `grande=True` da `Pagina` (`TAM_SLIDE` em `relatorios_v2.py`). As outras páginas não mudaram.
+> - Ajustes do Luan preservados: o hífen no título do slide ("Sobressalentes - situação geral"). Os filtros de ET e
+>   Capítulo não oferecem "(Em branco)".
+> - Entrega no Box: só as duas pastas `.Report`. O modelo (`.SemanticModel`) ficou como o Luan salvou em 15/10, com o
+>   cache de dados, e por isso o arquivo abre já com números. O modelo da v4.1 é igual ao da v4.
+> - Em 15/10 a atualização deu problema no trabalho e voltou a funcionar. Não consegui reproduzir aqui: o arquivo do
+>   Box estava íntegro e atualizou pelos dois caminhos (pasta automática e pasta preenchida). Se acontecer de novo,
+>   guarde a mensagem de erro.
+
 > [!success] v4 (14/10/2026): situação das listas e das listas de preços + um slide para Itaipu
 > - **Itaipu › Resumo (1 slide)**: primeira página do relatório Itaipu, feita para colar num slide 16:9. Sem filtro e
 >   sem rolagem.

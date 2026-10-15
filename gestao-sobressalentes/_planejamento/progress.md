@@ -152,6 +152,21 @@ procurement, atraso de Itaipu em 15 d.u.) e um Power BI com visão interna e vis
 - **Ambiente**: o Windows limpou `%TEMP%\tomlib` (DLLs do TOM) e o scratchpad. Baixei de novo os pacotes NuGet
   oficiais.
 
+## 2026-10-15 — slide com filtros e versão clássica
+- O Luan relatou problema na atualização do Power BI no trabalho. Não reproduziu aqui: o arquivo do Box estava
+  íntegro (147 arquivos) e atualizou pelos dois caminhos. Ele depois mandou o slide funcionando.
+- **Pedidos**:
+  - filtros de ET e Capítulo no slide;
+  - uma versão com fundo branco e bordas azuis, como o painel antigo;
+  - filtro já aplicado sem a SEM_LISTA.
+- **Feito**:
+  - os dois slides com filtros sincronizados no topo e o filtro de página `Lista ≠ SEM_LISTA`;
+  - nova página "Resumo (1 slide, clássico)".
+  - letras maiores nos dois slides (o Luan achou pequenas).
+- **Cuidado**: o Luan estava com o Power BI do Box aberto nesta máquina (salvou às 17:15), e meu script de teste
+  fechou todo `PBIDesktop` às 17:16. O script agora só fecha o que ele mesmo abriu.
+- **Entrega no Box**: só as pastas `.Report`. O modelo salvo pelo Luan, com o cache de dados, fica como está.
+
 ## Proximas sessões
 1. **SIG-FT** (a partir de 05/10, na nuvem): T0 cabeçalho na linha 5 (módulo PDM); T1 gravar sem
    openpyxl; T2 situação/dias de atraso; T3 revisão em uso → mapeadora; T4 export de autorizados.
