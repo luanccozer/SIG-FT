@@ -129,13 +129,49 @@ DEFINE
         COUNTROWS ( FILTER ( Listas, Listas[Status Real] = "APROVADO" && ( ISBLANK ( [Fichas] ) || [Fichas] = 0 ) ) )
     MEASURE Listas[Listas sem Responsável] =
         CALCULATE ( [Listas], Listas[Tem Responsavel] = FALSE () )
+    MEASURE Listas[Listas Cadastradas] =
+        // as da mapeadora (sem as que só existem como _STATUS_PMIB)
+        CALCULATE ( [Listas], Listas[Origem Cadastro] = "MAPEADORA" )
+    MEASURE Listas[Listas Aprovadas (texto)] =
+        FORMAT ( [Listas Aprovadas EN.DT], "#,##0" ) & " de " & FORMAT ( [Listas Cadastradas], "#,##0" )
+    MEASURE Listas[Listas Para Assinatura] =
+        CALCULATE ( [Listas], Listas[Situacao Lista] = "Para assinatura" )
+    MEASURE Listas[Listas Em Processo no Aconex] =
+        CALCULATE ( [Listas], Listas[Situacao Lista] = "Em processo" )
+    MEASURE Listas[Listas Não Aprovadas] =
+        CALCULATE ( [Listas], Listas[Situacao Lista] = "Não aprovado" )
+    MEASURE Listas[Listas Não Emitidas] =
+        CALCULATE ( [Listas], Listas[Situacao Lista] = "Não emitido" )
+    MEASURE Listas[Listas com Lista de Preços] =
+        CALCULATE ( [Listas Cadastradas], Listas[Situacao Lista de Precos] <> "Sem lista de preços" )
+    MEASURE Listas[Listas com Lista de Preços (texto)] =
+        FORMAT ( [Listas com Lista de Preços], "#,##0" ) & " de " & FORMAT ( [Listas Cadastradas], "#,##0" )
+    MEASURE Listas[Listas com Lista de Preços no Aconex] =
+        // emitida no Aconex (a PB021 que ainda esta so na pasta e "em elaboracao", nao conta)
+        CALCULATE ( [Listas Cadastradas],
+            NOT Listas[Situacao Lista de Precos] IN { "Sem lista de preços", "Em elaboração (CMI)" } )
+    MEASURE Listas[Listas com Lista de Preços no Aconex (texto)] =
+        FORMAT ( [Listas com Lista de Preços no Aconex], "#,##0" ) & " de " & FORMAT ( [Listas Cadastradas], "#,##0" )
+    MEASURE Listas[Listas com Lista de Preços Aprovada] =
+        CALCULATE ( [Listas], Listas[Situacao Lista de Precos] IN { "Aprovado", "Aprovado com comentários" } )
+    MEASURE Listas[Listas com Lista de Preços em Análise] =
+        CALCULATE ( [Listas], Listas[Situacao Lista de Precos] IN { "Para assinatura", "Em processo", "Informativo" } )
     MEASURE Listas[Listas com Revisão Desatualizada] =
         // a revisão em uso no _STATUS_PMIB não é a última emitida no Aconex
         CALCULATE ( [Listas], Listas[Revisao Desatualizada] = TRUE () )
 
     // ---------------- Listas de preços (Aconex) ----------------
-    MEASURE PrecosAconex[Listas de Preços Emitidas] =
+    MEASURE Listas[Fichas na Lista] =
+        // 0 em vez de vazio: a tabela de listas mostra tambem as que ainda nao tem ficha
+        COALESCE ( [Fichas], 0 )
+    MEASURE PrecosAconex[Listas de Preços] =
+        // todas: no Aconex e em elaboração (PB021 na pasta, fora do follow-up)
         COUNTROWS ( PrecosAconex )
+    MEASURE PrecosAconex[Listas de Preços Emitidas] =
+        // no Aconex (a aba de follow-up); as PB021 só na pasta são "em elaboração"
+        CALCULATE ( COUNTROWS ( PrecosAconex ), PrecosAconex[Situacao Preco] <> "EM ELABORAÇÃO" )
+    MEASURE PrecosAconex[Listas de Preços em Elaboração] =
+        CALCULATE ( COUNTROWS ( PrecosAconex ), PrecosAconex[Situacao Preco] = "EM ELABORAÇÃO" )
     MEASURE PrecosAconex[Listas de Preços Aprovadas SM.DT] =
         CALCULATE ( COUNTROWS ( PrecosAconex ), PrecosAconex[Situacao Preco] = "APROVADA SM.DT" )
     MEASURE PrecosAconex[Listas de Preços no Código Antigo] =

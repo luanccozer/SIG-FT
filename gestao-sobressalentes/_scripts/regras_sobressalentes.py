@@ -209,6 +209,46 @@ TIPO_CANONICO = {
 SECOES = ["INFO. GERAIS", "CARACT. TECNICAS", "DOCUMENTOS E IMAGENS", "CONDICOES",
           "VALORIZACAO", "APLICACAO - LMR"]
 
+# Situacao de um documento no Aconex (lista de sobressalentes da EN.DT, lista de precos da SM.DT): o
+# vocabulario do proprio Aconex, que a equipe e Itaipu ja conhecem. A ordem vai do pronto ao que nao comecou;
+# e a mesma do Power BI (fxStatusAconex / fxOrdemStatusAconex).
+STATUS_ACONEX = {
+    "APROVADO": "Aprovado",
+    "APROVADO COM COMENTARIOS": "Aprovado com comentários",
+    "PARA ASSINATURA": "Para assinatura",
+    "EM PROCESSO": "Em processo",
+    "INFORMATIVO": "Informativo",
+    "NAO APROVADO": "Não aprovado",
+    "VOID": "Cancelado (Void)",
+    "NAO EMITIDO": "Não emitido",
+    "SEM LISTA": "Sem lista",
+}
+SEM_LISTA_DE_PRECOS = "Sem lista de preços"
+FORA_DA_MAPEADORA = "Fora da mapeadora"
+EM_ELABORACAO = "Em elaboração (CMI)"     # PB021 na pasta, ainda fora do follow-up (nao foi para o Aconex)
+SEM_INFORMACAO = "Sem informação"
+ORDEM_STATUS_ACONEX = ["Aprovado", "Aprovado com comentários", "Para assinatura", "Em processo", "Informativo",
+                       "Não aprovado", "Cancelado (Void)", EM_ELABORACAO, "Não emitido", "Sem lista",
+                       SEM_LISTA_DE_PRECOS, FORA_DA_MAPEADORA, SEM_INFORMACAO]
+
+
+def status_aconex(valor) -> str | None:
+    """'Aprovado com Comentários' -> 'Aprovado com comentários'. Vazio -> None; valor desconhecido passa como esta."""
+    n = normalizar(valor)
+    if not n or n == "NAN":
+        return None
+    return STATUS_ACONEX.get(n, str(valor).strip())
+
+
+def lista_da_lista_de_precos(codigo, lista_informada) -> str | None:
+    """A lista de sobressalentes de uma lista de precos: a da coluna LISTA DE SOBRESSALENTES do follow-up; vazia,
+    a lista de precos PB021 aponta pelo proprio codigo (`...&MPB021` -> `...&MPB020`). Senao, None."""
+    informada = "" if lista_informada is None else str(lista_informada).strip()
+    if normalizar(informada) not in ("", "NAN"):
+        return informada
+    c = "" if codigo is None else str(codigo).strip()
+    return c[:-5] + "PB020" if c.upper().endswith("PB021") else None
+
 
 def ignorado(caminho: pathlib.Path) -> bool:
     texto = normalizar(str(caminho)).replace("/", "\\")

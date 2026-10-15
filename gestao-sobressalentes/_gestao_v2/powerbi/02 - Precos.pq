@@ -58,7 +58,9 @@ in
 
 // =====================================================================
 // CONSULTA: PrecosAconex   (aba "Lista de preços Follow-up" da mapeadora:
-//                           o estado de cada lista de preços no Aconex)
+//                           o estado de cada lista de preços no Aconex;
+//                           + as PB021 que já estão na pasta e ainda não
+//                           foram para o follow-up = "Em elaboração (CMI)")
 // =====================================================================
 let
     Arquivo = File.Contents(PastaPMIBEfetiva & "\Mapeamento Listas de Sobressalentes.xlsx"),
@@ -72,14 +74,37 @@ let
         {"ULTIMA REVISAO EMITIDA", "Revisao"}, {"STATUS DA REVISAO", "Status Aconex"},
         {"DATA DE ATUALIZACAO", "Data Aconex"}, {"LISTA DE SOBRESSALENTES", "Lista"},
         {"ALERTA RDS-PP", "Alerta RDS-PP"}, {"ACAO", "Acao"}, {"OBSERVACOES", "Observacoes"}}),
-    ComData = Table.TransformColumns(Renomeada, {{"Data Aconex", fxData, type date}}),
-    ComGeracao = Table.AddColumn(ComData, "Geracao", each if Text.Contains(Text.Upper(Text.From([Lista de Precos])), "PB021") then "PB021" else "PB020-0x (legado)", type text),
+    ComData0 = Table.TransformColumns(Renomeada, {{"Data Aconex", fxData, type date}}),
+    // a lista de sobressalentes: a informada no follow-up; vazia, a PB021 aponta pelo próprio código
+    ComVinculo = Table.AddColumn(ComData0, "Vinculo Lista", each
+        if [Lista] <> null and Text.Trim(Text.From([Lista])) <> "" then "Follow-up"
+        else if fxListaDaListaDePrecos([Lista de Precos], null) <> null then "Pelo código (PB021 → PB020)"
+        else "Sem lista", type text),
+    ComListaV = Table.AddColumn(ComVinculo, "Lista Vinculada", each fxListaDaListaDePrecos([Lista de Precos], [Lista]), type text),
+    ComData = Table.RenameColumns(Table.RemoveColumns(ComListaV, {"Lista"}), {{"Lista Vinculada", "Lista"}}),
+    ComOrigem = Table.AddColumn(ComData, "Origem", each "Aconex (follow-up)", type text),
+    ComGeracao = Table.AddColumn(ComOrigem, "Geracao", each if Text.Contains(Text.Upper(Text.From([Lista de Precos])), "PB021") then "PB021" else "PB020-0x (legado)", type text),
     ComSituacao = Table.AddColumn(ComGeracao, "Situacao Preco", each
         let s = fxNorm([Status Aconex]) in
         if s = "APROVADO" or s = "APROVADO COM COMENTARIOS" then "APROVADA SM.DT"
         else if s = "NAO APROVADO" then "NÃO APROVADA"
         else if s = "VOID" then "CANCELADA"
         else "EMITIDA", type text),
-    Tipada = Table.TransformColumnTypes(ComSituacao, {{"Lista de Precos", type text}, {"Lista", type text}, {"Revisao", type text}, {"Status Aconex", type text}})
+    ComSituacaoAconex = Table.AddColumn(ComSituacao, "Situacao Aconex", each
+        let s = fxStatusAconex([Status Aconex]) in if s = null then "Sem informação" else s, type text),
+
+    // PB021 que já existe na pasta e ainda não está no follow-up: em elaboração pelo CMI
+    NoFollowUp = List.Buffer(List.Transform(ComSituacaoAconex[Lista de Precos], fxNorm)),
+    SoNaPasta = Table.Distinct(Table.SelectRows(Table.SelectColumns(PrecosArquivos, {"Lista de Precos", "Geracao", "Date modified"}),
+        each [Geracao] = "PB021" and not List.Contains(NoFollowUp, fxNorm([Lista de Precos]))), {"Lista de Precos"}),
+    Pasta1 = Table.TransformColumns(Table.RenameColumns(SoNaPasta, {{"Date modified", "Data Aconex"}}), {{"Data Aconex", each Date.From(_), type date}}),
+    Pasta2 = Table.AddColumn(Pasta1, "Lista", each fxListaDaListaDePrecos([Lista de Precos], null), type text),
+    Pasta3 = Table.AddColumn(Pasta2, "Vinculo Lista", each if [Lista] <> null then "Pelo código (PB021 → PB020)" else "Sem lista", type text),
+    Pasta4 = Table.AddColumn(Pasta3, "Origem", each "Arquivo na pasta (falta no follow-up)", type text),
+    Pasta5 = Table.AddColumn(Pasta4, "Situacao Preco", each "EM ELABORAÇÃO", type text),
+    Pasta6 = Table.AddColumn(Pasta5, "Situacao Aconex", each "Em elaboração (CMI)", type text),
+    Unidas = Table.Combine({ComSituacaoAconex, Pasta6}),
+    ComOrdem = Table.AddColumn(Unidas, "Ordem Situacao Aconex", each fxOrdemStatusAconex([Situacao Aconex]), Int64.Type),
+    Tipada = Table.TransformColumnTypes(ComOrdem, {{"Lista de Precos", type text}, {"Lista", type text}, {"Revisao", type text}, {"Status Aconex", type text}})
 in
     Tipada

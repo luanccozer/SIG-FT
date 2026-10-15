@@ -108,9 +108,13 @@ Se a rede bloquear o Chromium e a TI mantiver Chrome ou Edge instalado:
 set SIGFT_PLAYWRIGHT_EXECUTABLE=C:\Program Files\Google\Chrome\Application\chrome.exe
 ```
 
-## O que exige rede da empresa
+## O que exige o portal PMIB
 Os módulos de RPA (Criar Fichas, LMR, Apagar LMR, Condições, Características Técnicas,
-Ficha Duplicada) precisam do **portal PMIB**, que só responde de dentro da rede.
+Ficha Duplicada) precisam do **portal PMIB com login feito**.
+
+O portal responde também fora da rede da empresa: em 13/10/2026 abriu da rede de casa.
+Se o **login** corporativo funciona de fora ainda não foi testado. Quem não alcança o
+portal é a sessão do Claude Code **na nuvem**, cujo proxy devolve `403`.
 
 Os módulos que só mexem em Excel — **Buscar Material, PDM, Analyzer, AutoSpec e Gestão
 PMIB** — rodam em qualquer máquina.

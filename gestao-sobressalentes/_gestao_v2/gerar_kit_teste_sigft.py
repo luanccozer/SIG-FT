@@ -9,7 +9,9 @@ faz exatamente o que foi projetado. Saida em _gestao_v2/fixtures/kit_gestao_pmib
                                                  + 3 comentarios em thread (nao podem sumir)
   status/#ST00=TESTE02&MPB020_STATUS_PMIB.xlsx   layout ANTIGO (APTO PARA ENTREGA): so le, nao grava
   status/testes_autospec/#ST00=TESTE01&...xlsx   ISCA: copia de teste com outros numeros — tem de ser ignorada
-  mapeadora_sintetica.xlsx                       aba Acompanhamento no layout v2 (+ abas vazias)
+  mapeadora_sintetica.xlsx                       aba Acompanhamento no layout v2, situacao no Aconex de cada lista e a
+                                                 aba Lista de precos Follow-up com os casos do painel (14/10/2026)
+  status/#ST00=TESTE03&MPB021.xlsx               lista de precos PB021 so na pasta = "Em elaboracao (CMI)"
   docmanager_sintetico.xlsx                      export do DocManager com as 3 listas
   esperado.json                                  o resultado certo para hoje = 2026-10-10
 
@@ -110,6 +112,23 @@ LISTAS = {  # codigo: (doc CMI, ultima revisao emitida, revisao em uso ANTES, tr
     "#ST00=TESTE02&MPB020": ("TESTE-CMI-02", "0B", "0B", "TRK-002"),
     "#ST00=TESTE03&MPB020": ("TESTE-CMI-03", "0", "0", "TRK-003"),
 }
+# situacao no Aconex (painel: "ultima revisao no Aconex" e Status Real), ET e capitulo
+ACONEX = {
+    "#ST00=TESTE01&MPB020": ("Para Assinatura", "APROVADO", "UNIDADE GERADORA", "CAPÍTULO TESTE A"),
+    "#ST00=TESTE02&MPB020": ("Aprovado com Comentários", "APROVADO", "UNIDADE GERADORA", "CAPÍTULO TESTE A"),
+    "#ST00=TESTE03&MPB020": ("Não Aprovado", "NÃO APROVADO", "CONTROLE CENTRALIZADO", "CAPÍTULO TESTE B"),
+}
+# aba Lista de precos Follow-up: codigo, rev, status, data, lista informada
+#   TESTE01: PB020-01 nao aprovada, depois PB021 em processo SEM a lista na coluna (liga pelo codigo; e a atual)
+#   TESTE02: PB020-01 aprovada com comentarios (a atual)
+#   TESTE99: PB021 sem lista de sobressalentes correspondente (achado de qualidade)
+#   TESTE03: so o arquivo PB021 na pasta, fora do follow-up -> "Em elaboracao (CMI)"
+FOLLOW_UP = [
+    ("#ST00=TESTE01&MPB020-01", "0A", "Não Aprovado", dt.date(2026, 3, 10), "#ST00=TESTE01&MPB020"),
+    ("#ST00=TESTE01&MPB021", "0B", "Em Processo", dt.date(2026, 9, 20), None),
+    ("#ST00=TESTE02&MPB020-01", "0A", "Aprovado com Comentários", dt.date(2026, 5, 2), "#ST00=TESTE02&MPB020"),
+    ("#ST00=TESTE99&MPB021", "0A", "Para Assinatura", dt.date(2026, 8, 1), None),
+]
 
 
 def montar_mapeadora(destino: pathlib.Path) -> None:
@@ -129,6 +148,11 @@ def montar_mapeadora(destino: pathlib.Path) -> None:
         ws.cell(r, col["REVISÃO EM USO"], emuso)
         ws.cell(r, col["DESCRIÇÃO"], f"TEXTO DE TESTE - LISTA DE SOBRESSALENTES {r - 2}")
         ws.cell(r, col["SITUAÇÃO NO PMIB"], "VALOR VELHO")       # tem de ser substituido pela cascata
+        st_rev, st_real, et, cap = ACONEX[cod]
+        ws.cell(r, col["STATUS DA REVISÃO"], st_rev)
+        ws.cell(r, col["STATUS REAL"], st_real)
+        ws.cell(r, col["ESPECIFICAÇÃO TÉCNICA"], et)
+        ws.cell(r, col["CAPÍTULO"], cap)
         ws.cell(r, col['CAMPO "CÓDIGO DO PROJETO PARA O PMIB"'], f'=I{r} & " / " & J{r} & " | " & A{r} & " / " & B{r}')
     d = wb.create_sheet("Dropbox")
     d["C1"] = "STATUS DA ATIVIDADE"
@@ -137,11 +161,29 @@ def montar_mapeadora(destino: pathlib.Path) -> None:
                            "DATA DE ATUALIZAÇÃO", "DESCRIÇÃO", "ESPECIFICAÇÃO TÉCNICA", "CAPÍTULO",
                            "LISTA DE SOBRESSALENTES", "ALERTA RDS-PP", "AÇÃO", "OBSERVAÇÕES"], start=1):
         lp.cell(1, c, n)
+    for r, (cod, rev, st, data, lista) in enumerate(FOLLOW_UP, start=2):
+        for c, v in enumerate([cod, f"TESTE-CMI-LP-{r - 1}", rev, st, data, f"LISTA DE PREÇOS DE TESTE {r - 1}",
+                               None, None, lista], start=1):
+            if v is not None:
+                lp.cell(r, c, v)
     at = wb.create_sheet("Atividades")
     for c, n in enumerate(["NV", "CÓDIGO ITAIPU", "DESCRIÇÃO", "ATIVIDADES", "CONCLUÍDAS", "TRAVADAS",
                            "DATA PREVISTA DE INÍCIO", "DATA DE INÍCIO", "PREVISÃO DE TÉRMINO", "DATA DE TÉRMINO",
                            "STATUS", "ALTERAÇÃO DO STATUS", "COM QUEM ESTÁ", "DETALHE", "CRITICIDADE", "CONCLUÍDA"], start=1):
         at.cell(1, c, n)
+    wb.save(destino)
+
+
+def montar_lista_precos_na_pasta(destino: pathlib.Path) -> None:
+    """Lista de precos PB021 que ainda nao foi para o follow-up (so a aba Lista de Materiais, sem PMIB)."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Lista de Materiais"
+    for c, n in enumerate(["ITEM", "QTD.", "UNID.", "DESCRIÇÃO", "FABRICANTE / MODELO", "CÓDIGO DE MATERIAL",
+                           "CÓDIGO GE", "CÓDIGO PMIB", "VALOR UNITÁRIO", "TIPO DE ENTREGA"], start=1):
+        ws.cell(4, c, n)
+    for c, v in enumerate([1, 1, "PÇ", "ITEM DE TESTE EM ELABORAÇÃO"], start=1):
+        ws.cell(5, c, v)
     wb.save(destino)
 
 
@@ -201,6 +243,7 @@ def main() -> None:
     montar_status_v1(t2)
     montar_isca(KIT / "status" / "testes_autospec" / t1.name)
     montar_mapeadora(KIT / "mapeadora_sintetica.xlsx")
+    montar_lista_precos_na_pasta(KIT / "status" / "#ST00=TESTE03&MPB021.xlsx")
     montar_docmanager(KIT / "docmanager_sintetico.xlsx")
 
     # referencia: recalcula uma COPIA do TESTE01 com HOJE fixo e le o resultado

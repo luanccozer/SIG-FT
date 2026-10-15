@@ -55,7 +55,7 @@ Em `sigft/config.py`:
 
 | Constante | Valor | Nota |
 |---|---|---|
-| `PORTAL_URL` | `https://apps.itaipu.gov.br/PMIB/PMIB_DatasheetList` | só acessivel da rede da empresa |
+| `PORTAL_URL` | `https://apps.itaipu.gov.br/PMIB/PMIB_DatasheetList` | responde também fora da rede da empresa; dados só com login. Por dentro: [[SIG-FT - Motor de RPA]] |
 | `PREFIXO_CONTRATO` | `4500063671` | ver [[Codigo PMIB]] |
 | `ABA_LISTA_MATERIAIS` | `Lista de Materiais` | + variantes toleradas |
 

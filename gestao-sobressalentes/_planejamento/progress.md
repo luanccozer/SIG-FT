@@ -132,6 +132,26 @@ procurement, atraso de Itaipu em 15 d.u.) e um Power BI com visão interna e vis
 - Novo `_gestao_v2/validar_painel.py`: compara o painel do SIG-FT com a referência no kit de teste. Testado: diz
   PAINEL OK para a referência e pega dado trocado, script externo e filtro faltando.
 
+## 2026-10-14 — situação das listas e das listas de preços; um slide para Itaipu
+- **Pedido do Luan**: ver as listas de sobressalentes, o status delas e o status da lista de preços; e um conteúdo
+  para Itaipu que caiba em um slide.
+- **Power BI v4**:
+  - página Itaipu "Resumo (1 slide)";
+  - Interno com a situação da última revisão no Aconex e a lista de preços de cada lista.
+- **Painel HTML**: card "Listas de sobressalentes e listas de preços" nas duas visões, com os mesmos números do
+  Power BI.
+- **Achados novos**:
+  - a mapeadora tem a lista `#ST00=B02BFA10UC011-UC930&EPB020` em 4 linhas;
+  - as 5 PB021 do follow-up estão com LISTA DE SOBRESSALENTES vazia (ligadas pelo código);
+  - `#ST00=B04BMA10TB021&EPB021` parece erro de digitação (TB021): não liga a nenhuma lista;
+  - 9 PB021 estão na pasta e ainda não estão no follow-up.
+- **SIG-FT**:
+  - roteiro ganhou a **T7b**: portar isto para o painel do SIG-FT, que a T7 portou em 06/10;
+  - kit de teste com os casos;
+  - `validar_painel.py` confere os campos novos e recusa o painel de hoje.
+- **Ambiente**: o Windows limpou `%TEMP%	omlib` (DLLs do TOM) e o scratchpad. Baixei de novo os pacotes NuGet
+  oficiais.
+
 ## Proximas sessões
 1. **SIG-FT** (a partir de 05/10, na nuvem): T0 cabeçalho na linha 5 (módulo PDM); T1 gravar sem
    openpyxl; T2 situação/dias de atraso; T3 revisão em uso → mapeadora; T4 export de autorizados.

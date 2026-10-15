@@ -18,7 +18,8 @@ Confere o painel HTML gerado pelo SIG-FT (T7 do roteiro) contra a implementacao 
 O que e comparado (os dados embutidos em <script id="dados">, nao o desenho):
   - cada ficha (lista|PMIB): status, com quem, tipo, entregue, apto, situacao da autorizacao,
     dias de atraso, situacao LMR, pendencia, valor, data do e-mail, secoes;
-  - cada lista: nome, ET, capitulo, status real, situacao no PMIB;
+  - cada lista: nome, ET, capitulo, status real, situacao no PMIB, situacao da ultima revisao no Aconex
+    e a lista de precos atual (codigo, revisao, situacao no Aconex);
   - listas de precos, atividades e os achados de qualidade (titulo -> quantidade);
   - a pagina abre sem rede (nenhum script/estilo externo) e tem os filtros de ET e Capitulo.
 
@@ -40,8 +41,8 @@ HOJE = dt.date(2026, 10, 10)
 sys.path.insert(0, str(AQUI.parent / "_scripts"))
 
 CAMPOS_FICHA = ("st", "q", "t", "en", "ap", "sa", "du", "sl", "pe", "v", "dt", "ok")
-CAMPOS_LISTA = ("nome", "et", "cap", "sr", "sit")
-CAMPOS_PRECO = ("geracao", "rev", "situacao", "lista")
+CAMPOS_LISTA = ("nome", "et", "cap", "sr", "sit", "srev", "lp", "lprev", "lpst")   # srev/lp*: desde 14/10/2026
+CAMPOS_PRECO = ("geracao", "rev", "situacao", "lista", "st")
 
 
 def referencia(pasta: pathlib.Path) -> dict:
@@ -89,6 +90,8 @@ def comparar(esp: dict, obt: dict, html: str) -> list[str]:
     externos = re.findall(r'<(?:script|link|img)[^>]+(?:src|href)="(?:https?:)?//[^"]+"', html)
     if externos:
         erros.append(f"a pagina depende de rede (tem de abrir offline): {externos[:3]}")
+    if 'id="c-listas"' not in html or 'id="c-listas-ib-st"' not in html:
+        erros.append('falta o card "Listas de sobressalentes e listas de precos" (id="c-listas" e id="c-listas-ib-st")')
     for id_ in ("f-et", "f-cap", "f-lista"):
         if f'id="{id_}"' not in html:
             erros.append(f'falta o filtro id="{id_}" (ET, Capitulo e Lista, como no Power BI)')

@@ -61,8 +61,28 @@ let
     ComDefasagem = Table.AddColumn(ComRevisao, "Revisao Desatualizada", each
         [Revisao em Uso] <> null and [Ultima Revisao] <> null and fxNorm([Ultima Revisao]) <> "SEM LISTA"
         and fxNorm([Revisao em Uso]) <> fxNorm([Ultima Revisao]), type logical),
+    // situação da ÚLTIMA revisão no Aconex (Para assinatura, Em processo...). O "Status Real" é o da equipe:
+    // APROVADO quando há revisão aprovada (inclui Para assinatura e Em processo com revisão anterior aprovada)
+    ComSituacaoLista = Table.AddColumn(ComDefasagem, "Situacao Lista", each
+        if [Origem Cadastro] <> "MAPEADORA" then "Fora da mapeadora"
+        else let s = fxStatusAconex([Status da Revisao]) in if s = null then "Sem informação" else s, type text),
+    ComOrdemLista = Table.AddColumn(ComSituacaoLista, "Ordem Situacao Lista", each fxOrdemStatusAconex([Situacao Lista]), Int64.Type),
+
+    // lista de preços ATUAL de cada lista: PB021 antes do código antigo; entre iguais, a mais recente
+    PrecosV = Table.SelectRows(Table.SelectColumns(PrecosAconex, {"Lista", "Lista de Precos", "Revisao", "Situacao Aconex", "Geracao", "Data Aconex"}),
+        each [Lista] <> null),
+    PrecosOrd = Table.Buffer(Table.Sort(Table.AddColumn(PrecosV, "P21", each if [Geracao] = "PB021" then 1 else 0, Int64.Type),
+        {{"P21", Order.Descending}, {"Data Aconex", Order.Descending}, {"Revisao", Order.Descending}})),
+    PrecoAtual = Table.Distinct(PrecosOrd, {"Lista"}),
+    ComPreco = Table.ExpandTableColumn(Table.NestedJoin(ComOrdemLista, {"Lista"}, PrecoAtual, {"Lista"}, "LP", JoinKind.LeftOuter), "LP",
+        {"Lista de Precos", "Revisao", "Situacao Aconex"}, {"Lista de Precos Atual", "Revisao Lista de Precos", "Situacao LP"}),
+    ComSituacaoLP = Table.AddColumn(ComPreco, "Situacao Lista de Precos", each
+        if [Lista de Precos Atual] = null then "Sem lista de preços" else if [Situacao LP] = null then "Sem informação" else [Situacao LP], type text),
+    ComOrdemLP = Table.AddColumn(Table.RemoveColumns(ComSituacaoLP, {"Situacao LP"}), "Ordem Situacao Lista de Precos",
+        each fxOrdemStatusAconex([Situacao Lista de Precos]), Int64.Type),
+
     // uma linha por lista (a mapeadora pode repetir um código): exigência do relacionamento com Itens
-    Unica = Table.Distinct(ComDefasagem, {"Lista"}),
+    Unica = Table.Distinct(ComOrdemLP, {"Lista"}),
     Final = Table.RemoveColumns(Table.RenameColumns(Unica, {{"Area", "Area (pasta)"}}), {"Sistema"})
 in
     Final

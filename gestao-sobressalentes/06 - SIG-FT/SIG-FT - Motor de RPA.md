@@ -6,13 +6,26 @@ tags: [sigft, rpa]
 
 ## Por que existe RPA aqui
 
-O portal PMIB não tem API. Tudo que a equipe faz nele e clique. Com
-mais de mil fichas e, num caso extremo como o RTA, ~150 aplicações LMR por ficha,
-automatizar o
-navegador deixou de ser conveniencia.
+O portal PMIB não tem API **pública** para o fornecedor: tudo o que a equipe faz nele é
+clique. Com mais de mil fichas e, num caso extremo como o RTA, ~150 aplicações LMR por
+ficha, automatizar o navegador deixou de ser conveniência.
 
-`PORTAL_URL = https://apps.itaipu.gov.br/PMIB/PMIB_DatasheetList` — **só acessivel da
-rede da empresa**.
+> [!info] Correção de 13/10/2026 — o portal tem endpoints internos
+> O PMIB é um app **OutSystems 11 Reactive**. As próprias telas falam com o servidor por
+> **endpoints JSON internos** (`/PMIB/screenservices/…`): são 282, e cada gravação
+> devolve uma resposta estruturada. Exemplos: o código PMIB da ficha criada, o Id da
+> aplicação LMR, a recusa linha a linha das características técnicas. O código das telas,
+> com as regras de validação, chega ao navegador de qualquer um. Tudo isso está em
+> `docs/PMIB_ENGENHARIA_REVERSA.md` no repositório do SIG-FT (PR #3).
+>
+> Isso **não** muda o que o SIG-FT faz hoje (RPA). Usar os endpoints por fora da tela é
+> decisão da Itaipu e da TI. Ler a resposta que a tela já recebe não é, e é a primeira
+> melhoria proposta.
+
+`PORTAL_URL = https://apps.itaipu.gov.br/PMIB/PMIB_DatasheetList`. O endereço responde
+**também fora da rede da empresa**: em 13/10/2026 a página, o manifesto e os scripts
+abriram da rede de casa. O login corporativo continua obrigatório para ver dados. Se o
+login funciona de fora da rede ainda não foi testado.
 
 ## Selenium -> Playwright
 
@@ -80,9 +93,11 @@ perdida de desenvolvimento:
 > *ideia* que se tem do portal, não o portal. **Nada de RPA se declara pronto sem uma
 > execução real.**
 
-E o corolario organizacional: **trabalho de portal exige sessão local**, com o
-navegador ligado. Um ambiente sem acesso a rede da empresa recebe `403` do PMIB — foi o
-que travou o módulo de ficha duplicada por uma semana em agosto/2026.
+E o corolário organizacional: **trabalho de portal exige sessão local**, com o
+navegador ligado e o login feito. A sessão do Claude Code **na nuvem** recebe `403`
+(`CONNECT tunnel failed`) ao tentar abrir o PMIB. Esse 403 vem do proxy do contêiner da
+nuvem, não do portal; foi o que travou o módulo de ficha duplicada por uma semana em
+agosto/2026. De uma máquina comum, mesmo fora da rede da empresa, o portal responde.
 
 ## Verificação sem o portal
 

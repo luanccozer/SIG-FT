@@ -139,18 +139,22 @@ def montar(hoje: dt.date, raiz: pathlib.Path = R.PASTA_PMIB, mapeadora: pathlib.
     vistos = set()
     for _, m in listas_m.iterrows():
         l = str(m["N DOCUMENTO ITAIPU"]).strip()
+        if l in vistos:      # a mapeadora pode repetir a lista (vale a primeira linha, como no Power BI)
+            continue
         vistos.add(l)
         s = sistemas.get(l, {})
         listas.append({"l": l, "nome": nome_exibicao(s["SISTEMA"]) if s.get("SISTEMA") else nome_curto(m.get("DESCRICAO"), l),
                        "area": sem_prefixo(s["AREA"]) if s.get("AREA") else None,
                        "et": m.get("ESPECIFICACAO TECNICA"), "cap": m.get("CAPITULO"), "sr": m.get("STATUS REAL"), "rev": str(m.get("ULTIMA REVISAO EMITIDA")),
+                       # situacao da ULTIMA revisao no Aconex (Para assinatura, Em processo...); "sr" e o Status Real da equipe
+                       "srev": R.status_aconex(m.get("STATUS DA REVISAO")) or "Sem informação",
                        "resp": m.get("RESPONSAVEL") if isinstance(m.get("RESPONSAVEL"), str) else None,
                        "proc": m.get("PROCUREMENT") if isinstance(m.get("PROCUREMENT"), str) else None,
                        "ev": m.get("EVENTOS DE PAGAMENTOS RELACIONADOS"), "sit": m.get("SITUACAO NO PMIB")})
     for l, s in sistemas.items():
         if l not in vistos:
             listas.append({"l": l, "nome": nome_exibicao(s["SISTEMA"]), "area": sem_prefixo(s["AREA"]), "sr": None, "rev": None, "resp": None,
-                           "proc": None, "ev": None, "sit": "SÓ _STATUS_PMIB"})
+                           "proc": None, "ev": None, "sit": "SÓ _STATUS_PMIB", "srev": R.FORA_DA_MAPEADORA})
     contagem = collections.Counter(x["nome"] for x in listas)
     for x in listas:   # nomes repetidos (ex.: 50 Hz e 60 Hz na mesma pasta) ganham o prefixo RDS-PP
         if contagem[x["nome"]] > 1:
@@ -167,10 +171,11 @@ def montar(hoje: dt.date, raiz: pathlib.Path = R.PASTA_PMIB, mapeadora: pathlib.
     for _, p in fu.iterrows():
         lp = str(p["N DOCUMENTO ITAIPU"]).strip()
         codigos_fu.add(lp)
-        st = str(p.get("STATUS DA REVISAO") or "")
-        precos_out.append({"lp": lp, "geracao": "PB021" if "PB021" in lp else "PB020-0x", "rev": str(p.get("ULTIMA REVISAO EMITIDA") or ""),
-                           "status": st, "data": iso(p.get("DATA DE ATUALIZACAO")),
-                           "lista": str(p.get("LISTA DE SOBRESSALENTES") or "").strip() or None,
+        st = "" if pd.isna(p.get("STATUS DA REVISAO")) else str(p.get("STATUS DA REVISAO"))
+        rev = p.get("ULTIMA REVISAO EMITIDA")
+        precos_out.append({"lp": lp, "geracao": "PB021" if "PB021" in lp else "PB020-0x", "rev": "" if pd.isna(rev) else str(rev),
+                           "status": st, "st": R.status_aconex(st), "data": iso(p.get("DATA DE ATUALIZACAO")),
+                           "lista": R.lista_da_lista_de_precos(lp, p.get("LISTA DE SOBRESSALENTES")),
                            "situacao": "APROVADA SM.DT" if R.normalizar(st).startswith("APROVADO") else
                                        "CANCELADA" if R.normalizar(st) == "VOID" else
                                        "NÃO APROVADA" if R.normalizar(st) == "NAO APROVADO" else "EMITIDA"})
@@ -178,7 +183,18 @@ def montar(hoje: dt.date, raiz: pathlib.Path = R.PASTA_PMIB, mapeadora: pathlib.
         cod = a["ARQUIVO_PRECO"]
         if a["GERACAO"] == "PB021" and cod not in codigos_fu:
             precos_out.append({"lp": cod, "geracao": "PB021", "rev": "", "status": "arquivo na pasta — falta no follow-up",
-                               "data": a["MODIFICADO"], "lista": cod.replace("PB021", "PB020"), "situacao": "EMITIDA"})
+                               "st": R.EM_ELABORACAO, "data": a["MODIFICADO"], "lista": R.lista_da_lista_de_precos(cod, None),
+                               "situacao": "EM ELABORAÇÃO"})
+
+    # lista de precos ATUAL de cada lista: PB021 antes do codigo antigo; entre iguais, a mais recente no Aconex
+    atual: dict[str, dict] = {}
+    for pr in sorted(precos_out, key=lambda x: (x["geracao"] == "PB021", x["data"] or "", x["rev"] or "")):
+        if pr["lista"]:
+            atual[pr["lista"]] = pr
+    for x in listas:
+        pr = atual.get(x["l"])
+        x["lp"], x["lprev"] = (pr["lp"], pr["rev"]) if pr else (None, None)
+        x["lpst"] = (pr["st"] or "Sem informação") if pr else R.SEM_LISTA_DE_PRECOS
 
     # ---------------- atividades ----------------
     atv = []
@@ -265,6 +281,26 @@ def qualidade(itens: pd.DataFrame, precos: pd.DataFrame, arquivos_preco: pd.Data
         q.append({"titulo": "listas de preços no follow-up com código antigo (PB020-0x)", "n": len(antigos),
                   "detalhe": "Pela revisão do ITAIPU-REF-0013 a lista de preços é PB021. A aba 'Lista de preços Follow-up' ainda não tem nenhuma PB021.",
                   "exemplos": antigos[:4]})
+
+    cods = mapa["listas"]["N DOCUMENTO ITAIPU"].astype(str).str.strip()
+    repetidas = sorted(set(cods[cods.duplicated()]))
+    if repetidas:
+        q.append({"titulo": "listas repetidas na mapeadora", "n": len(repetidas),
+                  "detalhe": "O mesmo código em mais de uma linha da aba Acompanhamento Sobressalente. Os painéis contam "
+                             "a lista uma vez (vale a primeira linha); apagar as linhas a mais.",
+                  "exemplos": [f"{c} ({int((cods == c).sum())} linhas)" for c in repetidas][:4]})
+
+    if len(fu):
+        orfas = []
+        for _, p in fu.iterrows():
+            alvo = R.lista_da_lista_de_precos(p["N DOCUMENTO ITAIPU"], p.get("LISTA DE SOBRESSALENTES"))
+            if alvo is None or alvo not in set(cods):
+                orfas.append(f"{str(p['N DOCUMENTO ITAIPU']).strip()} → {alvo or 'sem lista'}")
+        if orfas:
+            q.append({"titulo": "listas de preços sem lista de sobressalentes correspondente", "n": len(orfas),
+                      "detalhe": "Nem a coluna LISTA DE SOBRESSALENTES do follow-up nem o próprio código (PB021 → PB020) "
+                                 "apontam para uma lista da mapeadora. Conferir o código no follow-up.",
+                      "exemplos": orfas[:4]})
 
     copias = [p.name for p in raiz.rglob("*") if p.is_file() and p.suffix.lower() in (".xlsx", ".xlsm")
               and "00 - OBSOLETO" not in str(p) and re.search(r"STATUS_PMIB_\.xlsx$| - Copy|corrigido|testes_autospec", str(p), re.I)]

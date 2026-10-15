@@ -30,7 +30,8 @@ S, I, D, DT, B, P = "string", "int64", "double", "dateTime", "boolean", "pct"
 ESQUEMA = {   # coluna, tipo — a consulta e "fechada" com SelectColumns + TransformColumnTypes nestes tipos
     "Calendario": [("Data", DT), ("Ano", I), ("Mes", I), ("Mes Ano", S), ("Inicio do Mes", DT), ("Inicio da Semana", DT)],
     "PrecosAconex": [("Lista de Precos", S), ("Documento CMI", S), ("Revisao", S), ("Status Aconex", S), ("Data Aconex", DT),
-                     ("Lista", S), ("Alerta RDS-PP", S), ("Acao", S), ("Observacoes", S), ("Geracao", S), ("Situacao Preco", S)],
+                     ("Lista", S), ("Alerta RDS-PP", S), ("Acao", S), ("Observacoes", S), ("Geracao", S), ("Situacao Preco", S),
+                     ("Situacao Aconex", S), ("Ordem Situacao Aconex", I), ("Vinculo Lista", S), ("Origem", S)],
     "Itens": [(c, S) for c in ("Lista", "Area", "Sistema", "Caminho", "Revisao no Arquivo", "ITEM", "QTD.", "UNID.", "DESCRICAO",
                                "CODIGO DO MATERIAL", "CODIGO CMI", "MARCA/MODELO", "FORNECEDOR", "PROCUREMENT", "PDM USADO",
                                "INFO. GERAIS", "CARACT. TECNICAS", "DOCUMENTOS E IMAGENS", "CONDICOES", "VALORIZACAO",
@@ -47,7 +48,9 @@ ESQUEMA = {   # coluna, tipo — a consulta e "fechada" com SelectColumns + Tran
                                 "Revisao em Uso (mapeadora)", "Descricao", "Especificacao Tecnica", "Capitulo", "Responsavel",
                                 "Procurement (lista)", "Elaborador", "Origem Fornecedor", "Entrega (texto)", "Observacao", "Eventos",
                                 "Situacao PMIB (mapeadora)", "Origem Cadastro", "Area (pasta)", "Nome", "Area Final",
-                                "Revisao no Arquivo", "Revisao em Uso")]
+                                "Revisao no Arquivo", "Revisao em Uso", "Situacao Lista", "Lista de Precos Atual",
+                                "Revisao Lista de Precos", "Situacao Lista de Precos")]
+              + [("Ordem Situacao Lista", I), ("Ordem Situacao Lista de Precos", I)]
               + [("Tem Responsavel", B), ("Revisao Desatualizada", B)],
     "Atividades": [(c, S) for c in ("Lista", "Frente", "Atividade", "Status Atividade", "Com Quem Esta", "Detalhe", "Situacao")]
                   + [(c, DT) for c in ("Inicio Previsto", "Inicio Real", "Termino Previsto", "Termino Real", "Alteracao do Status")]
@@ -59,8 +62,13 @@ TIPO_M = {S: "type text", I: "Int64.Type", D: "type number", DT: "type date", B:
 TIPO_TMDL = {S: "string", I: "int64", D: "double", DT: "dateTime", B: "boolean", P: "double"}
 FORMATO = {DT: "dd/mm/yyyy", D: "#,##0.00", P: "0%", I: "0"}
 ORDENAR_POR = {("Itens", "Etapa"): "Ordem Etapa", ("Itens", "Etapa Cliente"): "Ordem Etapa Cliente",
+               ("Listas", "Situacao Lista"): "Ordem Situacao Lista",
+               ("Listas", "Situacao Lista de Precos"): "Ordem Situacao Lista de Precos",
+               ("PrecosAconex", "Situacao Aconex"): "Ordem Situacao Aconex",
                ("Calendario", "Mes Ano"): "Inicio do Mes"}
-OCULTAS = {("Itens", "Ordem Etapa"), ("Itens", "Ordem Etapa Cliente"), ("Itens", "Chave Ficha"), ("Itens", "Caminho")}
+OCULTAS = {("Itens", "Ordem Etapa"), ("Itens", "Ordem Etapa Cliente"), ("Itens", "Chave Ficha"), ("Itens", "Caminho"),
+           ("Listas", "Ordem Situacao Lista"), ("Listas", "Ordem Situacao Lista de Precos"),
+           ("PrecosAconex", "Ordem Situacao Aconex")}
 TIPO_EXPRESSAO = {"PastaPMIBEfetiva": "Text", "DataReferencia": "Date"}
 RELACOES = [("Itens", "Lista", "Listas", "Lista", False), ("Atividades", "Lista", "Listas", "Lista", False),
             ("PrecosAconex", "Lista", "Listas", "Lista", False), ("ListaEvento", "Lista", "Listas", "Lista", True),

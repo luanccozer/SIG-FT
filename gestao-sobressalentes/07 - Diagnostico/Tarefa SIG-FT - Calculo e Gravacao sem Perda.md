@@ -11,7 +11,7 @@ inicio: 2026-10-05
 ## Prompt para começar a sessão na nuvem
 
 > Leia `gestao-sobressalentes/07 - Diagnostico/Tarefa SIG-FT - Calculo e Gravacao sem Perda.md`
-> inteiro antes de mexer em código. Execute as etapas na ordem (T0 → T7), uma por commit, seguindo
+> inteiro antes de mexer em código. Execute as etapas na ordem (T0 → T7b), uma por commit, seguindo
 > as convenções do repositório. Ao final de cada etapa rode `bash scripts/check.sh`; ao final da T3
 > rode também o validador do kit (seção 3) até ele dizer **KIT OK**. Me mostre o que mudou antes de
 > passar de uma etapa para a outra.
@@ -404,6 +404,55 @@ diferente; FÍSICA sem CÓDIGO GE ou sem VALOR; DOCUMENTAL com CÓDIGO GE ou VAL
 - `validar_painel.py` diz **PAINEL OK** no kit (seção 3);
 - `check.sh` está verde;
 - um botão gera e abre o painel.
+
+### T7b — Painel: situação das listas e das listas de preços (pedido do Luan, 14/10/2026)
+
+> [!important] Por quê
+> O Luan precisa ver, para cada lista de sobressalentes, a situação da última revisão no Aconex (EN.DT) e a da sua
+> lista de preços (SM.DT). O Power BI v4 e a referência do painel já mostram isso (14/10). A T7 (feita em 06/10)
+> portou a versão anterior: falta trazer esta.
+
+**Referência**: o commit do cofre que traz esta etapa. Se a pasta `gestao-sobressalentes/` do seu branch for mais
+antiga, traga-a antes.
+- `gestao-sobressalentes/_scripts/regras_sobressalentes.py`: `STATUS_ACONEX`, `ORDEM_STATUS_ACONEX`,
+  `EM_ELABORACAO`, `SEM_INFORMACAO`, `status_aconex()` e `lista_da_lista_de_precos()`.
+- `gestao-sobressalentes/_scripts/gerar_prototipo_dashboard.py`.
+- `gestao-sobressalentes/_scripts/prototipo_template.html`.
+
+**O quê** (porte, sem mudar regra nem definição):
+1. **Vocabulário do Aconex.**
+   - `Aprovado com Comentários` vira `Aprovado com comentários`, e assim por diante.
+   - Valor vazio vira `Sem informação`.
+   - A ordem dos gráficos vai do pronto ao que não começou (`ORDEM_STATUS_ACONEX`). É a mesma do Power BI
+     (`fxStatusAconex` e `fxOrdemStatusAconex`).
+2. **Cada lista** ganha quatro campos:
+   - `srev`: situação da última revisão (coluna STATUS DA REVISÃO); a lista que só existe como `_STATUS_PMIB` fica
+     `Fora da mapeadora`;
+   - `lp`, `lprev` e `lpst`: a **lista de preços atual** — código, revisão e situação.
+3. **Lista de preços de uma lista.**
+   - O vínculo vem da coluna LISTA DE SOBRESSALENTES do follow-up. Vazia, a PB021 aponta pelo próprio código
+     (`…&MPB021` → `…&MPB020`).
+   - Entre várias, vale primeiro a PB021, depois a mais recente.
+   - Sem nenhuma, `Sem lista de preços`.
+4. **PB021 que está na pasta e não está no follow-up** é `Em elaboração (CMI)`, com situação `EM ELABORAÇÃO`: ainda
+   não foi para o Aconex.
+5. **Lista repetida na mapeadora** conta uma vez (vale a primeira linha, como no Power BI).
+6. **Achados de qualidade novos**: "listas repetidas na mapeadora" e "listas de preços sem lista de sobressalentes
+   correspondente".
+7. **Template**: copie o `prototipo_template.html` novo **sem mudar** para `sigft/assets/painel_template.html`. Ele traz
+   o card "Listas de sobressalentes e listas de preços" nas duas visões.
+
+**Kit**: `fixtures/kit_gestao_pmib/` ganhou os casos (a T3 continua KIT OK):
+- **TESTE01**: *Para assinatura*. Tem uma PB020-01 não aprovada, substituída por uma PB021 *Em processo* que liga
+  pelo código.
+- **TESTE02**: *Aprovado com comentários*, com a lista de preços aprovada com comentários.
+- **TESTE03**: *Não aprovado*. Só tem o arquivo `#ST00=TESTE03&MPB021.xlsx` na pasta (*Em elaboração*).
+- **TESTE99**: uma PB021 sem lista correspondente (é o achado de qualidade).
+
+**Pronto quando**:
+- `validar_painel.py` diz **PAINEL OK** no kit. Ele agora confere `srev`, `lp`, `lprev`, `lpst` e a situação de
+  cada lista de preços, e exige o card. O painel de hoje é recusado, com 13 diferenças.
+- `tests/test_painel.py` e `check.sh` estão verdes.
 
 ---
 

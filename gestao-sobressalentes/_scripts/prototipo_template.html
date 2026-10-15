@@ -78,6 +78,8 @@ main { max-width: 1280px; margin: 0 auto; padding: 0 16px 40px; }
 .seg:last-child { margin-right: 0; border-radius: 0 4px 4px 0; }
 .seg:hover, .seg:focus { filter: brightness(1.12); outline: none; }
 .vazio { color: var(--muted); font-size: 13px; padding: 8px 0; }
+.grade2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 12px 28px; margin-bottom: 14px; }
+.sub3 { font-size: 13px; font-weight: 600; margin: 0 0 8px; color: var(--ink); }
 table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
 th { color: var(--ink-2); font-weight: 600; position: sticky; top: 0; background: var(--surface); }
@@ -124,6 +126,7 @@ footer { color: var(--muted); font-size: 12px; max-width: 1280px; margin: 0 auto
   <section class="visao" id="v-interno" aria-label="Visão interna">
     <p class="aviso">Protótipo gerado dos <b>_STATUS_PMIB</b> (item a item) e da <b>mapeadora</b> (cadastro das listas). É o desenho alvo do Power BI: os números saem da ficha, não da contagem da mapeadora.</p>
     <div class="kpis" id="kpi-int"></div>
+    <div class="card" id="c-listas" style="margin-bottom:14px"></div>
     <div class="grade">
       <div class="card" id="c-quem"></div>
       <div class="card" id="c-secoes"></div>
@@ -141,6 +144,7 @@ footer { color: var(--muted); font-size: 12px; max-width: 1280px; margin: 0 auto
   </section>
   <section class="visao" id="v-itaipu" aria-label="Visão Itaipu" hidden>
     <div class="kpis" id="kpi-ib"></div>
+    <div class="card" id="c-listas-ib-st" style="margin-bottom:14px"></div>
     <div class="grade">
       <div class="card" id="c-avanco"></div>
       <div class="card" id="c-curva"></div>
@@ -356,6 +360,7 @@ function interno() {
   filaDeTrabalho(F);
   atividades();
   precos("c-precos", true);
+  situacaoListas("c-listas", true);
   qualidade();
 }
 const br = iso => iso ? iso.split("-").reverse().join("/") : "—";
@@ -408,6 +413,60 @@ function atividades() {
     {t: "Término previsto", v: a => br(a.fim_prev)}, {t: "Com quem", v: "quem"}], A));
 }
 
+// ---------------- listas de sobressalentes e listas de preços (Aconex) ----------------
+// mesma ordem e mesmas cores do Power BI (fxOrdemStatusAconex / COR_ACONEX)
+const ORDEM_ACONEX = ["Aprovado", "Aprovado com comentários", "Para assinatura", "Em processo", "Informativo", "Não aprovado",
+  "Cancelado (Void)", "Em elaboração (CMI)", "Não emitido", "Sem lista", "Sem lista de preços", "Fora da mapeadora", "Sem informação"];
+const claro = v => `color-mix(in srgb, var(--${v}) 50%, var(--surface))`;
+const COR_ACONEX = {"Aprovado": cor("s3"), "Aprovado com comentários": claro("s3"), "Para assinatura": cor("s1"),
+  "Em processo": cor("s4"), "Informativo": cor("o1"), "Não aprovado": cor("critical"), "Cancelado (Void)": cor("deemph"),
+  "Em elaboração (CMI)": cor("s2"), "Não emitido": claro("deemph"), "Sem lista": claro("deemph"),
+  "Sem lista de preços": claro("deemph"), "Fora da mapeadora": cor("deemph"), "Sem informação": cor("deemph")};
+const ordemAconex = s => { const k = ORDEM_ACONEX.indexOf(s); return k < 0 ? 99 : k; };
+const FORA = "Fora da mapeadora";
+
+// barras simples, uma cor por situação: linhas [{nome, n}]
+function barrasSimples(alvo, titulo, linhas) {
+  const max = Math.max(1, ...linhas.map(l => l.n));
+  const g = el("div", {class: "linhas"});
+  for (const l of linhas) {
+    const c = COR_ACONEX[l.nome] || cor("deemph");
+    const seg = el("div", {class: "seg", tabindex: "0", style: `width:${(l.n / max * 100).toFixed(3)}%;background:${c}`});
+    const mostrar = ev => mostrarTip(ev, titulo, [[c, l.nome, fmt(l.n)]]);
+    seg.addEventListener("pointermove", mostrar); seg.addEventListener("pointerleave", esconderTip);
+    g.append(el("div", {class: "nome", title: l.nome}, l.nome),
+      el("div", {class: "trilho", role: "img", "aria-label": `${l.nome}: ${l.n}`}, seg), el("div", {class: "tot"}, fmt(l.n)));
+  }
+  alvo.append(el("div", {}, el("h3", {class: "sub3"}, titulo),
+    linhas.length ? g : el("p", {class: "vazio"}, "Nada a mostrar com este filtro.")));
+}
+
+// cada lista: a situação da última revisão no Aconex (EN.DT) e a da sua lista de preços (SM.DT)
+function situacaoListas(card, interno) {
+  const L = listasFiltradas().filter(l => interno || l.srev !== FORA);
+  const fichasDe = agrupar(fichas(), "l");
+  const cad = L.filter(l => l.srev !== FORA);
+  const aprov = cad.filter(l => l.sr === "APROVADO").length;
+  const noAconex = cad.filter(l => !["Sem lista de preços", "Em elaboração (CMI)"].includes(l.lpst)).length;
+  const elab = cad.filter(l => l.lpst === "Em elaboração (CMI)").length;
+  const contagem = chave => Object.entries(contar(L, chave)).map(([nome, n]) => ({nome, n}))
+    .sort((a, b) => ordemAconex(a.nome) - ordemAconex(b.nome));
+  const linhas = L.map(l => ({...l, nf: nP(fichasDe[l.l] || [])}))
+    .sort((a, b) => ordemAconex(a.srev) - ordemAconex(b.srev) || ordemAconex(a.lpst) - ordemAconex(b.lpst) || b.nf - a.nf);
+  const marca = s => el("span", {class: "chip"}, el("i", {class: "sw", style: `background:${COR_ACONEX[s] || cor("deemph")}`}), s);
+  const corpo = cabecalho(card, "Listas de sobressalentes e listas de preços",
+    `${fmt(aprov)} de ${fmt(cad.length)} listas aprovadas pela EN.DT (Status Real) · ${fmt(noAconex)} com lista de preços no Aconex (SM.DT)` +
+    (elab ? ` · ${fmt(elab)} em elaboração pelo CMI` : "") + ". As barras mostram a situação da última revisão de cada documento no Aconex.");
+  const g = el("div", {class: "grade2"});
+  corpo.append(g);
+  barrasSimples(g, "Última revisão da lista no Aconex (EN.DT)", contagem("srev"));
+  barrasSimples(g, "Lista de preços de cada lista (SM.DT)", contagem("lpst"));
+  corpo.append(tabela([{t: "Lista", v: "nome"}, {t: "Rev.", v: l => l.rev || "—"}, {t: "Aconex (lista)", v: l => marca(l.srev)},
+    {t: "Lista de preços", v: l => l.lp || "—"}, {t: "Rev. (preços)", v: l => l.lprev || "—"},
+    {t: "Aconex (preços)", v: l => marca(l.lpst)}, {t: "Fichas", v: l => fmt(l.nf), n: 1},
+    ...(interno ? [{t: "Responsável", v: l => l.resp || "—"}] : [])], linhas));
+}
+
 function precos(card, interno) {
   const P = D.precos.filter(p => !estado.lista || p.lista === estado.lista);
   const legado = P.filter(p => p.geracao !== "PB021").length;
@@ -417,7 +476,7 @@ function precos(card, interno) {
   // para o cliente: só o que está registrado no Aconex e ainda sem aprovação
   const linhas = interno ? P : P.filter(p => p.situacao === "EMITIDA" && !p.status.startsWith("arquivo na pasta"));
   corpo.append(tabela([{t: "Lista de preços", v: "lp"}, ...(interno ? [{t: "Código", v: "geracao"}] : []), {t: "Rev.", v: "rev"},
-    {t: "Status Aconex", v: "status"}, {t: "Data", v: p => br(p.data)}, {t: "Lista de sobressalentes", v: p => nomeLista[p.lista] || p.lista || "—"}], linhas));
+    {t: "Situação no Aconex", v: p => p.st || p.status || "—"}, {t: "Data", v: p => br(p.data)}, {t: "Lista de sobressalentes", v: p => nomeLista[p.lista] || p.lista || "—"}], linhas));
 }
 
 function qualidade() {
@@ -449,8 +508,8 @@ function itaipu() {
   const linhas = Object.entries(agrupar(F, chave)).map(([k, arr]) => ({nome: chave === "l" ? (nomeLista[k] || k) : k,
       valores: arr.reduce((m, i) => (m[etapa(i)] = (m[etapa(i)] || 0) + 1, m), {})}))
     .sort((a, b) => Object.values(b.valores).reduce((s, x) => s + x, 0) - Object.values(a.valores).reduce((s, x) => s + x, 0));
-  const c1 = cabecalho("c-avanco", "Avanço das fichas técnicas", chave === "l" ? "Por lista de sobressalentes." : "Por área do projeto.",
-    () => tabela([{t: chave === "l" ? "Lista" : "Área", v: "nome"}, ...SO.map(s => ({t: s.nome, v: l => fmt(l.valores[s.chave] || 0), n: 1}))], linhas, false));
+  const c1 = cabecalho("c-avanco", "Avanço das fichas técnicas", chave === "l" ? "Por lista de sobressalentes." : "Por especificação técnica.",
+    () => tabela([{t: chave === "l" ? "Lista" : "Especificação técnica", v: "nome"}, ...SO.map(s => ({t: s.nome, v: l => fmt(l.valores[s.chave] || 0), n: 1}))], linhas, false));
   barrasEmpilhadas(c1, linhas, SO);
 
   curva(F);
@@ -465,6 +524,7 @@ function itaipu() {
   barrasEmpilhadas(c3, autL, SA, {rotuloFim: rotuloAtraso});
 
   precos("c-precos-ib", false);
+  situacaoListas("c-listas-ib-st", false);
 
   const porLista = Object.entries(agrupar(F, "l")).map(([l, arr]) => ({
     nome: nomeLista[l] || l, total: arr.length,

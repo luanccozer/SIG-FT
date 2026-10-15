@@ -139,7 +139,8 @@ def para_cartao(campo: Campo) -> Campo:
 
 def filtro(campo: Campo, valores: list[str], negar: bool = False) -> dict:
     cond = {"In": {"Expressions": [{"Column": {"Expression": {"SourceRef": {"Source": "f"}}, "Property": campo.p}}],
-                   "Values": [[{"Literal": {"Value": "'" + v.replace("'", "''") + "'"}}] for v in valores]}}
+                   "Values": [[{"Literal": {"Value": "null" if v is None else "'" + v.replace("'", "''") + "'"}}]
+                              for v in valores]}}
     if negar:
         cond = {"Not": {"Expression": cond}}
     return {"name": uuid.uuid4().hex[:20], "field": campo.expr(), "type": "Categorical",
@@ -192,11 +193,16 @@ class Pagina:
                 "PackageName": "RegisteredResources", "PackageType": 1, "ItemName": item}}}}}],
             "imageScaling": [{"properties": {"imageScalingType": lit("Fit")}}]})
 
-    def kpi(self, x, y, w, h, campo: Campo, cor_valor: str | None = None):
+    def kpi(self, x, y, w, h, campo: Campo, cor_valor: str | None = None, tamanho: int | None = None):
         campo = para_cartao(campo)
         objetos = {}
+        rotulo = {}
         if cor_valor:
-            objetos["labels"] = [{"properties": {"color": cor(cor_valor)}}]
+            rotulo["color"] = cor(cor_valor)
+        if tamanho:
+            rotulo["fontSize"] = lit(tamanho)
+        if rotulo:
+            objetos["labels"] = [{"properties": rotulo}]
         self._add("card", x, y, w, h, query={"queryState": {"Values": {"projections": [campo.proj()]}}},
                   objetos=objetos or None)
 
@@ -228,8 +234,12 @@ class Pagina:
         self._add("clusteredBarChart", x, y, w, h, query=q, titulo=titulo, filtros=filtros, objetos=objetos)
 
     def tabela(self, x, y, w, h, campos: list[Campo], titulo: str, filtros=None, ordenar: Campo | None = None,
-               crescente: bool = False, pesos: list[float] | None = None, total: bool = False):
+               crescente: bool = False, pesos: list[float] | None = None, total: bool = False, compacta: bool = False):
         """pesos = largura relativa de cada coluna (Power BI nao estica coluna sozinho)."""
+        nomes = [c.rotulo or c.p for c in campos]
+        repetidos = {n for n in nomes if nomes.count(n) > 1}
+        if repetidos:   # o Power BI recusa a consulta ("identical native reference name")
+            raise ValueError(f"tabela '{titulo}' com coluna repetida: {sorted(repetidos)}")
         q = {"queryState": {"Values": {"projections": [c.proj() for c in campos]}}}
         if ordenar:
             q["sortDefinition"] = {"sort": [{"field": ordenar.expr(), "direction": "Ascending" if crescente else "Descending"}]}
@@ -238,7 +248,10 @@ class Pagina:
         larguras = [{"properties": {"value": lit(round(util * pz / sum(pesos)))},
                      "selector": {"metadata": f"{c.t}.{c.p}"}} for c, pz in zip(campos, pesos)]
         objetos = {"columnWidth": larguras, "total": [{"properties": {"totals": lit(total)}}],
-                   "values": [{"properties": {"wordWrap": lit(True)}}]}
+                   "values": [{"properties": {"wordWrap": lit(not compacta)}}]}
+        if compacta:   # cabe sem rolagem: linha baixa, cabecalho numa linha so
+            objetos["grid"] = [{"properties": {"rowPadding": lit(1)}}]
+            objetos["columnHeaders"] = [{"properties": {"wordWrap": lit(False)}}]
         self._add("tableEx", x, y, w, h, query=q, titulo=titulo, filtros=filtros, objetos=objetos)
 
     def segmentacao(self, x, y, w, h, campo: Campo, titulo: str, grupo: str | None = None):
@@ -282,6 +295,18 @@ def filtro_medida_positiva(campo: Campo) -> dict:
                            "Right": {"Literal": {"Value": "0L"}}}}}]}}
 
 
+COR_ACONEX = {"Aprovado": COR["verde"], "Aprovado com comentários": "#78CFA9", "Para assinatura": COR["azul"],
+              "Em processo": COR["ambar"], "Informativo": COR["azul_claro"], "Não aprovado": COR["vermelho"],
+              "Cancelado (Void)": COR["cinza"], "Em elaboração (CMI)": COR["laranja"], "Não emitido": "#C9C7C0",
+              "Sem lista": "#C9C7C0", "Sem lista de preços": "#C9C7C0", "Fora da mapeadora": COR["cinza"],
+              "Sem informação": COR["cinza"]}
+
+
+def NAO_VAZIO(campo: Campo) -> dict:
+    """Filtro de visual 'campo nao e (Vazio)' (tira a linha em branco do relacionamento sem par)."""
+    return filtro(campo, [None], negar=True)
+
+
 COR_COM_QUEM = {"CMI": COR["azul"], "Fornecedor": COR["laranja"], "Itaipu": COR["ambar"], "Concluída": COR["verde"],
                 "Sem status": COR["cinza"]}
 
@@ -307,45 +332,49 @@ def relatorio_interno() -> list[Pagina]:
               "Por especificação técnica", ordenar=M("Fichas"), pesos=[3, 1, 1, 1, 1, 1, 1, 1.3, 1.4], total=True)
 
     p2 = Pagina("Listas de sobressalentes")
-    cabecalho(p2, "Listas de sobressalentes", "Situação de cada lista no Aconex e no PMIB (cadastro da mapeadora)")
-    linha_kpis(p2, 100, [(L("Listas", "Listas de sobressalentes"), None),
-                         (L("Listas Aprovadas EN.DT", "Aprovadas no Aconex"), COR["verde"]),
-                         (L("Listas com Revisão Desatualizada", "Revisão em uso desatualizada"), COR["vermelho"]),
-                         (L("Listas sem Responsável", "Sem responsável"), COR["laranja"]),
-                         (L("Listas sem Lista de Preços", "Sem lista de preços"), COR["ambar"])])
-    p2.barras(MARGEM, 208, 500, 230, Campo("Listas", "Status Real", rotulo="Situação"), L("Listas"), "Situação no Aconex",
-              cores={"APROVADO": COR["verde"], "NÃO APROVADO": COR["vermelho"], "EM PROCESSO": COR["ambar"],
-                     "NÃO EMITIDO": COR["cinza"], "SEM LISTA": COR["cinza"]}, margem=30)
-    p2.barras(540, 208, 716, 230, Campo("Listas", "Situacao PMIB (mapeadora)", rotulo="Situação"), L("Listas"),
-              "Situação das fichas no PMIB", cor_unica=COR["azul"], margem=45)
-    p2.tabela(MARGEM, 454, 1232, 242, [NOME_LISTA(), Campo("Listas", "Status Real", rotulo="Aconex"),
-                                       Campo("Listas", "Revisao em Uso", rotulo="Rev. em uso"),
-                                       Campo("Listas", "Ultima Revisao", rotulo="Últ. emitida"),
-                                       Campo("Listas", "Situacao PMIB (mapeadora)", rotulo="Situação no PMIB"),
-                                       M("Fichas"), M("% Aprovadas", "% aprovadas"),
+    cabecalho(p2, "Listas de sobressalentes",
+              "Situação da última revisão no Aconex (EN.DT) e a lista de preços de cada lista (SM.DT)")
+    linha_kpis(p2, 100, [(L("Listas Cadastradas", "Listas de sobressalentes"), None),
+                         (L("Listas Aprovadas EN.DT", "Aprovadas (Status Real)"), COR["verde"]),
+                         (L("Listas Para Assinatura", "Para assinatura"), COR["azul"]),
+                         (L("Listas Não Aprovadas", "Não aprovadas — reemitir"), COR["vermelho"]),
+                         (L("Listas Não Emitidas", "Não emitidas"), COR["cinza"]),
+                         (L("Listas com Revisão Desatualizada", "Revisão desatualizada"), COR["laranja"])])
+    p2.barras(MARGEM, 208, 608, 232, Campo("Listas", "Situacao Lista", rotulo="Situação"), L("Listas"),
+              "Última revisão no Aconex", ordem="categoria", cores=COR_ACONEX, margem=40)
+    p2.barras(648, 208, 608, 232, Campo("Listas", "Situacao Lista de Precos", rotulo="Situação"), L("Listas"),
+              "Lista de preços de cada lista", ordem="categoria", cores=COR_ACONEX, margem=40)
+    p2.tabela(MARGEM, 456, 1232, 240, [NOME_LISTA(), Campo("Listas", "Ultima Revisao", rotulo="Rev."),
+                                       Campo("Listas", "Situacao Lista", rotulo="Aconex"),
+                                       Campo("Listas", "Lista de Precos Atual", rotulo="Lista de preços"),
+                                       Campo("Listas", "Revisao Lista de Precos", rotulo="Rev. (preços)"),
+                                       Campo("Listas", "Situacao Lista de Precos", rotulo="Aconex (preços)"),
+                                       L("Fichas na Lista", "Fichas"), M("% Aprovadas", "% fichas aprovadas"),
                                        Campo("Listas", "Responsavel", rotulo="Responsável")],
-              "Listas", ordenar=M("Fichas"), pesos=[4.2, 1.3, 0.8, 0.8, 2.2, 0.7, 0.9, 1.8])
+              "Cada lista e a sua lista de preços", ordenar=Campo("Listas", "Situacao Lista"), crescente=True,
+              pesos=[3.2, 0.45, 1.5, 2.8, 0.85, 1.5, 0.6, 0.9, 1.5], filtros=[NAO_VAZIO(Campo("Listas", "Lista"))])
 
     p3 = Pagina("Listas de preços")
-    cabecalho(p3, "Listas de preços", "Estado de cada lista de preços no Aconex (aba Lista de preços Follow-up)")
-    linha_kpis(p3, 100, [(PR("Listas de Preços Emitidas", "Listas de preços emitidas"), None),
+    cabecalho(p3, "Listas de preços", "Cada lista de preços no Aconex (aba Lista de preços Follow-up) e as PB021 já na pasta")
+    linha_kpis(p3, 100, [(PR("Listas de Preços Emitidas", "Emitidas no Aconex"), None),
                          (PR("Listas de Preços Aprovadas SM.DT", "Aprovadas pela SM.DT"), COR["verde"]),
                          (PR("Listas de Preços Aguardando SM.DT", "Aguardando a SM.DT"), COR["ambar"]),
                          (PR("Listas de Preços Não Aprovadas", "Não aprovadas"), COR["vermelho"]),
-                         (PR("Listas de Preços no Código Antigo", "No código antigo"), COR["cinza"]),
-                         (L("Listas sem Lista de Preços", "Listas sem lista de preços"), COR["laranja"])])
-    p3.barras(MARGEM, 208, 440, 200, Campo("PrecosAconex", "Situacao Preco", rotulo="Situação"),
-              PR("Listas de Preços Emitidas", "Listas"), "Situação no Aconex",
-              cores={"APROVADA SM.DT": COR["verde"], "EMITIDA": COR["ambar"], "NÃO APROVADA": COR["vermelho"],
-                     "CANCELADA": COR["cinza"]}, margem=35)
-    p3.tabela(MARGEM, 424, 440, 272, [NOME_LISTA(), M("Fichas")], "Listas com fichas e sem lista de preços",
+                         (PR("Listas de Preços em Elaboração", "Em elaboração (CMI)"), COR["laranja"]),
+                         (L("Listas sem Lista de Preços", "Com fichas e sem preços"), COR["cinza"])])
+    p3.barras(MARGEM, 208, 440, 252, Campo("PrecosAconex", "Situacao Aconex", rotulo="Situação"),
+              PR("Listas de Preços", "Listas de preços"), "Situação no Aconex", ordem="categoria", cores=COR_ACONEX,
+              margem=45)
+    p3.tabela(MARGEM, 476, 440, 220, [NOME_LISTA(), M("Fichas")], "Listas com fichas e sem lista de preços",
               filtros=[filtro_medida_positiva(L("Listas sem Lista de Preços"))], ordenar=M("Fichas"), pesos=[4, 1])
     p3.tabela(480, 208, 776, 488, [Campo("Listas", "Nome", rotulo="Lista de sobressalentes"),
                                    Campo("PrecosAconex", "Lista de Precos", rotulo="Lista de preços"),
                                    Campo("PrecosAconex", "Revisao", rotulo="Rev."),
-                                   Campo("PrecosAconex", "Situacao Preco", rotulo="Situação"),
-                                   Campo("PrecosAconex", "Data Aconex", rotulo="Data no Aconex")],
-              "Listas de preços no Aconex", ordenar=Campo("PrecosAconex", "Data Aconex"), pesos=[3, 3, 0.6, 1.4, 1.1])
+                                   Campo("PrecosAconex", "Situacao Aconex", rotulo="Situação"),
+                                   Campo("PrecosAconex", "Data Aconex", rotulo="Data"),
+                                   Campo("PrecosAconex", "Geracao", rotulo="Código")],
+              "Listas de preços", ordenar=Campo("PrecosAconex", "Situacao Aconex"), crescente=True,
+              pesos=[2.4, 2.7, 0.45, 1.5, 1.15, 1.45])
 
     p4 = Pagina("Autorização e entrega")
     cabecalho(p4, "Autorização de entrega e material",
@@ -382,6 +411,7 @@ def relatorio_interno() -> list[Pagina]:
 
 
 def relatorio_itaipu() -> list[Pagina]:
+    p0 = slide_itaipu()
     p1 = Pagina("Panorama")
     cabecalho(p1, "Sobressalentes — panorama", "Fichas técnicas no PMIB e entregas · contrato 4500063671", itaipu=True)
     linha_kpis(p1, 100, [(M("Fichas", "Fichas técnicas"), None), (M("Fichas Emitidas", "Enviadas a Itaipu"), None),
@@ -414,7 +444,48 @@ def relatorio_itaipu() -> list[Pagina]:
                                    Campo("PrecosAconex", "Data Aconex", rotulo="Emitida em")],
               "Listas de preços aguardando a SM.DT",
               filtros=[filtro(Campo("PrecosAconex", "Situacao Preco"), ["EMITIDA"])], pesos=[3, 0.6, 1.1])
-    return [p1, p2]
+    return [p0, p1, p2]
+
+
+def slide_itaipu() -> Pagina:
+    """Uma pagina que cabe num slide 16:9 para Itaipu: listas, listas de precos, fichas e entrega, sem filtro e
+    sem rolagem (tudo agregado; a tabela e por especificacao tecnica)."""
+    pg = Pagina("Resumo (1 slide)")
+    pg.logo(MARGEM, 14, 110, 48, LOGO_IB)
+    pg.titulo(150, 6, 820, 52, "Sobressalentes — situação geral",
+              "Atualização Tecnológica de Itaipu · contrato 4500063671 · listas no Aconex, fichas no PMIB e entregas")
+    pg.nota(144, 56, 128, 26, M("Atualizado em"))
+    pg.logo(1176, 12, 80, 60, LOGO_CMI)
+    cadastro = lambda: filtro(Campo("Listas", "Origem Cadastro"), ["MAPEADORA"])  # noqa: E731
+    w3 = (W - 2 * MARGEM - 2 * VAO) / 3
+    xs = [MARGEM + i * (w3 + VAO) for i in range(3)]
+    pg.kpi(xs[0], 92, w3, 84, L("Listas Aprovadas (texto)", "Listas de sobressalentes aprovadas (EN.DT)"), COR["verde"])
+    pg.barras(xs[0], 186, w3, 240, Campo("Listas", "Situacao Lista", rotulo="Situação"), L("Listas"),
+              "Última revisão no Aconex", ordem="categoria", cores=COR_ACONEX, margem=48, filtros=[cadastro()])
+    pg.kpi(xs[1], 92, w3, 84, L("Listas com Lista de Preços no Aconex (texto)", "Listas com lista de preços no Aconex (SM.DT)"),
+           COR["azul"])
+    pg.barras(xs[1], 186, w3, 240, Campo("Listas", "Situacao Lista de Precos", rotulo="Situação"), L("Listas"),
+              "Lista de preços de cada lista", ordem="categoria", cores=COR_ACONEX, margem=48, filtros=[cadastro()])
+    pg.kpi(xs[2], 92, w3, 84, M("Enviadas a Itaipu (texto)", "Fichas técnicas enviadas a Itaipu"), None)
+    pg.barras(xs[2], 186, w3, 240, Campo("Itens", "Etapa Cliente", rotulo="Etapa"), M("Fichas"),
+              "Fichas técnicas no PMIB", ordem="categoria", margem=40,
+              cores={"Em preparação (CMI)": COR["azul_claro"], "Em análise Itaipu": COR["azul"],
+                     "Aprovada": COR["verde"]})
+    hk = (696 - 442 - 2 * 10) / 3
+    for i, (campo, c) in enumerate([(M("Itens Físicos Entregues", "Itens físicos entregues"), COR["verde"]),
+                                    (M("Pedidos de Autorização Pendentes", "Autorizações de entrega pendentes"),
+                                     COR["ambar"]),
+                                    (M("Autorizações Atrasadas Itaipu", "Além de 15 dias úteis"), COR["vermelho"])]):
+        pg.kpi(MARGEM, 442 + i * (hk + 10), 300, hk, campo, c, tamanho=18)
+    pg.tabela(MARGEM + 316, 442, W - 2 * MARGEM - 316, 254,
+              [Campo("Listas", "Especificacao Tecnica", rotulo="Especificação técnica"),
+               L("Listas Cadastradas", "Listas"), L("Listas Aprovadas EN.DT", "Aprovadas"),
+               L("Listas com Lista de Preços no Aconex", "Com preços"), M("Fichas"),
+               M("Fichas Emitidas", "Enviadas"), M("Fichas Aprovadas", "Fichas aprov."),
+               M("Itens Físicos Entregues", "Entregues")],
+              "Por especificação técnica", ordenar=M("Fichas"), total=True, compacta=True,
+              pesos=[3.4, 0.8, 1, 1, 0.8, 0.9, 1, 0.9], filtros=[NAO_VAZIO(Campo("Listas", "Especificacao Tecnica"))])
+    return pg
 
 
 def escrever_relatorio(raiz: pathlib.Path, paginas: list[Pagina], exibicao: str, modelo: str) -> None:

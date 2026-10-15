@@ -168,6 +168,59 @@ in
 
 
 // ---------------------------------------------------------------------
+// CONSULTA: fxStatusAconex  — situação de um documento no Aconex (lista de
+//   sobressalentes da EN.DT, lista de preços da SM.DT) com o vocabulário do
+//   próprio Aconex. Mesma tabela de regras_sobressalentes.STATUS_ACONEX.
+//   Vazio -> null; valor desconhecido passa como está.
+// ---------------------------------------------------------------------
+(valor as any) as nullable text =>
+let
+    n = fxNorm(valor),
+    Mapa = [
+        #"APROVADO" = "Aprovado",
+        #"APROVADO COM COMENTARIOS" = "Aprovado com comentários",
+        #"PARA ASSINATURA" = "Para assinatura",
+        #"EM PROCESSO" = "Em processo",
+        #"INFORMATIVO" = "Informativo",
+        #"NAO APROVADO" = "Não aprovado",
+        #"VOID" = "Cancelado (Void)",
+        #"NAO EMITIDO" = "Não emitido",
+        #"SEM LISTA" = "Sem lista"
+    ]
+in
+    if n = "" then null else Record.FieldOrDefault(Mapa, n, Text.Trim(Text.From(valor)))
+
+
+// ---------------------------------------------------------------------
+// CONSULTA: fxOrdemStatusAconex  — posição para ordenar os gráficos, do pronto
+//   ao que não começou (= regras_sobressalentes.ORDEM_STATUS_ACONEX)
+// ---------------------------------------------------------------------
+(rotulo as nullable text) as number =>
+let
+    Ordem = {"Aprovado", "Aprovado com comentários", "Para assinatura", "Em processo", "Informativo", "Não aprovado",
+             "Cancelado (Void)", "Em elaboração (CMI)", "Não emitido", "Sem lista", "Sem lista de preços",
+             "Fora da mapeadora", "Sem informação"},
+    p = List.PositionOf(Ordem, rotulo)
+in
+    if p < 0 then 99 else p + 1
+
+
+// ---------------------------------------------------------------------
+// CONSULTA: fxListaDaListaDePrecos  — a lista de sobressalentes de uma lista de
+//   preços: a da coluna LISTA DE SOBRESSALENTES do follow-up; vazia, a PB021
+//   aponta pelo próprio código (...&MPB021 -> ...&MPB020). Senão, null.
+// ---------------------------------------------------------------------
+(codigo as any, informada as any) as nullable text =>
+let
+    i = if informada = null then "" else Text.Trim(Text.From(informada)),
+    c = if codigo = null then "" else Text.Trim(Text.From(codigo))
+in
+    if i <> "" then i
+    else if Text.EndsWith(Text.Upper(c), "PB021") then Text.Start(c, Text.Length(c) - 5) & "PB020"
+    else null
+
+
+// ---------------------------------------------------------------------
 // CONSULTA: fxRevisaoEmUso  — a revisão da lista de sobressalentes que o
 //   _STATUS_PMIB reflete, lida da linha acima do cabeçalho:
 //   "REVISÃO DA LISTA DE SOBRESSALENTES ATUAL EM USO: 0A - DATA DE ALTERAÇÃO: 03/09/2026" -> "0A"

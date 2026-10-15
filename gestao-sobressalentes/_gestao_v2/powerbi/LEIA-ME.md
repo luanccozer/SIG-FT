@@ -6,6 +6,41 @@ atualizado: 2026-10-05
 
 # Power BI v2 — como montar
 
+> [!success] v4 (14/10/2026): situação das listas e das listas de preços + um slide para Itaipu
+> - **Itaipu › Resumo (1 slide)**: primeira página do relatório Itaipu, feita para colar num slide 16:9. Sem filtro e
+>   sem rolagem.
+>   - Três números: listas aprovadas, listas com lista de preços no Aconex e fichas enviadas.
+>   - Três barras: última revisão no Aconex, lista de preços de cada lista e etapa das fichas.
+>   - Entrega: itens entregues, autorizações pendentes e além do prazo.
+>   - Uma tabela por especificação técnica.
+> - **Interno › Listas de sobressalentes**:
+>   - situação da **última revisão no Aconex**, com o vocabulário do Aconex: Aprovado, Aprovado com comentários,
+>     Para assinatura, Em processo, Não aprovado, Não emitido;
+>   - a situação da **lista de preços de cada lista**;
+>   - uma tabela com cada lista ao lado da sua lista de preços.
+> - **Interno › Listas de preços**: a situação no Aconex completa, mais **Em elaboração (CMI)**: PB021 que já está na
+>   pasta e ainda não foi para o follow-up.
+> - **Regras novas**:
+>   - "Aprovadas" continua sendo o **Status Real** da mapeadora. Ele dá APROVADO a toda lista cuja última revisão
+>     está *Aprovado*, *Aprovado com comentários* ou *Para assinatura*, e às *Em processo* que já tinham revisão
+>     aprovada.
+>   - A lista de preços de uma lista vem da coluna LISTA DE SOBRESSALENTES do follow-up. Vazia, a PB021 aponta pelo
+>     próprio código (`…&MPB021` → `…&MPB020`). Vale primeiro a PB021, depois a mais recente.
+>   - Mesmas regras no painel HTML (`regras_sobressalentes.status_aconex`, `lista_da_lista_de_precos`).
+> - **Pasta no computador do trabalho**: em 06/10 alguém preencheu o parâmetro `PastaPMIB` com
+>   `C:\Users\560083605\Box\…\SOBRESSALENTES - PMIB` e salvou. Foi a única mudança feita à mão no arquivo. A v4 já sai
+>   com esse caminho (`montar_pbip.py --pasta …`). Em outra máquina o caminho não existe, e a consulta volta a procurar
+>   a pasta sozinha.
+>   - A detecção automática pelo `C:\Users` provavelmente não funcionou no trabalho. Quem souber o motivo (erro ou
+>     permissão), registre aqui.
+>   - A cópia anterior do Box (com o cache de dados de 06/10) está em
+>     `%LOCALAPPDATA%\Sobressalentes-v2\backup_pbi_20261014`, nesta máquina.
+> - **Conferido em 14/10** com os dados reais, Power BI e HTML com os mesmos números:
+>   - listas: 93 cadastradas, 67 aprovadas;
+>   - última revisão: 29 Aprovado, 15 com comentários, 21 para assinatura, 4 em processo, 11 não aprovado, 12 não
+>     emitido, 1 sem lista;
+>   - lista de preços: 12 com lista de preços no Aconex, 9 em elaboração, 72 sem.
+
 > [!success] v3 (05/10/2026, tarde): visual executivo, filtros por ET e capítulo, acha a pasta sozinho
 > **Como abrir e atualizar em qualquer máquina**
 > 1. Precisa do **Power BI Desktop** e do **Box Drive** sincronizando `CMI - Consórcio Itaipu` (caminho padrão

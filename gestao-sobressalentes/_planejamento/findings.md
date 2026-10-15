@@ -105,5 +105,12 @@ código PMIB **não são dominio da EN.DT**, e sim da SM.DT.
   - filtros sincronizados entre páginas: `syncGroup` dentro de `visual`.
 - **Power BI acha a pasta do Box sozinho**: listar `Folder.Contents("C:\Users")` e testar
   `<usuário>\Box\...\SOBRESSALENTES - PMIB` funciona com "ignorar níveis de privacidade" (`fastCombine`).
+- **"Para assinatura" conta como aprovada no Status Real** (14/10).
+  - Cruzando STATUS DA REVISÃO × STATUS REAL: as 21 listas *Para assinatura* estão APROVADO, e 2 *Em processo*
+    também (já tinham revisão aprovada).
+  - O Status Real é o critério da equipe: "existe revisão aprovada". A STATUS DA REVISÃO diz o que acontece com a
+    última revisão.
+- **Power BI recusa tabela com duas colunas de mesmo nome** ("identical native reference name"). O gerador agora
+  barra isso ao gerar.
 - **5 fichas aparecem em duas listas** (mesmo PMIB): por isso "Fichas" no Power BI (PMIB distinto) dá 1.352 e a
   soma por lista dá 1.357.
