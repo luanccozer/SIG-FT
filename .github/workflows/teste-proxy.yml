@@ -1,0 +1,31 @@
+name: Teste do proxy (release 0.0.1)
+on:
+  push:
+    branches: [claude/teste-proxy-zscaler]
+permissions:
+  contents: write
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixa o pequeno da 1.2.1-rc.2 e publica duas copias
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release download v1.2.1-rc.2 -R "$REPO" -p "SIG-FT_Itaipu_Atualizacao_1.2.0_para_1.2.1-rc.2.bin" -O peq.bin
+          ls -l peq.bin; sha256sum peq.bin
+          if ! gh release view v0.0.1-rc.1 -R "$REPO" >/dev/null 2>&1; then
+            gh release create v0.0.1-rc.1 -R "$REPO" --prerelease --target "${{ github.sha }}" \
+              --title "TESTE DO PROXY (nao instalar)" --notes-file .github/teste-proxy-corpo.md
+          fi
+          ID=$(gh api "repos/$REPO/releases/tags/v0.0.1-rc.1" --jq .id)
+          for par in "teste_A_octet-stream.bin|application/octet-stream" "teste_B_x-msdownload.bin|application/x-msdownload"; do
+            n=${par%|*}; t=${par#*|}
+            curl -sS -f -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: $t" \
+              --data-binary @peq.bin "https://uploads.github.com/repos/$REPO/releases/$ID/assets?name=$n" | head -c 300; echo
+          done
+          gh api "repos/$REPO/releases/$ID" --jq '.assets[] | "\(.name) \(.size) \(.content_type)"'
