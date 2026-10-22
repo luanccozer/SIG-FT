@@ -191,6 +191,16 @@ procurement, atraso de Itaipu em 15 d.u.) e um Power BI com visão interna e vis
 - Testado com falhas simuladas pelo motor (TOM); entregue no Box.
 - **Pendente:** a mensagem exata do erro na GE, se voltar a acontecer.
 
+## 2026-10-22 — o projeto "sumia" na máquina da GE
+- O Luan: na GE a pasta do relatório costuma ter só o `.platform`, e os demais arquivos somem.
+- **Causa:** o Box Drive não sincroniza arquivo com ponto, e minhas entregas apagavam e recriavam as pastas.
+- **Correção:**
+  - o gerador não grava mais `.platform`;
+  - identificadores fixos;
+  - script `entregar_no_box.py`, que atualiza no lugar;
+  - entregue na pasta nova `Sobressalentes (Power BI)`, limpa.
+- Testado: abre sem `.platform`; atualiza em 32 s; duas gerações idênticas.
+
 ## Proximas sessões
 1. **SIG-FT** (a partir de 05/10, na nuvem): T0 cabeçalho na linha 5 (módulo PDM); T1 gravar sem
    openpyxl; T2 situação/dias de atraso; T3 revisão em uso → mapeadora; T4 export de autorizados.

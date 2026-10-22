@@ -9,6 +9,7 @@ Usado por montar_pbip.py.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import pathlib
 import shutil
@@ -137,13 +138,18 @@ def para_cartao(campo: Campo) -> Campo:
     return Campo(campo.t, nome, True, campo.rotulo or campo.p)
 
 
+def id_fixo(*partes) -> str:
+    """Identificador de 20 caracteres que nao muda entre versoes (pagina, visual, filtro)."""
+    return hashlib.sha1(json.dumps(partes, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:20]
+
+
 def filtro(campo: Campo, valores: list[str], negar: bool = False) -> dict:
     cond = {"In": {"Expressions": [{"Column": {"Expression": {"SourceRef": {"Source": "f"}}, "Property": campo.p}}],
                    "Values": [[{"Literal": {"Value": "null" if v is None else "'" + v.replace("'", "''") + "'"}}]
                               for v in valores]}}
     if negar:
         cond = {"Not": {"Expression": cond}}
-    return {"name": uuid.uuid4().hex[:20], "field": campo.expr(), "type": "Categorical",
+    return {"name": id_fixo("filtro", campo.expr(), valores, negar), "field": campo.expr(), "type": "Categorical",
             "filter": {"Version": 2, "From": [{"Name": "f", "Entity": campo.t, "Type": 0}], "Where": [{"Condition": cond}]}}
 
 
@@ -167,7 +173,7 @@ TAM_SLIDE = {"titulo_visual": 13, "eixo": 12, "rotulo": 12, "kpi": 28, "kpi_rotu
 class Pagina:
     def __init__(self, nome_exibicao: str, estilo: dict | None = None, filtros: list[dict] | None = None,
                  grande: bool = False):
-        self.id = uuid.uuid4().hex[:20]
+        self.id = id_fixo("pagina", nome_exibicao)
         self.nome = nome_exibicao
         self.visuais: list[dict] = []
         self.estilo = estilo          # None = tema do relatorio; CLASSICO = formatacao propria em cada visual
@@ -205,7 +211,7 @@ class Pagina:
         if extra:
             v.update(extra)
         v["drillFilterOtherVisuals"] = True
-        cont = {"$schema": VC, "name": uuid.uuid4().hex[:20],
+        cont = {"$schema": VC, "name": id_fixo("visual", self.id, len(self.visuais), tipo),
                 "position": {"x": round(x, 2), "y": y, "z": z, "height": h, "width": round(w, 2), "tabOrder": z},
                 "visual": v}
         if filtros:
@@ -357,7 +363,7 @@ NOME_LISTA = lambda: Campo("Listas", "Nome", rotulo="Lista")  # noqa: E731
 
 def filtro_medida_positiva(campo: Campo) -> dict:
     """Filtro de visual 'medida > 0' (ex.: so as listas sem lista de precos)."""
-    return {"name": uuid.uuid4().hex[:20], "field": campo.expr(), "type": "Advanced",
+    return {"name": id_fixo("filtro>0", campo.expr()), "field": campo.expr(), "type": "Advanced",
             "filter": {"Version": 2, "From": [{"Name": "m", "Entity": campo.t, "Type": 0}],
                        "Where": [{"Condition": {"Comparison": {
                            "ComparisonKind": 1,
@@ -577,10 +583,7 @@ def escrever_relatorio(raiz: pathlib.Path, paginas: list[Pagina], exibicao: str,
     (raiz / "definition.pbir").write_text(json.dumps({
         "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definitionProperties/1.0.0/schema.json",
         "version": "4.0", "datasetReference": {"byPath": {"path": f"../{modelo}.SemanticModel"}}}, indent=2), encoding="utf-8")
-    (raiz / ".platform").write_text(json.dumps({
-        "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
-        "metadata": {"type": "Report", "displayName": exibicao}, "config": {"version": "2.0", "logicalId": str(uuid.uuid4())}},
-        indent=2), encoding="utf-8")
+    # sem .platform (ver montar_pbip.py: o Box Drive nao sincroniza arquivo que comeca com ponto)
     shutil.copy2(RECURSOS / "version.json", d / "version.json")
     rep = json.loads((RECURSOS / "report.json").read_text(encoding="utf-8"))
     rep["themeCollection"]["customTheme"] = {"name": "SobressalentesV2.json",

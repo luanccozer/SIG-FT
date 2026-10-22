@@ -6,6 +6,18 @@ atualizado: 2026-10-05
 
 # Power BI v2 — como montar
 
+> [!important] PASTA NOVA desde 22/10/2026: `SOBRESSALENTES - PMIB\Sobressalentes (Power BI)`
+> - **Por quê:** o Box Drive **não sincroniza arquivo que começa com ponto** (`.platform`, `.pbi/`, `.gitignore`).
+>   - Cada máquina tem os seus, só local.
+>   - As entregas antigas apagavam e recriavam as pastas do projeto. Na máquina da GE, a pasta velha não podia ser
+>     apagada (sobrava o `.platform` local) e ficava só com ele: "sumiam" os demais arquivos.
+> - **Agora:**
+>   - o gerador não grava `.platform`. O Power BI abre sem ele (testado);
+>   - os identificadores são fixos (páginas, visuais, filtros, lineageTag): duas gerações seguidas saem idênticas,
+>     então uma mudança pequena mexe em poucos arquivos;
+>   - entrega só com `entregar_no_box.py`, que atualiza no lugar e nunca apaga pasta nem arquivo de ponto.
+> - **A pasta antiga** `Sobressalentes v2 (Power BI)` ficou como estava. Depois que a nova funcionar na GE, pode apagá-la.
+
 > [!success] v4.3 (22/10/2026): atualização que não quebra por arquivo opcional
 > - Em 21/10 o Luan não conseguiu atualizar na máquina da GE ("erro com o arquivo"). Não reproduziu aqui. O arquivo
 >   do Box estava íntegro e no Box da nuvem (log do Box Drive).

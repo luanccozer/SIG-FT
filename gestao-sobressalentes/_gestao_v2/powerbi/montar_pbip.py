@@ -134,8 +134,12 @@ def nome(n: str) -> str:
     return n if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", n) else "'" + n.replace("'", "''") + "'"
 
 
-def tag() -> str:
-    return str(uuid.uuid4())
+NS_TAG = uuid.UUID("5b0e8f0c-3d1a-4c55-9f0e-6a1d2c7b9e41")
+
+
+def tag(semente: str) -> str:
+    """lineageTag FIXO (o mesmo nome gera o mesmo tag em toda versao): no Box, cada entrega muda so o que mudou."""
+    return str(uuid.uuid5(NS_TAG, semente))
 
 
 def recuo(texto: str, nivel: int) -> str:
@@ -162,10 +166,8 @@ def escrever_modelo(raiz: pathlib.Path, consultas: dict[str, str], medidas: list
     (raiz / "definition.pbism").write_text(json.dumps({
         "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/semanticModel/definitionProperties/1.0.0/schema.json",
         "version": "4.0", "settings": {}}, indent=2), encoding="utf-8")
-    (raiz / ".platform").write_text(json.dumps({
-        "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
-        "metadata": {"type": "SemanticModel", "displayName": NOME}, "config": {"version": "2.0", "logicalId": tag()}},
-        indent=2), encoding="utf-8")
+    # sem .platform: o Box Drive nao sincroniza arquivo que comeca com ponto (ficava so na maquina que gravou e
+    # travava a pasta na outra); o Power BI Desktop abre o projeto sem ele (testado em 22/10/2026)
     (d / "database.tmdl").write_text("database\n\tcompatibilityLevel: 1567\n", encoding="utf-8")
     ordem = [n for n in consultas]
     modelo = ["model Model", "\tculture: pt-BR", "\tdefaultPowerBIDataSourceVersion: powerBI_V3",
@@ -186,18 +188,18 @@ def escrever_modelo(raiz: pathlib.Path, consultas: dict[str, str], medidas: list
         if n == "PastaPMIB":
             valor = m_texto(pasta_pmib)
             exp += [f'expression PastaPMIB = {valor} meta [IsParameterQuery=true, Type="Text", IsParameterQueryRequired=false]',
-                    f"\tlineageTag: {tag()}", "\tqueryGroup: Parametros", "", "\tannotation PBI_ResultType = Text", ""]
+                    f"\tlineageTag: {tag('expr:PastaPMIB')}", "\tqueryGroup: Parametros", "", "\tannotation PBI_ResultType = Text", ""]
             continue
         parametro = "IsParameterQuery" in m
         tipo = "Function" if m.lstrip().startswith("(") else "Text" if parametro else TIPO_EXPRESSAO.get(n, "Table")
         grupo = "Parametros" if parametro else "Funcoes" if tipo == "Function" else "Apoio"
-        exp += [f"expression {nome(n)} =", recuo(m, 2), f"\tlineageTag: {tag()}",
+        exp += [f"expression {nome(n)} =", recuo(m, 2), f"\tlineageTag: {tag('expr:' + n)}",
                 f"\tqueryGroup: {grupo}", "",
                 f"\tannotation PBI_ResultType = {tipo}", ""]
     (d / "expressions.tmdl").write_text("\n".join(exp) + "\n", encoding="utf-8")
 
     for t in TABELAS:
-        linhas = [f"table {nome(t)}", f"\tlineageTag: {tag()}"]
+        linhas = [f"table {nome(t)}", f"\tlineageTag: {tag('tabela:' + t)}"]
         if t == "Calendario":
             linhas.append("\tdataCategory: Time")
         linhas.append("")
@@ -207,7 +209,7 @@ def escrever_modelo(raiz: pathlib.Path, consultas: dict[str, str], medidas: list
                 linhas.append(f"\t\tformatString: {md['formato']}")
             if md.get("oculta"):
                 linhas.append("\t\tisHidden")
-            linhas += [f"\t\tdisplayFolder: {md['pasta']}", f"\t\tlineageTag: {tag()}", ""]
+            linhas += [f"\t\tdisplayFolder: {md['pasta']}", f"\t\tlineageTag: {tag('medida:' + t + ':' + md['nome'])}", ""]
         for c, tipo in ESQUEMA[t]:
             linhas += [f"\tcolumn {nome(c)}", f"\t\tdataType: {TIPO_TMDL[tipo]}"]
             if tipo in FORMATO:
@@ -218,7 +220,7 @@ def escrever_modelo(raiz: pathlib.Path, consultas: dict[str, str], medidas: list
                 linhas.append(f"\t\tsortByColumn: {nome(ORDENAR_POR[(t, c)])}")
             if (t, c) in OCULTAS:
                 linhas.append("\t\tisHidden")
-            linhas += [f"\t\tlineageTag: {tag()}", "\t\tsummarizeBy: none", f"\t\tsourceColumn: {c}", "",
+            linhas += [f"\t\tlineageTag: {tag('coluna:' + t + ':' + c)}", "\t\tsummarizeBy: none", f"\t\tsourceColumn: {c}", "",
                        "\t\tannotation SummarizationSetBy = User", ""]
         linhas += [f"\tpartition {nome(t)} = m", "\t\tmode: import", "\t\tsource =",
                    recuo(m_da_tabela(consultas[t], ESQUEMA[t]), 4), "", "\tannotation PBI_ResultType = Table", ""]
@@ -226,7 +228,7 @@ def escrever_modelo(raiz: pathlib.Path, consultas: dict[str, str], medidas: list
 
     rel = []
     for de_t, de_c, para_t, para_c, ambos in RELACOES:
-        rel += [f"relationship {tag()}"]
+        rel += [f"relationship {tag(f'rel:{de_t}.{de_c}:{para_t}.{para_c}')}"]
         if ambos:
             rel.append("\tcrossFilteringBehavior: bothDirections")
         rel += [f"\tfromColumn: {nome(de_t)}.{nome(de_c)}", f"\ttoColumn: {nome(para_t)}.{nome(para_c)}", ""]

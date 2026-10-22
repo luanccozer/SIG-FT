@@ -110,6 +110,11 @@ código PMIB **não são dominio da EN.DT**, e sim da SM.DT.
     também (já tinham revisão aprovada).
   - O Status Real é o critério da equipe: "existe revisão aprovada". A STATUS DA REVISÃO diz o que acontece com a
     última revisão.
+- **O Box Drive não sincroniza arquivo que começa com ponto** (22/10). No log, o `.platform` nunca tem "Retrieving
+  content stream", e no Explorer ele aparece sem o ícone de sincronizado.
+  - Projeto do Power BI no Box: não entregue `.platform`, e não apague nem recrie as pastas do projeto. Na outra
+    máquina a pasta fica presa com o arquivo local e "some" o resto. Use `entregar_no_box.py`.
+  - O `.pbi/` (cache de dados) também é local de cada máquina. Por isso o arquivo abre vazio na GE.
 - **O export do Aconex está no Box** (15/10): `Box\DocManager Itaipu\Aconex_Historico_DD.MM.AA_HHhMMm.xlsx`.
   O DocManager Itaipu gera um por dia (aba `Documentos`, uma linha por revisão, cerca de 92 mil linhas).
   - `Current` = true marca a revisão atual.
