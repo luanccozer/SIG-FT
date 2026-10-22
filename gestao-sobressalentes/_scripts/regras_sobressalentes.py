@@ -270,10 +270,21 @@ def ultimo_export_aconex(pasta: pathlib.Path = PASTA_DOCMANAGER) -> pathlib.Path
 def ler_aconex_precos(pasta: pathlib.Path = PASTA_DOCMANAGER, listas: set[str] | None = None) -> pd.DataFrame | None:
     """Listas de precos no Aconex, revisao ATUAL (coluna Current): codigo PB021 ou PB020-0x que nao seja codigo de
     lista de sobressalentes (a lista do SMF termina em -01). Sem export -> None (o chamador usa a aba de follow-up)."""
-    arq = ultimo_export_aconex(pasta)
-    if arq is None:
+    if not pasta or not pathlib.Path(pasta).is_dir():
         return None
-    df = ler_tabela(arq, "Documentos", chave="NO. DO DOCUMENTO", max_vazias=50)
+    # o export do dia pode estar sendo gravado, travado ou incompleto: vale o anterior (ate 3); nenhum -> None
+    candidatos = sorted((p for p in pathlib.Path(pasta).glob("Aconex_Historico_*.xlsx") if not p.name.startswith("~$")),
+                        key=lambda p: p.stat().st_mtime, reverse=True)[:3]
+    df, arq = pd.DataFrame(), None
+    for arq in candidatos:
+        try:
+            df = ler_tabela(arq, "Documentos", chave="NO. DO DOCUMENTO", max_vazias=50)
+        except Exception:   # noqa: BLE001 — arquivo ilegivel: tenta o anterior
+            df = pd.DataFrame()
+        if not df.empty and {"NO. DO DOCUMENTO", "CURRENT", "STATUS"} <= set(df.columns):
+            break
+    else:
+        return None
     if df.empty:
         return None
     cod = df["NO. DO DOCUMENTO"].astype(str).str.strip()

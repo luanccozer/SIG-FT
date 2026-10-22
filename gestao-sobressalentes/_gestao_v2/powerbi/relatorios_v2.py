@@ -405,6 +405,7 @@ def relatorio_interno() -> list[Pagina]:
     p2 = Pagina("Listas de sobressalentes")
     cabecalho(p2, "Listas de sobressalentes",
               "Situação da última revisão no Aconex (EN.DT) e a lista de preços de cada lista (SM.DT)")
+    p2.nota(150, 64, 520, 28, PR("Fonte das Listas de Preços"))
     linha_kpis(p2, 100, [(L("Listas Cadastradas", "Listas de sobressalentes"), None),
                          (L("Listas Aprovadas EN.DT", "Aprovadas (Status Real)"), COR["verde"]),
                          (L("Listas Para Assinatura", "Para assinatura"), COR["azul"]),
@@ -426,7 +427,8 @@ def relatorio_interno() -> list[Pagina]:
               pesos=[3.2, 0.45, 1.5, 2.8, 0.85, 1.5, 0.6, 0.9, 1.5], filtros=[NAO_VAZIO(Campo("Listas", "Lista"))])
 
     p3 = Pagina("Listas de preços")
-    cabecalho(p3, "Listas de preços", "Cada lista de preços no Aconex (aba Lista de preços Follow-up) e as PB021 já na pasta")
+    cabecalho(p3, "Listas de preços", "Cada lista de preços no Aconex (export do DocManager) e as PB021 já na pasta")
+    p3.nota(150, 64, 520, 28, PR("Fonte das Listas de Preços"))
     linha_kpis(p3, 100, [(PR("Listas de Preços Emitidas", "Emitidas no Aconex"), None),
                          (PR("Listas de Preços Aprovadas SM.DT", "Aprovadas pela SM.DT"), COR["verde"]),
                          (PR("Listas de Preços Aguardando SM.DT", "Aguardando a SM.DT"), COR["ambar"]),

@@ -86,10 +86,11 @@ let
             let
                 SoPrecos = Table.SelectRows(Aconex, each not List.Contains(CodigosListas, [Lista de Precos])),
                 ComFU = Table.NestedJoin(SoPrecos, {"Lista de Precos"}, FollowUp, {"Lista de Precos"}, "FU", JoinKind.LeftOuter),
-                Exp = Table.ExpandTableColumn(ComFU, "FU", {"Documento CMI", "Lista", "Alerta RDS-PP", "Acao", "Observacoes"})
+                Exp = Table.ExpandTableColumn(ComFU, "FU", {"Documento CMI", "Lista", "Alerta RDS-PP", "Acao", "Observacoes"}),
+                ComOrigem = Table.AddColumn(Exp, "Origem", each "Aconex: " & [Arquivo Aconex], type text)
             in
-                Table.AddColumn(Exp, "Origem", each "Aconex (DocManager)", type text),
-    ComData0 = if DoAconex <> null then DoAconex else Table.AddColumn(FollowUp, "Origem", each "Aconex (follow-up)", type text),
+                Table.RemoveColumns(ComOrigem, {"Arquivo Aconex"}),
+    ComData0 = if DoAconex <> null then DoAconex else Table.AddColumn(FollowUp, "Origem", each "Follow-up (mapeadora)", type text),
     // a lista de sobressalentes: a informada no follow-up; vazia, a PB021 aponta pelo próprio código
     ComVinculo = Table.AddColumn(ComData0, "Vinculo Lista", each
         if [Lista] <> null and Text.Trim(Text.From([Lista])) <> "" then "Follow-up"

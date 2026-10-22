@@ -164,6 +164,13 @@ DEFINE
     MEASURE Listas[Fichas na Lista] =
         // 0 em vez de vazio: a tabela de listas mostra tambem as que ainda nao tem ficha
         COALESCE ( [Fichas], 0 )
+    MEASURE PrecosAconex[Fonte das Listas de Preços] =
+        // de onde veio a situacao: o export do Aconex (nome do arquivo) ou, sem ele, a aba de follow-up
+        VAR arq = CALCULATE ( MAX ( PrecosAconex[Origem] ), ALL ( PrecosAconex ),
+            LEFT ( PrecosAconex[Origem], 7 ) = "Aconex:" )
+        RETURN IF ( ISBLANK ( arq ),
+            "Situação das listas de preços: aba de follow-up (export do Aconex não lido)",
+            "Situação das listas de preços: " & arq )
     MEASURE PrecosAconex[Listas de Preços] =
         // todas: no Aconex e em elaboração (PB021 na pasta, fora do follow-up)
         COUNTROWS ( PrecosAconex )

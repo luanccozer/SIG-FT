@@ -6,6 +6,21 @@ atualizado: 2026-10-05
 
 # Power BI v2 — como montar
 
+> [!success] v4.3 (22/10/2026): atualização que não quebra por arquivo opcional
+> - Em 21/10 o Luan não conseguiu atualizar na máquina da GE ("erro com o arquivo"). Não reproduziu aqui. O arquivo
+>   do Box estava íntegro e no Box da nuvem (log do Box Drive).
+> - Causa provável: o export do Aconex mais recente. O DocManager grava um por dia, e o Box o cria com 0 byte enquanto
+>   sobe. Um export incompleto ou travado derrubava a atualização inteira.
+> - **Agora:**
+>   - export do Aconex ilegível → vale o anterior (até 3); nenhum legível → aba de follow-up;
+>   - extrato de eventos ausente ou ilegível → tabela vazia (nenhuma página usa);
+>   - as páginas internas de listas mostram de onde veio a situação das listas de preços
+>     ("Situação das listas de preços: Aconex: Aconex_Historico_…" ou "aba de follow-up").
+> - **Continuam estritos, de propósito:** `_STATUS_PMIB`, listas de preços e mapeadora. Se um não abrir, a atualização
+>   para com o nome do arquivo, em vez de mostrar números errados.
+> - **Testado** com falhas simuladas: export do dia vazio, só export vazio e extrato ausente. Todas atualizam.
+> - No Box desde 22/10. A versão anterior está em `%LOCALAPPDATA%\Sobressalentes-v2\backup_pbi_20261022`.
+
 > [!success] v4.2 (15/10/2026, noite): o painel não depende mais da aba Atividades da mapeadora
 > - Pedido do Luan: as atividades vão ser registradas de outro jeito, talvez numa coluna nova da mapeadora.
 > - Saíram a consulta e a tabela `Atividades`, as 3 medidas (abertas, atrasadas, travadas) e a relação com

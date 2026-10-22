@@ -72,7 +72,7 @@ let
     // entre as do Aconex, PB021 antes do código antigo e, entre iguais, a mais recente
     PrecosV = Table.SelectRows(Table.SelectColumns(PrecosAconex, {"Lista", "Lista de Precos", "Revisao", "Situacao Aconex", "Geracao",
         "Data Aconex", "Origem"}), each [Lista] <> null),
-    PrecosChave = Table.AddColumn(Table.AddColumn(PrecosV, "NoAconex", each if Text.StartsWith([Origem], "Aconex") then 1 else 0, Int64.Type),
+    PrecosChave = Table.AddColumn(Table.AddColumn(PrecosV, "NoAconex", each if Text.StartsWith([Origem], "Arquivo na pasta") then 0 else 1, Int64.Type),
         "P21", each if [Geracao] = "PB021" then 1 else 0, Int64.Type),
     PrecosOrd = Table.Buffer(Table.Sort(PrecosChave,
         {{"NoAconex", Order.Descending}, {"P21", Order.Descending}, {"Data Aconex", Order.Descending}, {"Revisao", Order.Descending}})),
@@ -97,6 +97,9 @@ in
 // Tipo ENTREGA = parcela paga no recebimento; APROVAÇÃO = na aprovação.
 // =====================================================================
 let
+    // sem o extrato (ou ilegível), a tabela vem vazia e a atualização segue
+    Vazia = #table(type table [Evento = text, Grupo = text, #"Tipo Evento" = text, Percentual = number,
+        #"Descricao Evento" = text, #"Mes de Referencia" = text], {}),
     PastaPDM = Text.BeforeDelimiter(PastaPMIBEfetiva, "\", {0, RelativePosition.FromEnd}),
     Arquivo = File.Contents(PastaPDM & "\Extrato dos Eventos dos Sobressalentes.xlsx"),
     Tabela = fxLerTabela(Arquivo, "Sheet2", "ITEM"),
@@ -108,7 +111,8 @@ let
     ComTipo = Table.AddColumn(ComPercentual, "Tipo Evento", each if Text.Contains(fxNorm([DESCRICAO]), "APROVACAO") then "APROVAÇÃO" else "ENTREGA", type text),
     Selecionada = Table.SelectColumns(Table.RenameColumns(ComTipo, {{"DESCRICAO", "Descricao Evento"}, {"MES DE REFERENCIA", "Mes de Referencia"}}),
         {"Evento", "Grupo", "Tipo Evento", "Percentual", "Descricao Evento", "Mes de Referencia"}, MissingField.UseNull),
-    Final = Table.Distinct(Selecionada, {"Evento"})          // um evento por linha: exigência do relacionamento
+    Unicos = Table.Distinct(Selecionada, {"Evento"}),          // um evento por linha: exigência do relacionamento
+    Final = try Table.Buffer(Unicos) otherwise Vazia
 in
     Final
 

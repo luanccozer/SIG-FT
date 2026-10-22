@@ -182,6 +182,15 @@ procurement, atraso de Itaipu em 15 d.u.) e um Power BI com visão interna e vis
 - O Luan salvou o Power BI do Box nesta máquina às 19:16, sem mudança de conteúdo. Backup em
   `%LOCALAPPDATA%\Sobressalentes-v2\backup_pbi_20261015_1916`; versão nova entregue às 19:30.
 
+## 2026-10-21/22 — atualização na máquina da GE
+- O Luan: "o arquivo dos sobressalentes não está no box… deu erro… preciso atualizar na máquina da GE".
+- **Conferido daqui:** o projeto está na nuvem do Box (resposta da API no log do Box Drive, 21/10). A mapeadora, o
+  extrato de eventos e os exports do Aconex também estão no Box. Aqui, a atualização funciona.
+- **Correção:** o export do Aconex e o extrato de eventos ficaram tolerantes. As páginas internas mostram a fonte
+  da situação das listas de preços.
+- Testado com falhas simuladas pelo motor (TOM); entregue no Box.
+- **Pendente:** a mensagem exata do erro na GE, se voltar a acontecer.
+
 ## Proximas sessões
 1. **SIG-FT** (a partir de 05/10, na nuvem): T0 cabeçalho na linha 5 (módulo PDM); T1 gravar sem
    openpyxl; T2 situação/dias de atraso; T3 revisão em uso → mapeadora; T4 export de autorizados.

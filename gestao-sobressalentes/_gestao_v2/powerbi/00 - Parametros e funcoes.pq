@@ -249,17 +249,26 @@ let
             let
                 Arquivos = Table.SelectRows(Folder.Contents(Pasta), each
                     Text.StartsWith([Name], "Aconex_Historico_") and Text.EndsWith(Text.Lower([Name]), ".xlsx")),
-                Ultimo = if Table.RowCount(Arquivos) = 0 then null
-                         else Table.First(Table.Sort(Arquivos, {{"Date modified", Order.Descending}})),
-                Docs = if Ultimo = null then null else fxLerTabela(Ultimo[Content], "Documentos", "NO. DO DOCUMENTO"),
+                Ordenados = Table.ToRecords(Table.FirstN(Table.Sort(Arquivos, {{"Date modified", Order.Descending}}), 3)),
+                // o export do dia pode estar sendo gravado pelo DocManager, travado ou incompleto (o Box o cria com 0
+                // byte enquanto sobe): se nao der para ler, vale o anterior; nenhum legivel -> null (aba de follow-up)
+                Ler = (r as record) as nullable table =>
+                    let
+                        t = try Table.Buffer(fxLerTabela(r[Content], "Documentos", "NO. DO DOCUMENTO")) otherwise null,
+                        ok = t <> null and List.Contains(Table.ColumnNames(t), "NO. DO DOCUMENTO")
+                             and List.Contains(Table.ColumnNames(t), "CURRENT") and List.Contains(Table.ColumnNames(t), "STATUS")
+                    in
+                        if ok then Table.AddColumn(t, "ARQUIVO", each r[Name], type text) else null,
+                Docs = List.Accumulate(Ordenados, null, (achado, r) => if achado <> null then achado else Ler(r)),
                 Atuais = if Docs = null then null else Table.SelectRows(Docs, each
                     let v = Record.Field(_, "NO. DO DOCUMENTO"), c = if v = null then "" else Text.Upper(Text.Trim(Text.From(v))) in
                     List.Contains({"TRUE", "VERDADEIRO", "1", "SIM"}, fxNorm([CURRENT]))
                     and (Text.Contains(c, "PB021") or Text.Contains(c, "PB020-0"))),
                 Saida = if Atuais = null then null else Table.TransformColumns(
-                    Table.RenameColumns(Table.SelectColumns(Atuais, {"NO. DO DOCUMENTO", "REVISAO", "STATUS", "DATA DE ALTERACAO"}),
+                    Table.RenameColumns(Table.SelectColumns(Atuais, {"NO. DO DOCUMENTO", "REVISAO", "STATUS", "DATA DE ALTERACAO",
+                        "ARQUIVO"}, MissingField.UseNull),
                         {{"NO. DO DOCUMENTO", "Lista de Precos"}, {"REVISAO", "Revisao"}, {"STATUS", "Status Aconex"},
-                         {"DATA DE ALTERACAO", "Data Aconex"}}),
+                         {"DATA DE ALTERACAO", "Data Aconex"}, {"ARQUIVO", "Arquivo Aconex"}}),
                     {{"Lista de Precos", each Text.Trim(Text.From(_)), type text}, {"Revisao", each Text.From(_), type text},
                      {"Status Aconex", each Text.Trim(Text.From(_)), type text}, {"Data Aconex", fxData, type date}})
             in
