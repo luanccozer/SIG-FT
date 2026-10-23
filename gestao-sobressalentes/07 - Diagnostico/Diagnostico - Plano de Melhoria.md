@@ -108,6 +108,10 @@ mapeado muda a conversa.
 ---
 
 ### M6. Reduzir o custo unitario da LMR
+
+> [!success] Em execução desde 21/10/2026
+> A planilha passou a ser gerada por regra no n8n do AMP (B rodando nos 5 sistemas de exemplo em
+> 23/10). Falta a leitura dos documentos (workflow A). Ver [[Plano - Automacao da Aplicacao LMR no AMP]].
 **Apoia M5 · esforço medio**
 
 Com ~150 pontos de aplicação por ficha, o ganho está em **gerar, não digitar**:

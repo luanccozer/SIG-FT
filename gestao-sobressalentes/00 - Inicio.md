@@ -1,6 +1,6 @@
 ---
 tags: [moc, indice]
-atualizado: 2026-08-31
+atualizado: 2026-10-23
 ---
 
 # Sobressalentes — Projeto de Modernizacao de Itaipu
@@ -72,6 +72,7 @@ e essa ficha e condição para liberar os eventos de pagamento do contrato.
 - [[Secao - Valorizacao]]
 - [[Secao - Documentos e Imagens]]
 - [[Secao - Aplicacao LMR]]
+- [[Aplicacao LMR - Regras de Montagem]] — padrão v1.4 do CÓDIGO e da TAG LMR, trechos, frequência, QTD, pai/filho
 - [[Fichas Duplicadas]]
 - [[MTA, Etiquetas e Entrega no Almoxarifado]]
 
@@ -98,6 +99,7 @@ e essa ficha e condição para liberar os eventos de pagamento do contrato.
 - [[SIG-FT - Como Rodar]]
 
 ### 07 — Diagnostico
+- [[Plano - Automacao da Aplicacao LMR no AMP]] — **LMR gerada por regra no n8n do AMP**; B rodando nos 5 sistemas, A em desenho (23/10/2026)
 - [[Plano - Sistema de Gestao v2]] — **_STATUS_PMIB v2, regra dos 15 d.u. e Power BI interno × Itaipu** (01/10/2026)
 - [[Plano - Reestruturacao do STATUS_PMIB]] — **migração APLICADA nos 47** (layout v2, linha de revisão), como desfazer (04/10/2026)
 - [[Tarefa SIG-FT - Calculo e Gravacao sem Perda]] — **roteiro do SIG-FT no layout v2** (T0–T5), início 05/10/2026

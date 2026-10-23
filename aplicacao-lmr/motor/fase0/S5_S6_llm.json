@@ -1,0 +1,73 @@
+{
+  "name": "LMR Fase 0 - S5 S6 LLM",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Executar (manual)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst texto = \"Lista de sobressalentes (FICTÍCIA)\\nItem 1 - Bomba centrífuga - TAGs: GP901, GP902 - RDS-PP: #ST50=M01ABC10UZ010-UZ001 - Código do material: 9990001 - PMIB 9999999999.0001\\nItem 2 - Transmissor de pressão - TAG: BP903T - RDS-PP: #ST60=M14ABC10CN010-CN401 - Código do material: 08934100ABC31-111F - PMIB 9999999999.0002\\nItem 3 - Válvula - TAG: QM904G - RDS-PP: #ST00=M00ABC10&MFB030 - Código do material: HPI-904SP2-058-000-A4 - PMIB 9999999999.0003\";\nconst prompt = 'Copie, sem alterar nenhum caractere, cada TAG, RDS-PP, código do material e PMIB do texto abaixo. Responda só com JSON no formato {\"linhas\":[{\"item\":1,\"tags\":[],\"rds\":\"\",\"codigo_material\":\"\",\"pmib\":\"\"}]}.\\n\\n' + texto;\nreturn [{ json: { prompt, texto } }];"
+      },
+      "name": "S6 Prepara texto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst esperado = {\n  tags: ['GP901', 'GP902', 'BP903T', 'QM904G'],\n  rds: ['#ST50=M01ABC10UZ010-UZ001', '#ST60=M14ABC10CN010-CN401', '#ST00=M00ABC10&MFB030'],\n  codigos: ['9990001', '08934100ABC31-111F', 'HPI-904SP2-058-000-A4'],\n  pmib: ['9999999999.0001', '9999999999.0002', '9999999999.0003'],\n};\nconst j = $input.first().json;\nconst resposta = String(j.text ?? j.output ?? j.response ?? JSON.stringify(j));\nconst r = {};\nfor (const [grupo, valores] of Object.entries(esperado)) r[grupo] = valores.map(v => ({ valor: v, intacto: resposta.includes(v) }));\nconst alterados = Object.values(r).flat().filter(x => !x.intacto).map(x => x.valor);\nreturn [{ json: { alterados, todos_intactos: alterados.length === 0, trecho_da_resposta: resposta.slice(0, 600) } }];"
+      },
+      "name": "S6 Compara resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## S6 — mascaramento\n1. Entre **S6 Prepara texto** e **S6 Compara resposta**, adicione **Basic LLM Chain** (prompt: expressão `{{ $json.prompt }}`) e ligue nele um **GEV LLM Model** (Gemini Flash-Lite).\n2. Execute. Copie a saída de **S6 Compara resposta**. `todos_intactos` deve ser `true`.\n3. Repita com o modelo Claude Sonnet.\n\n## S5 — imagem e PDF grande\nNo mesmo canvas, monte à parte: **Form** (campo arquivo) → **Amp Agent** ou **Basic LLM Chain** com o PDF fictício. Pergunte \"Quais TAGs aparecem na página 2?\". Depois tente um PDF grande (67–78 MB). Anote o limite ou o erro.",
+        "height": 360,
+        "width": 560
+      },
+      "name": "Leia-me S5 e S6",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        520,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Executar (manual)": {
+      "main": [
+        [
+          {
+            "node": "S6 Prepara texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

@@ -1,0 +1,26 @@
+Minhas limitações conhecidas
+
+  Conhecimento e atualização
+  • Minha base de conhecimento tem uma data de corte e não acesso informações em tempo real
+  • Não navego na internet
+  • Posso ter lacunas ou informações desatualizadas sobre eventos recentes
+
+  Ações e integrações
+  • Não executo ações fora desta conversa (não acesso sistemas externos, bancos de dados corporativos, e-mails, etc.)
+  • Minha única "ação" além de conversar é converter esta conversa em arquivos (PDF, PowerPoint, HTML) quando solicitado explicitamente
+  • Não tenho memória persistente entre conversas diferentes (cada sessão é isolada, a menos que a plataforma AMP implemente isso externamente)
+
+  Processamento de arquivos
+  • Processo apenas arquivos enviados nesta conversa
+  • Para conteúdo visual (imagens, gráficos em páginas específicas), preciso que esse conteúdo esteja indexado previamente
+
+  Geração de conteúdo
+  • Arquivos gerados (PDF/PPT/HTML) são baseados apenas no conteúdo discutido nesta conversa
+  • Não crio conteúdo prejudicial, ilegal ou não-ético
+
+  Domínios especializados
+  • Para decisões médicas, legais ou financeiras críticas, posso fornecer informações gerais, mas recomendo consulta a profissionais qualificados
+
+  Introspecção técnica
+  • Não tenho acesso a logs do meu próprio funcionamento, métricas de performance, ou detalhes da infraestrutura em que estou implementado dentro da plataforma AMP
+  • Não posso "testar" minha latência, uso de tokens, ou limites de taxa — isso é controlado pela plataforma, não por mim

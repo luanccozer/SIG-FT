@@ -1,0 +1,139 @@
+{
+  "name": "LMR Fase 0 - S3 Convert to File",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "LMR Fase 0 - S3",
+        "formDescription": "Envie o Template_Aplicação_LMR.xlsx (usado só no teste S3c).",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Template (xlsx)",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".xlsx",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Formulário (gatilho)",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "14a56016-def6-49b7-9204-c73f918c452a"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst linhas = [];\nfor (const t of ['U-01', 'U-03', 'U-09A']) for (const tag of ['GP901', 'GP902']) linhas.push({\n  FICHA_PMIB: '9999999999.0001',\n  'CÓDIGO_LMR': 'UG - TESTE - SKID - RDS-PP: #ST50=M01ABC10UZ010-UZ001 - CASA DE FORÇA - ELEV. 98,50 - EIXO CD - TRECHO ' + t,\n  TAG_LMR: 'UG - ' + tag + ' - RDS-PP: #ST50=M01ABC10UZ010-UZ001' + tag + ' - Bomba centrífuga 60 Hz modelo X1' });\nreturn linhas.map(l => ({ json: l }));"
+      },
+      "name": "Linhas fictícias",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {
+          "sheetName": "APLICAÇÃO - LMR",
+          "fileName": "S3a_uma_aba.xlsx"
+        }
+      },
+      "name": "S3a Convert to File (uma aba)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        520,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Precisa da biblioteca xlsx no Code (ver S1a: require_xlsx). Abre o template enviado e preenche 2 abas.\nlet XLSX;\ntry { XLSX = require('xlsx'); } catch (e) { return [{ json: { resultado: 'sem biblioteca xlsx no Code: ' + e.message } }]; }\n\nconst linhas = [];\nfor (const t of ['U-01', 'U-03', 'U-09A']) for (const tag of ['GP901', 'GP902']) linhas.push({\n  FICHA_PMIB: '9999999999.0001',\n  'CÓDIGO_LMR': 'UG - TESTE - SKID - RDS-PP: #ST50=M01ABC10UZ010-UZ001 - CASA DE FORÇA - ELEV. 98,50 - EIXO CD - TRECHO ' + t,\n  TAG_LMR: 'UG - ' + tag + ' - RDS-PP: #ST50=M01ABC10UZ010-UZ001' + tag + ' - Bomba centrífuga 60 Hz modelo X1' });\nconst item = $input.first();\nconst k = Object.keys(item.binary || {})[0];\nconst buf = await this.helpers.getBinaryDataBuffer(0, k);\nconst wb = XLSX.read(buf, { type: 'buffer' });\nXLSX.utils.sheet_add_json(wb.Sheets['APLICAÇÃO - LMR'], linhas, { origin: 'A2', skipHeader: true });\nwb.SheetNames.includes('VALIDAÇÃO') || XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ LINHA: 2, REGRA: 'V1', MENSAGEM: 'teste' }]), 'VALIDAÇÃO');\nconst out = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });\nconst bin = await this.helpers.prepareBinaryData(out, 'S3b_template_preenchido.xlsx');\nreturn [{ json: { abas: wb.SheetNames }, binary: { data: bin } }];"
+      },
+      "name": "S3b JS várias abas no template",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "import base64, io\ntry:\n    import openpyxl\nexcept Exception as e:\n    return [{\"json\": {\"resultado\": \"sem openpyxl: \" + str(e)[:100]}}]\nwb = openpyxl.Workbook()\nws = wb.active\nws.title = \"APLICAÇÃO - LMR\"\nws.append([\"FICHA_PMIB\", \"CÓDIGO_LMR\", \"TAG_LMR\"])\nws.append([\"9999999999.0001\", \"UG - TESTE - SKID - RDS-PP: #ST50=M01ABC10UZ010-UZ001 - CASA DE FORÇA - ELEV. 98,50 - EIXO CD - TRECHO U-01\", \"UG - GP901 - Bomba\"])\nv = wb.create_sheet(\"VALIDAÇÃO\")\nv.append([\"LINHA\", \"REGRA\", \"MENSAGEM\"])\nv.append([2, \"V1\", \"teste\"])\nbuf = io.BytesIO()\nwb.save(buf)\nreturn [{\"json\": {\"abas\": wb.sheetnames}, \"binary\": {\"data\": {\"data\": base64.b64encode(buf.getvalue()).decode(), \"mimeType\": \"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\", \"fileName\": \"S3c_python.xlsx\"}}}]"
+      },
+      "name": "S3c Python várias abas (openpyxl)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## S3 — gerar .xlsx\n1. **Execute workflow** e envie o `Template_Aplicação_LMR.xlsx`.\n2. Em cada nó S3a, S3b, S3c: aba *Binary* → **Download**. Abra no Excel.\n3. Anote: S3a abriu com 6 linhas? S3b manteve as abas do template e preencheu APLICAÇÃO - LMR? S3c criou 2 abas?",
+        "height": 240,
+        "width": 460
+      },
+      "name": "Leia-me S3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        780,
+        -200
+      ]
+    }
+  ],
+  "connections": {
+    "Formulário (gatilho)": {
+      "main": [
+        [
+          {
+            "node": "Linhas fictícias",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "S3b JS várias abas no template",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "S3c Python várias abas (openpyxl)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Linhas fictícias": {
+      "main": [
+        [
+          {
+            "node": "S3a Convert to File (uma aba)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

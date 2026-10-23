@@ -240,6 +240,7 @@ Os scripts acham o Box em `~/Box/CMI - Consórcio Itaipu/11 - Ger. Engenharia/15
 | 7 | Classificar TIPO DE ENTREGA das 630 fichas | `_STATUS_PMIB` v2 | começar pelas listas com material entregue |
 | 8 | Corrigir a qualidade dos dados (tabela da seção 2) | `_STATUS_PMIB` | — |
 | 9 | Plano de ação da LMR (D5) | — | `Plano de Acao - Aplicacao LMR.md` |
+| 10 | **Automação da Aplicação LMR no AMP**: B rodando (5 sistemas); construir o **A** (documentos → Base); testes S4–S8 | AMP + pasta de documentos de exemplo | `07 - Diagnostico/Plano - Automacao da Aplicacao LMR no AMP.md` e `aplicacao-lmr/` na raiz do repositório |
 
 ## 6. Decisões pendentes (do Luan)
 

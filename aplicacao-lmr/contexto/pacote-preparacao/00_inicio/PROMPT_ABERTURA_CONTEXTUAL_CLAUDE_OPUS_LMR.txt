@@ -1,0 +1,29 @@
+Quero que você conheça o contexto de um projeto de melhoria e automatização do processo de aplicação LMR (Lista de Materiais de Referência) que venho desenvolvendo.
+
+Estou compartilhando documentos que registram o histórico do projeto: o objetivo que pretendo atingir, os arquivos usados em uma aplicação anterior, prompts que experimentei, propostas de arquitetura, contratos JSON preliminares, relatórios e dificuldades encontradas.
+
+Neste momento, não considere nenhuma arquitetura, prompt, contrato JSON, schema ou roteiro anterior como decisão definitiva. Esses materiais registram tentativas e hipóteses que podem ser aproveitadas, modificadas ou abandonadas. Não é obrigatório manter a ideia de dois agentes, usar JSON, criar uma planilha intermediária ou seguir a sequência sugerida nos documentos. Quero que você compreenda o problema e me ajude a pensar a melhor forma de organizá-lo, inclusive propondo alternativas diferentes das que já foram consideradas.
+
+Meu objetivo geral é tornar a aplicação LMR mais consistente, rastreável e automatizada. Na experiência anterior, percebi variação significativa de desempenho entre agentes e modelos; dificuldades de leitura e interpretação de arquivos técnicos; resultados incompletos ou inconsistentes; geração de HTML/planilhas que nem sempre obedeciam ao padrão necessário; e repetição de perguntas ou confirmações que tornavam o processo pouco fluido. A aplicação Água Pura foi finalizada, mas o processo usado para realizá-la revelou oportunidades de melhoria.
+
+Tenho acesso corporativo ao AMP, com diferentes modelos de IA. Na minha experiência prática, o Gemini Flash Lite foi o melhor leitor de documentos e projetos, enquanto os modelos Claude se mostraram úteis para raciocínio, organização e criação de artefatos. Essas observações são experiências minhas e não devem ser tomadas como resultados universais ou conclusões definitivas.
+
+Uma possibilidade que considerei é usar IA para interpretar documentos e estruturar informações, e Python para validar dados, aplicar regras repetíveis e preencher a planilha de aplicação. Também considerei separar o levantamento técnico do trabalho de estruturação dos dados. Porém, essas ideias são apenas hipóteses em avaliação. Quero que você forme uma compreensão própria do problema antes de recomendar a arquitetura.
+
+Por favor, leia os documentos fornecidos como um conjunto de contexto. Ao analisá-los:
+- procure compreender o objetivo operacional da aplicação LMR e quais dados precisam existir para que ela seja realizada corretamente;
+- reconstrua, tanto quanto possível, o histórico das decisões, das propostas e das tentativas anteriores;
+- identifique o que foi concluído, o que foi apenas proposto, o que foi testado de fato e o que ainda não foi validado;
+- observe as dificuldades relatadas e os possíveis motivos, distinguindo fatos documentados de hipóteses suas;
+- perceba contradições entre documentos antigos, mas não tente resolvê-las silenciosamente nem suponha que a versão mais nova esteja necessariamente correta;
+- trate os arquivos da Água Pura como histórico de uma aplicação concluída, não como regras técnicas universais para outros sistemas;
+- sinta-se livre para questionar premissas e propor uma abordagem inteiramente diferente, caso isso pareça mais adequado.
+
+A finalidade desta primeira etapa é alinhar nossa compreensão do problema. Depois de ler o material, apresente com suas próprias palavras:
+1. o que você entende que estamos tentando resolver;
+2. como o processo foi realizado até aqui e quais soluções chegaram a ser propostas;
+3. quais dificuldades e falhas parecem mais relevantes;
+4. quais aspectos continuam incertos ou insuficientemente documentados;
+5. quais perguntas você considera importantes para compreender melhor o trabalho.
+
+Não é necessário aceitar a arquitetura anterior nem começar a implementar o sistema agora. Quero primeiro discutir com você o entendimento do problema. Depois dessa conversa, poderemos estruturar juntos o processo mais adequado, sem assumir de antemão que as decisões anteriores precisam ser mantidas.

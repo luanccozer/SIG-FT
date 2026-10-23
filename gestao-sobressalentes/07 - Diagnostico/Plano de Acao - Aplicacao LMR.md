@@ -19,6 +19,11 @@ destino: virar documento formal para Itaipu e equipe CMI
 
 ---
 
+> [!tip] Atualização 23/10/2026 — produtividade deve mudar
+> A geração da planilha por regra no AMP está rodando ([[Plano - Automacao da Aplicacao LMR no AMP]]).
+> Quando o workflow A (leitura dos documentos) estiver pronto, a taxa de 5 fichas/dia-pessoa da
+> seção 4 precisa ser remedida — o garimpo passa a ser revisão.
+
 ## 1. Por que este plano existe
 
 > [!danger] O plano e a condição para a formalizacao
