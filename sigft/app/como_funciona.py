@@ -78,8 +78,8 @@ TEXTOS: dict[str, Texto] = {
                    "ou FT_nao_concluidas."),
             marcar("FT_nao_concluidas é a ficha que não deu para analisar (IA fora do ar, sem "
                    "características)."),
-            marcar("No fim, o relatório para o fornecedor lista, por material, o que precisa ser "
-                   "corrigido."),
+            marcar("Depois do lote, GERAR RELATÓRIO PARA O FORNECEDOR (.xlsx) lista, por material, o "
+                   "que precisa ser corrigido."),
         ),
     ),
     "UploadConditions": Texto(
@@ -175,10 +175,10 @@ TEXTOS: dict[str, Texto] = {
                    "portal confirmou."),
             marcar("Com o _STATUS_PMIB escolhido, marca COMPLETO ou INCOMPLETO na coluna APLICAÇÃO - "
                    "LMR de cada ficha."),
-            marcar("Parou no meio? Começar de um código específico retoma a ficha a partir daquele "
-                   "código LMR."),
-            marcar("Os códigos que falharam ficam no console e no erros_lmr.csv, para conferir no "
-                   "portal."),
+            marcar("Parou no meio? Ligue Começar de um código específico e informe a posição (0 = 1º "
+                   "código LMR da ficha); vale para todas as fichas."),
+            marcar("Os códigos que falharam aparecem no console e vão para um erros_lmr.csv, para "
+                   "conferir no portal."),
         ),
     ),
     "LMR.exclusao": Texto(

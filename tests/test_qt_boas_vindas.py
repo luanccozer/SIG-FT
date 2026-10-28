@@ -141,6 +141,66 @@ def test_caminho_bloqueado_vem_apagado_com_a_dica_do_menu(montar, qtbot, monkeyp
     assert _cartao(janela, "CriaFichas").isEnabled()
 
 
+def test_sair_pelo_menu_nao_marca_vista(montar, qtbot):
+    # Fecha sem escolher vê de novo: o menu lateral não é escolha de caminho.
+    janela = montar()
+    qtbot.mouseClick(janela.botoes_menu["Translator"], Qt.MouseButton.LeftButton)
+    assert janela.pilha.currentWidget() is janela.telas["Translator"]
+    assert regra.ja_vista() is False
+
+
+# --- pelo teclado (fix round 2026-10-28) -----------------------------------------------------
+
+def test_cartao_recebe_foco_pelo_tab_e_pelo_clique(montar):
+    janela = montar()
+    for alvo in ("CriaFichas", "UploadConditions", "PMIBManager"):
+        assert _cartao(janela, alvo).focusPolicy() == Qt.FocusPolicy.StrongFocus
+
+
+@pytest.mark.parametrize("tecla", [Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space])
+def test_enter_e_espaco_fazem_o_mesmo_que_o_clique(montar, qtbot, tecla):
+    janela = montar()
+    qtbot.keyClick(_cartao(janela, "UploadConditions"), tecla)
+    assert janela.pilha.currentWidget() is janela.telas["UploadConditions"]
+    assert regra.ja_vista() is True
+
+
+def test_outra_tecla_nao_escolhe(montar, qtbot):
+    janela = montar()
+    qtbot.keyClick(_cartao(janela, "CriaFichas"), Qt.Key.Key_A)
+    assert _na_boas_vindas(janela)
+    assert regra.ja_vista() is False
+
+
+def test_caminho_bloqueado_nao_escolhe_pelo_teclado(montar, qtbot, monkeypatch):
+    monkeypatch.setattr(catalogo, "TELAS_BLOQUEADAS", frozenset({"UploadConditions"}))
+    janela = montar()
+    cartao = _cartao(janela, "UploadConditions")
+    cartao.keyPressEvent(_tecla(Qt.Key.Key_Return))
+    assert _na_boas_vindas(janela)
+    assert regra.ja_vista() is False
+
+
+def _tecla(codigo):
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QKeyEvent
+
+    return QKeyEvent(QEvent.Type.KeyPress, codigo, Qt.KeyboardModifier.NoModifier)
+
+
+@pytest.mark.parametrize("nome_tema", ["escuro", "claro"])
+def test_foco_visivel_pelo_papel_da_cor(nome_tema):
+    # O foco usa os papéis do tema (borda `primaria`, fundo `superficie_alta`),
+    # nunca cor crua: a regra mora no `estilo`.
+    from sigft.app import tokens
+    from sigft.app_qt import estilo
+
+    folha = estilo.folha_de_estilo(nome_tema)
+    p = tokens.paleta(nome_tema)
+    regra_foco = next(linha for linha in folha.splitlines() if '#card[caminho="true"]:focus' in linha)
+    assert p["primaria"] in regra_foco and p["superficie_alta"] in regra_foco
+
+
 # --- reabre --------------------------------------------------------------------------------
 
 def test_ctrl_k_reabre(montar):

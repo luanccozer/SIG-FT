@@ -32,14 +32,14 @@ _log = logging.getLogger(__name__)
 ROTULO_FECHADO = marcar("Como funciona")
 ROTULO_ABERTO = marcar("Ocultar detalhes")
 ICONE = "circle-help"
-TAMANHO_ICONE = 16
+TAMANHO_ICONE = 14
 MARCADOR = "•"
 # Entre a frase e o botão; entre um item e o outro; do marcador ao texto.
 ESPACO_DA_LINHA = 12
 ESPACO_ENTRE_ITENS = 4
 RECUO_DO_TEXTO = 8
 # Do título ao bloco (o cabeçalho é um QVBoxLayout de espaçamento padrão).
-ESPACO_DO_TITULO = 6
+ESPACO_DO_TITULO = 4
 # Ligada, nenhuma tela ganha o bloco. Só os testes a ligam (`tests/conftest.py`):
 # os testes de medida das telas conferem cada pixel contra a interface antiga, que
 # não tinha o bloco. Quem testa o bloco, ou varre as telas com ele, tira a variável.
@@ -135,6 +135,9 @@ class ComoFunciona(QWidget):
         self.frase.setWordWrap(True)
         linha.addWidget(self.frase, 1)
         self.botao = blocos.botao(t(ROTULO_FECHADO), variante="secundario")
+        # Compacto (folha `#como_funciona_botao`, em `estilo`): na altura da
+        # linha da frase, o bloco fechado custa uma linha de texto.
+        self.botao.setObjectName("como_funciona_botao")
         self.botao.setCheckable(True)
         self.botao.setCursor(Qt.CursorShape.PointingHandCursor)
         icones.aplicar(self.botao, ICONE, tamanho=TAMANHO_ICONE)

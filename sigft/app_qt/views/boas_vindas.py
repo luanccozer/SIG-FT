@@ -12,7 +12,12 @@ sempre pode sair pelo menu. Quando aparece sozinha é decisão de
 `sigft/app/boas_vindas.py` (sem Qt); reabre pelo Ctrl+K ("Boas-vindas") e pela
 Configuração (seção Ajuda).
 
-Sair por "Ir para o início" ou por um caminho grava `boas_vindas_vista`. Os
+Sair por "Ir para o início" ou por um caminho grava `boas_vindas_vista`. Sair
+pelo menu lateral ou pelo Ctrl+K NÃO grava, de propósito: quem fecha sem
+escolher vê de novo. A página só sai de cena para sempre quando a pessoa
+escolheu por onde começar; quem a pulou pelo menu (ou nem a leu) a encontra na
+próxima abertura, até escolher, e o rastro de uso que o trabalho num módulo
+deixa (`core/rastros_de_uso.py`) a desliga sozinho. Os
 cliques vão para MÉTODOS da página (um sinal do cartão), nunca para `lambda` com
 `self`: o ciclo que ela cria é destruído depois do app, e a saída cai.
 """
@@ -63,6 +68,9 @@ TAMANHO_ICONE_CARTAO = 28
 TAMANHO_ICONE_LEMBRETE = 18
 ALTURA_BOTAO_INICIO = 36
 
+# As teclas que escolhem o cartão com foco, como num botão.
+TECLAS_QUE_ESCOLHEM = (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space)
+
 
 class CartaoDeCaminho(QFrame):
     """Um caminho: ícone da tela, título e descrição. Clicar emite `escolhido(alvo)`.
@@ -78,6 +86,10 @@ class CartaoDeCaminho(QFrame):
         bloqueado = alvo in catalogo.TELAS_BLOQUEADAS
         self.setEnabled(not bloqueado)
         self.setCursor(Qt.CursorShape.ArrowCursor if bloqueado else Qt.CursorShape.PointingHandCursor)
+        # Pelo teclado também (fix round 2026-10-28): o Tab chega no cartão, Enter
+        # ou Espaço escolhem, e o foco aparece (`#card[caminho="true"]:focus`, em
+        # `estilo`, pelos papéis do tema).
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setToolTip(catalogo.dica_do_menu(alvo))
         self.setAccessibleName(titulo)
         externo = QVBoxLayout(self)
@@ -104,6 +116,14 @@ class CartaoDeCaminho(QFrame):
         externo.addWidget(conteudo, 0, Qt.AlignmentFlag.AlignTop)
         for rotulo in self.findChildren(QLabel):
             rotulo.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+
+    def keyPressEvent(self, evento) -> None:  # noqa: N802 -- nome do Qt
+        if evento.key() in TECLAS_QUE_ESCOLHEM and not evento.isAutoRepeat():
+            evento.accept()
+            if self.isEnabled():
+                self.escolhido.emit(self.alvo)
+            return
+        super().keyPressEvent(evento)
 
     def mouseReleaseEvent(self, evento) -> None:  # noqa: N802 -- nome do Qt
         # No soltar, como um botão: quem aperta e arrasta para fora desiste.

@@ -76,3 +76,21 @@ def test_traduzido_segue_o_idioma():
 def test_chave_da_preferencia_por_tela():
     assert como_funciona.chave_da_preferencia("CriaFichas") == "como_funciona_aberto.CriaFichas"
     assert como_funciona.chave_da_preferencia("LMR.upload") == "como_funciona_aberto.LMR.upload"
+
+
+def test_lmr_retoma_pela_posicao_e_nao_promete_onde_fica_o_csv():
+    # O campo de inicio recebe a POSICAO (int, grupos de codigos LMR contados
+    # de 0, `LMRAutomation._resolver_linha_inicial`), nao um codigo LMR; e o
+    # erros_lmr.csv sai relativo ao cwd, entao o texto nao promete onde.
+    itens = como_funciona.TEXTOS["LMR.upload"].itens
+    retomar = next(item for item in itens if item.startswith("Parou no meio?"))
+    assert "posição" in retomar and "0 =" in retomar
+    assert "todas as fichas" in retomar
+    csv = next(item for item in itens if "erros_lmr.csv" in item)
+    assert "no erros_lmr.csv" not in csv
+
+
+def test_analyzer_relatorio_do_fornecedor_sai_pelo_botao():
+    itens = como_funciona.TEXTOS["Analyzer"].itens
+    assert any("GERAR RELATÓRIO PARA O FORNECEDOR (.xlsx)" in item for item in itens)
+    assert not any(item.startswith("No fim") for item in itens)

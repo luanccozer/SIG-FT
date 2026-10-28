@@ -19,6 +19,11 @@ Logo abaixo do título de cada tela (sempre no MESMO lugar, em todas):
   tela espera receber (que planilha, que pasta), o que ela muda (o portal? a
   planilha? só gera arquivo?), o que acontece se parar no meio, e o atalho para
   o roteiro quando houver um.
+- Fechado, o bloco custa UMA linha de texto (fix round de 2026-10-28): a frase e
+  o botão dividem a linha (o botão à direita; a frase quebra se não couber), e o
+  botão é compacto (`#como_funciona_botao`, na altura da linha da frase). O de
+  32 px somava 38 px a cada cabeçalho (27 -> 65), e as telas mais altas passavam
+  de um notebook 1366x768.
 - O estado aberto/fechado é lembrado por tela (`prefs`, chave
   `como_funciona_aberto`), como as colunas.
 
@@ -67,12 +72,25 @@ primeira abertura, depois das perguntas que já existem (idioma, nome):
   3. **Acompanhar as listas de sobressalentes** → PMIB Manager;
 - o lembrete de que **cada tela tem o "Como funciona"** e de que o Ctrl+K acha
   qualquer módulo;
-- **"Ir para o início"** fecha a página (grava `boas_vindas_vista`).
+- **"Ir para o início"** fecha a página (grava `boas_vindas_vista`), e o clique
+  num caminho também. **Sair pelo menu lateral ou pelo Ctrl+K não grava**, de
+  propósito: *fecha sem escolher vê de novo*. A página só sai de cena para
+  sempre quando a pessoa escolheu por onde começar; quem a pulou pelo menu a
+  encontra na próxima abertura, até escolher, ou até trabalhar num módulo (o
+  rastro de uso a desliga sozinho);
+- os cartões dos caminhos respondem ao teclado: o Tab chega neles, Enter ou
+  Espaço escolhem, e o foco aparece (borda `primaria` e fundo `superficie_alta`,
+  pelos papéis do tema).
 
 ### Como
 
 - `sigft/app_qt/views/boas_vindas.py` (nova), registrada na pilha da janela
   principal mas **fora do menu lateral**; ícones via `icones`, cor só por papel.
+- O rastro de uso mora em `sigft/core/rastros_de_uso.py` (o `core` não importa o
+  `app`), porque a janela de novidades faz a mesma pergunta: `user_prefs.json`
+  sem versão vista é atualização só se houver rastro. A pergunta do idioma grava
+  o arquivo (com `novidades: {}`) antes da decisão, e sem isso o changelog da
+  versão abria por cima da boas-vindas de quem acabou de instalar.
 - `main.py`: decide na montagem (`deve_mostrar_boas_vindas()`, em
   `sigft/app/boas_vindas.py`, sem Qt e testável).
 - Ctrl+K: ação `acao:boas_vindas`, buscável em português também.

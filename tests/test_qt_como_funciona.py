@@ -125,6 +125,34 @@ def test_fica_logo_abaixo_do_titulo(qt_interface, qtbot, prefs_do_teste):
     assert linha.itemAt(1).widget() is _bloco(tela)
 
 
+@pytest.mark.parametrize("escolha", ["normal", "grande"])
+def test_fechado_custa_uma_linha_de_texto(qt_interface, qtbot, prefs_do_teste, tmp_path,
+                                          monkeypatch, escolha):
+    """Fix round 2026-10-28: fechado, o bloco somava 38 px a cada cabeçalho (27 -> 65),
+    e as telas mais altas passavam da tela de um notebook 1366x768. A frase e o
+    botão dividem UMA linha, e o botão é compacto: o bloco fechado custa uma
+    linha de texto, mais o respiro do título."""
+    from sigft.app_qt import letra
+
+    monkeypatch.setattr(letra, "_arquivo_de_prefs", lambda: tmp_path / "letra.json")
+    letra.aplicar(qt_interface, escolha, gravar=False)
+    try:
+        tela = Tela(titulo="x")
+        qtbot.addWidget(tela)
+        tela.resize(1100, 700)
+        tela.show()
+        qtbot.waitExposed(tela)
+        bloco = _bloco(tela)
+        linha_de_texto = bloco.frase.fontMetrics().lineSpacing()
+        assert bloco.botao.geometry().top() == bloco.frase.geometry().top() or \
+            abs(bloco.botao.geometry().center().y() - bloco.frase.geometry().center().y()) <= 2
+        assert bloco.height() <= linha_de_texto + 6, (bloco.height(), linha_de_texto)
+        assert tela.header.height() - tela.label_titulo.height() <= linha_de_texto + 6 + cf.ESPACO_DO_TITULO
+        assert bloco.botao.width() >= bloco.botao.sizeHint().width()   # o texto do botão cabe
+    finally:
+        letra.aplicar(qt_interface, "normal", gravar=False)
+
+
 def test_tela_sem_bloco_nao_muda(qt_interface, qtbot):
     class SemBloco(ModuleFrame):
         def _build_ui(self):
