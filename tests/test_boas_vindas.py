@@ -12,6 +12,7 @@ import json
 
 import pytest
 
+from sigft import _build_info
 from sigft.app import boas_vindas
 from sigft.core import dados_usuario, prefs
 
@@ -46,11 +47,28 @@ def test_o_que_a_primeira_abertura_grava_nao_conta_como_uso():
     _gravar_prefs({
         "preferencias": {"idioma": "es", "tema": "claro", "letra": "grande", "nome": "Ana",
                          "nome_ja_perguntado": "sim"},
-        "novidades": {"ultima_versao_vista": "1.3.1"},
+        "novidades": {"ultima_versao_vista": _build_info.VERSAO},
         "opcoes": {"menu_recolhido": True},
         "ultimos": {}, "categorias": {},
     })
     assert boas_vindas.rastros_de_uso() == []
+    assert boas_vindas.deve_mostrar_boas_vindas() is True
+
+
+def test_novidades_de_uma_versao_anterior_e_uso(monkeypatch):
+    # A janela de novidades grava a versão DEPOIS da decisão; achar gravada uma
+    # versão diferente da atual é de quem abriu uma versão anterior instalada e
+    # atualizou (mesmo sem nunca ter aberto um diálogo de arquivo).
+    monkeypatch.setattr(_build_info, "VERSAO", "1.4.0")
+    _gravar_prefs({"novidades": {"ultima_versao_vista": "1.3.1"}})
+    assert boas_vindas.rastros_de_uso() == ["user_prefs.json:novidades (1.3.1)"]
+    assert boas_vindas.deve_mostrar_boas_vindas() is False
+
+
+def test_novidades_desta_versao_nao_e_uso(monkeypatch):
+    # A mesma versão: foi esta instalação que abriu antes (e saiu sem escolher).
+    monkeypatch.setattr(_build_info, "VERSAO", "1.4.0")
+    _gravar_prefs({"novidades": {"ultima_versao_vista": "1.4.0"}})
     assert boas_vindas.deve_mostrar_boas_vindas() is True
 
 

@@ -368,9 +368,11 @@ Automation (v1.4.0), adaptada.
   - **Quando aparece sozinha:** sem a opção `boas_vindas_vista` (`prefs`, seção `opcoes`) E sem
     rastro de uso na pasta de dados (`rastros_de_uso`): entrada em `user_prefs.json` nas seções
     `ultimos`, `categorias`, `pastas_padrao`, `arquivos`, `recentes` ou `colunas`
-    (`SECOES_DE_USO`); `user_prefs.json` ilegível; arquivo em `logs/` que não seja da própria abertura
+    (`SECOES_DE_USO`); versão vista das novidades DIFERENTE da atual (a janela de novidades só
+    grava no app instalado e depois da decisão: versão anterior gravada é de quem atualizou);
+    `user_prefs.json` ilegível; arquivo em `logs/` que não seja da própria abertura
     (`sigft.log`, `diario.*`, `queda.log*`), ou subpasta de `logs/` com arquivo; `api_config.json`
-    com alguma chave preenchida. Idioma, tema, letra, nome, versão vista e as opções liga/desliga NÃO
+    com alguma chave preenchida. Idioma, tema, letra, nome, a versão vista quando é a atual e as opções liga/desliga NÃO
     contam: a primeira abertura os grava antes (ou logo depois) da decisão. Quem atualiza traz as
     pastas no `user_prefs.json` (pela migração, se vier de antes da pasta de dados) e não vê.
     Nunca levanta; na dúvida, a Home.
@@ -378,6 +380,8 @@ Automation (v1.4.0), adaptada.
     (`boas_vindas.marcar_vista`); só mostrar não grava (quem fecha o app sem escolher a vê de novo).
   - **Reabre:** Ctrl+K `acao:boas_vindas` ("Boas-vindas"; acha em português também, como as outras
     ações) e a seção **Ajuda** da janela Configuração ("Rever as boas-vindas", que fecha a janela).
+  - `main.PAGINAS_FORA_DO_MENU` (Home e boas-vindas): as páginas da pilha que não exigem botão no
+    menu nem cartão na Home (`tests/test_tela_correcao_pdm.py`).
   - Nos testes não abre sozinha (`SIGFT_SEM_BOAS_VINDAS`, no `conftest`); quem testa a página tira a
     variável. A varredura de corte (pt/es/en, letra Grande) passa por ela.
 

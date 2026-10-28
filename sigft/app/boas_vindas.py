@@ -22,6 +22,12 @@ O que só existe porque alguém TRABALHOU num módulo:
   arquivo, e o diálogo grava a pasta: é o rastro mais certo. Quem atualiza de
   uma versão anterior à pasta de dados traz o arquivo pela migração
   (`dados_usuario.migrar_se_preciso`, antes da janela), com as pastas dentro;
+* `user_prefs.json` com a versão vista das novidades DIFERENTE da atual: a janela
+  de novidades só grava no app instalado e só depois desta decisão
+  (`novidades.agendar_na_abertura`, no fim da montagem); achar uma versão
+  anterior gravada é de quem abriu uma versão velha e atualizou, mesmo sem nunca
+  ter aberto um diálogo de arquivo. A MESMA versão não conta: foi esta
+  instalação que abriu antes, e saiu sem escolher (vê de novo);
 * `user_prefs.json` que existe e não se lê: alguém o gravou; e mostrar sem
   conseguir gravar a vista seria mostrar em toda abertura;
 * `logs/` com algum arquivo que não seja dos que a própria abertura grava
@@ -32,7 +38,7 @@ O que só existe porque alguém TRABALHOU num módulo:
 
 O que NÃO é (a primeira abertura grava antes de a janela decidir, ou logo
 depois): o idioma, o tema, a letra, o nome e o "já perguntou", a versão vista
-das novidades, as opções liga/desliga (o menu recolhido), o `sigft.log` e o
+das novidades quando é a atual, as opções liga/desliga (o menu recolhido), o `sigft.log` e o
 diário. Contar qualquer um deles faria a página nunca aparecer para quem
 acabou de instalar.
 
@@ -84,14 +90,25 @@ def _ler_json(arquivo: Path):
 
 
 def _rastros_nas_preferencias(pasta: Path) -> list[str]:
-    from sigft.core.prefs import CONFIG_FILE
+    from sigft.core.prefs import CHAVE_NOVIDADES, CONFIG_FILE
 
     existe, dados = _ler_json(pasta / CONFIG_FILE)
     if not existe:
         return []
     if not isinstance(dados, dict):
         return [f"{CONFIG_FILE} (ilegível)"]
-    return [f"{CONFIG_FILE}:{secao}" for secao in SECOES_DE_USO if dados.get(secao)]
+    rastros = [f"{CONFIG_FILE}:{secao}" for secao in SECOES_DE_USO if dados.get(secao)]
+    novidades = dados.get(CHAVE_NOVIDADES)
+    vista = novidades.get("ultima_versao_vista") if isinstance(novidades, dict) else None
+    if isinstance(vista, str) and vista and vista != _versao_atual():
+        rastros.append(f"{CONFIG_FILE}:novidades ({vista})")
+    return rastros
+
+
+def _versao_atual() -> str:
+    from sigft import _build_info
+
+    return _build_info.VERSAO
 
 
 def _arquivo_da_abertura(nome: str) -> bool:

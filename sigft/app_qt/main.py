@@ -131,6 +131,10 @@ def _boas_vindas(parent, controller):
 # A chave da boas-vindas na pilha (`TELAS`, `telas`): não é item do menu.
 CHAVE_BOAS_VINDAS = "BoasVindas"
 
+# As páginas da pilha que não são módulo: sem botão no menu e sem cartão na Home
+# (`tests/test_tela_correcao_pdm.py` exige os dois de todo o resto).
+PAGINAS_FORA_DO_MENU = frozenset({"Home", CHAVE_BOAS_VINDAS})
+
 
 # Registro das telas migradas: nome -> fábrica(parent, controller). O teste
 # `tests/test_qt_registro_telas.py` cobra que todo item do menu esteja aqui.
