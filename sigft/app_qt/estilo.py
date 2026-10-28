@@ -456,6 +456,8 @@ QLabel[papel="ok"] {{ color: {p['primaria']}; }}
 #faixa_atividade_texto[estado="erro"] {{ color: {p['perigo']}; }}
 #card {{ background: {p['superficie']}; border: 1px solid {p['borda']}; border-radius: {raio_cartao}px; }}
 #card:hover {{ border: 1px solid {p['primaria']}; }}
+#card:disabled, #card:disabled:hover {{ border: 1px solid {p['borda']}; }}
+#card_titulo:disabled {{ color: {p['texto_suave']}; }}
 #card_titulo {{ color: {p['primaria']}; font-size: {f['secao']}px; font-weight: bold; background: transparent; }}
 #card_icone {{ background: transparent; }}
 #card_desc {{ color: {p['texto_suave']}; font-size: {f['legenda']}px; background: transparent; }}
