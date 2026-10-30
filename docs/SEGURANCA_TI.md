@@ -122,9 +122,14 @@ navegador — o app pausa e espera (é o diálogo "Ação Manual Necessária").
 Nada é gravado em `Program Files`, no registro do Windows ou em área de outro
 usuário.
 
-O `api_config.json` guarda chaves em texto. Se a política exigir, elas podem
-ser fornecidas por **variável de ambiente** (`.env` ou variável do sistema) em
-vez do arquivo — o app aceita os dois.
+O `api_config.json` guarda as chaves **cifradas com a DPAPI do Windows**
+(`CryptProtectData`, a mesma API que o Chrome e o Edge usam para senhas), desde
+2026-10-30 (`sigft/core/cofre.py`). A chave da cifra é derivada da conta do
+Windows: o arquivo copiado para outra máquina ou aberto por outro usuário não
+decifra, e o app pede as chaves de novo. Um arquivo antigo, em texto claro, é
+lido e reescrito cifrado na primeira abertura. Se a política exigir, as chaves
+podem ser fornecidas por **variável de ambiente** (`.env` ou variável do
+sistema) em vez do arquivo — o app aceita os dois.
 
 ---
 

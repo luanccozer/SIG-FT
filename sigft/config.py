@@ -495,6 +495,8 @@ def get_task_config(tarefa: str) -> dict[str, str]:
 # =============================================================================
 # 7. CARREGAMENTO DE CHAVES DE API (.env + api_config.json)
 # =============================================================================
+# As chaves gravadas no `api_config.json` ficam cifradas com a DPAPI do
+# Windows desde 2026-10-30 -- quem cifra e decifra é `sigft/core/cofre.py`.
 # Replica FIELMENTE `SIG_FT_App.load_keys()` / `get_key()`
 # (frontend.py:4254-4282) e `CONFIG_FILE = "api_config.json"`
 # (frontend.py:39).
@@ -619,9 +621,19 @@ def carregar_chaves(config_path: str | os.PathLike[str] | None = None) -> dict[s
         # se `saved` for um JSON válido mas que não é um objeto (ex.: uma
         # lista `[1, 2, 3]`), `**saved` levanta `TypeError`, que também deve
         # cair no fallback para `defaults` — não só falhas de parsing.
+        #
+        # Desde 2026-10-30 as chaves ficam cifradas no arquivo (DPAPI do
+        # Windows, `sigft/core/cofre.py`): `cofre.abrir` devolve o conteúdo com
+        # elas em claro, no formato de sempre, e omite o valor que não decifra
+        # (= sem chave; a tela pede de novo). Arquivo antigo, em texto claro,
+        # é reescrito cifrado aqui mesmo, sem nunca levantar.
+        from sigft.core import cofre
+
         with open(config_path, "r", encoding="utf-8") as arquivo:
             saved = json.load(arquivo)
-            return _limpar_chaves({**defaults, **saved})
+        if cofre.tem_chave_em_claro(saved):
+            cofre.migrar_se_preciso(config_path)
+        return _limpar_chaves({**defaults, **cofre.abrir(saved)})
     except Exception:
         return defaults
 

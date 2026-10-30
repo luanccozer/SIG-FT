@@ -20,7 +20,6 @@ if __name__ == "__main__":
 
     despachar_cedo()
 
-import json
 import os
 import sys
 import threading
@@ -372,26 +371,17 @@ class SIG_FT_App(QMainWindow):  # noqa: N801 -- mesmo nome da interface atual
         self.api_keys = carregar_chaves(_arquivo_de_chaves())
 
     def save_keys(self, novas: dict) -> None:
-        """Lê o JSON inteiro, troca só as chaves de API e grava de forma atômica.
+        """Troca só as chaves de API no `api_config.json`, cifradas e de forma atômica.
 
-        Atômica (arquivo temporário + `os.replace`): um corte no meio da
-        gravação não pode deixar o `api_config.json` pela metade, que faria as
-        chaves "sumirem" na próxima abertura.
+        Quem grava é `sigft/core/cofre.py`: as chaves vão cifradas com a DPAPI
+        do Windows, o resto do arquivo (`_modelos_ia`) fica como estava, e a
+        gravação é atômica (temporário + `os.replace`) -- um corte no meio não
+        pode deixar o arquivo pela metade, que faria as chaves "sumirem" na
+        próxima abertura.
         """
-        arquivo = _arquivo_de_chaves()
-        dados: dict = {}
-        try:
-            with open(arquivo, encoding="utf-8") as f:
-                carregado = json.load(f)
-            if isinstance(carregado, dict):
-                dados = carregado
-        except (OSError, ValueError):
-            dados = {}
-        dados.update(novas)
-        temporario = arquivo + ".tmp"
-        with open(temporario, "w", encoding="utf-8") as f:
-            json.dump(dados, f, indent=4)
-        os.replace(temporario, arquivo)
+        from sigft.core import cofre
+
+        cofre.salvar_chaves(_arquivo_de_chaves(), novas)
         self.api_keys = {**self.api_keys, **novas}
 
     def get_key(self, key_id: str) -> str:

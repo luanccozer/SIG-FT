@@ -26,6 +26,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sigft import config  # noqa: E402
+from sigft.core import cofre  # noqa: E402
 from sigft.core.llm import selecao  # noqa: E402
 
 
@@ -62,8 +63,9 @@ def main() -> int:
             origem.append(f"env {env_var}")
         if existe_cfg:
             try:
+                # As chaves ficam cifradas no arquivo (`sigft/core/cofre.py`).
                 with open(caminho_cfg, encoding="utf-8") as arquivo:
-                    if json.load(arquivo).get(nome_logico):
+                    if cofre.abrir(json.load(arquivo)).get(nome_logico):
                         origem.append("api_config.json")
             except Exception:
                 pass

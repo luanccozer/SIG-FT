@@ -18,20 +18,18 @@ pasta do programa.** Dado do usuário guardado lá seria apagado a cada versão.
 Por isso tudo isso muda para `Documentos\\SIG-FT\\`, **fora da pasta do
 programa**.
 
-O que este módulo NÃO faz
--------------------------
-Não cifra nada. Decisão do usuário em 2026-09-18: as chaves de API continuam
-**compartilháveis** entre as pessoas do time, como já eram. O que muda é o
-LUGAR, não o sigilo — o objetivo aqui é a atualização não encostar nelas.
+O sigilo das chaves
+-------------------
+Este módulo diz ONDE as chaves moram; COMO elas são guardadas é com
+`sigft/core/cofre.py`. Em 2026-09-18 a decisão foi deixá-las em texto claro,
+compartilháveis entre as pessoas do time; em 2026-10-30 ela mudou: as chaves
+passam a ser cifradas com a DPAPI do Windows, como o DocManager faz. O arquivo
+copiado para outra conta do Windows não decifra -- para passar as chaves a um
+colega, use o `.env` ou um `api_config.json` em texto claro (o
+`api_config.example.json` preenchido), que é cifrado na primeira abertura.
 
-Cifrar com a DPAPI do Windows (como o DocManager faz) derivaria a chave da
-conta do Windows, e o arquivo deixaria de servir para outra pessoa — que é
-exatamente o contrário do que foi pedido. Se um dia a decisão mudar, o ponto
-de entrada é este módulo, e só ele.
-
-⚠️ Consequência que continua valendo: as chaves ficam em texto claro em
-`Documentos\\SIG-FT\\api_config.json`. Se alguém sair do time ou o arquivo
-vazar, a saída é **rotacionar as chaves no provedor**.
+Se as chaves vazarem mesmo assim, a saída continua a mesma: **rotacionar as
+chaves no provedor**.
 """
 from __future__ import annotations
 
@@ -39,6 +37,8 @@ import json
 import os
 import re
 from pathlib import Path
+
+from sigft.core import cofre
 
 NOME_DA_PASTA = "SIG-FT"
 
@@ -236,8 +236,12 @@ def importar_do_lugar_antigo(pasta_antiga: str | os.PathLike[str]) -> list[str]:
             dados = json.loads(antigo.read_text(encoding="utf-8"))
             if not isinstance(dados, dict):
                 continue
-            destino.write_text(json.dumps(dados, ensure_ascii=False, indent=2),
-                               encoding="utf-8")
+            if nome == "api_config.json":
+                # As chaves chegam ao lugar novo já cifradas (`core/cofre.py`).
+                cofre.gravar(destino, cofre.guardar(dados))
+            else:
+                destino.write_text(json.dumps(dados, ensure_ascii=False, indent=2),
+                                   encoding="utf-8")
             importados.append(nome)
         except (OSError, ValueError):
             # JSON quebrado ou arquivo ilegível: segue sem ele.
@@ -249,8 +253,7 @@ def importar_do_lugar_antigo(pasta_antiga: str | os.PathLike[str]) -> list[str]:
     if not destino.exists() and (antigo_env := origem / ".env").is_file():
         if (chaves := _ler_env(antigo_env)):
             try:
-                destino.write_text(json.dumps(chaves, ensure_ascii=False, indent=2),
-                                   encoding="utf-8")
+                cofre.gravar(destino, cofre.guardar({}, chaves))
                 importados.append(".env")
             except OSError:
                 pass

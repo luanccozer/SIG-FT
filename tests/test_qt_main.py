@@ -77,8 +77,11 @@ def test_salvar_chaves_preserva_o_resto_do_arquivo(app_qt, tmp_path):
     arquivo = tmp_path / "api_config.json"
     arquivo.write_text(json.dumps({"_modelos_ia": {"global": "x"}, "GEMINI": "velha"}), encoding="utf-8")
     app_qt.save_keys({"GEMINI": "nova"})
+    from sigft.core import cofre
     dados = json.loads(arquivo.read_text(encoding="utf-8"))
-    assert dados == {"_modelos_ia": {"global": "x"}, "GEMINI": "nova"}
+    # As chaves vão cifradas para a seção própria (`core/cofre.py`).
+    assert set(dados) == {"_modelos_ia", cofre.SECAO}
+    assert cofre.ler(arquivo) == {"_modelos_ia": {"global": "x"}, "GEMINI": "nova"}
     assert app_qt.get_key("GEMINI") == "nova"
 
 

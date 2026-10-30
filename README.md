@@ -269,7 +269,7 @@ As chaves **não são versionadas**. Configure por um dos meios:
    GOOGLE_CSE_API=...
    LLAMA_CLOUD_API=...
    ```
-2. Pela tela Home do app ("Configuração de Chaves API"), que grava em `api_config.json` (ignorado pelo git).
+2. Pela janela Configuração do app (Chaves de API), que grava em `Documentos\SIG-FT\api_config.json` (ignorado pelo git), com as chaves **cifradas pela DPAPI do Windows** (`sigft/core/cofre.py`; fora do Windows, base64 marcado `"cifrado": false`). O arquivo cifrado não serve em outra conta do Windows: para passar as chaves a um colega, use o `.env` ou um `api_config.json` em texto claro, que o app cifra na primeira abertura.
 
 ## Estrutura atual (pré-refatoração)
 

@@ -23,7 +23,7 @@ import os
 
 import pytest
 
-from sigft.core import dados_usuario
+from sigft.core import cofre, dados_usuario
 
 
 @pytest.fixture
@@ -104,8 +104,33 @@ def test_o_api_config_antigo_e_importado_na_primeira_abertura(pasta, tmp_path):
     importados = dados_usuario.importar_do_lugar_antigo(antiga)
 
     assert "api_config.json" in importados
-    destino = json.loads((pasta / "api_config.json").read_text(encoding="utf-8"))
+    destino = cofre.ler(pasta / "api_config.json")
     assert destino["GEMINI"] == "chave-antiga"
+
+
+def test_a_chave_importada_chega_cifrada_no_lugar_novo(pasta, tmp_path):
+    """A migracao da pasta do programa tambem passa pelo `core/cofre.py`."""
+    antiga = tmp_path / "programa"
+    antiga.mkdir()
+    (antiga / "api_config.json").write_text(
+        json.dumps({"GEMINI": "chave-antiga", "_modelos_ia": {}}), encoding="utf-8")
+
+    dados_usuario.importar_do_lugar_antigo(antiga)
+
+    texto = (pasta / "api_config.json").read_text(encoding="utf-8")
+    assert "chave-antiga" not in texto
+    assert json.loads(texto)["_modelos_ia"] == {}
+
+
+def test_a_chave_do_env_chega_cifrada_no_lugar_novo(pasta, tmp_path):
+    antiga = tmp_path / "programa"
+    antiga.mkdir()
+    (antiga / ".env").write_text("OPENROUTER_API_KEY=sk-do-env\n", encoding="utf-8")
+
+    dados_usuario.importar_do_lugar_antigo(antiga)
+
+    assert "sk-do-env" not in (pasta / "api_config.json").read_text(encoding="utf-8")
+    assert cofre.ler(pasta / "api_config.json")["OPENROUTER"] == "sk-do-env"
 
 
 def test_a_importacao_NAO_sobrescreve_o_que_ja_esta_no_lugar_novo(pasta, tmp_path):
@@ -120,7 +145,7 @@ def test_a_importacao_NAO_sobrescreve_o_que_ja_esta_no_lugar_novo(pasta, tmp_pat
     importados = dados_usuario.importar_do_lugar_antigo(antiga)
 
     assert importados == []
-    atual = json.loads((pasta / "api_config.json").read_text(encoding="utf-8"))
+    atual = cofre.ler(pasta / "api_config.json")
     assert atual["GEMINI"] == "a-que-vale"
 
 
@@ -147,7 +172,7 @@ def test_o_env_antigo_vira_api_config(pasta, tmp_path):
 
     dados_usuario.importar_do_lugar_antigo(antiga)
 
-    salvo = json.loads((pasta / "api_config.json").read_text(encoding="utf-8"))
+    salvo = cofre.ler(pasta / "api_config.json")
     assert salvo["GEMINI"] == "chave-do-env"
     assert salvo["GOOGLE_SEARCH"] == "entre aspas"
 
@@ -162,7 +187,7 @@ def test_o_api_config_ganha_do_env_quando_existem_os_dois(pasta, tmp_path):
 
     dados_usuario.importar_do_lugar_antigo(antiga)
 
-    salvo = json.loads((pasta / "api_config.json").read_text(encoding="utf-8"))
+    salvo = cofre.ler(pasta / "api_config.json")
     assert salvo["GEMINI"] == "do-json"
 
 
