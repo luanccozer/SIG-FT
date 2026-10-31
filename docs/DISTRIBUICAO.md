@@ -98,6 +98,13 @@ Decisão do usuário: *"quero que todos quem usa tenha acesso às mesmas chaves"
 O `Gerar-Pacote.bat` copia o `api_config.json` para dentro do ZIP, ao lado do
 `.exe` — que é onde o app o procura.
 
+Desde 2026-10-30 as chaves do `api_config.json` ficam cifradas com a DPAPI da
+conta do Windows de quem as gravou (`sigft/core/cofre.py`), e esse arquivo não
+decifra em nenhuma outra conta. Por isso o `.bat` não o copia cru: ele o
+**exporta em claro** (`python -m sigft.core.cofre --em-claro`), e cada máquina
+o cifra com a conta dela na primeira abertura. Gere o pacote na mesma conta do
+Windows que gravou as chaves; a que não decifrar fica fora, e o `.bat` avisa.
+
 > ⚠️ **O `SIG-FT.zip` passa a conter segredo em texto claro.** Quem abrir o ZIP
 > lê as chaves, e elas ficam também em texto claro no `%LOCALAPPDATA%` de cada
 > máquina que rodar o app. A **permissão da pasta do Box passa a ser, sozinha,

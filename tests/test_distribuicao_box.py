@@ -129,6 +129,18 @@ def test_o_pacote_leva_as_chaves_de_api():
     assert r"dist\SIG-FT\api_config.json" in texto
 
 
+def test_o_pacote_exporta_as_chaves_em_claro_e_nao_copia_o_arquivo_cifrado():
+    """Desde 2026-10-30 o `api_config.json` guarda as chaves cifradas com a
+    DPAPI da conta de quem gera o pacote (`sigft/core/cofre.py`). Copiado cru,
+    ele nao decifraria em nenhuma outra maquina: o `.bat` exporta em claro."""
+    texto = PACOTE.read_text(encoding="ascii")
+
+    assert "-m sigft.core.cofre --em-claro" in texto
+    assert 'copy /y "api_config.json"' not in texto
+    # O %SIGFT_PY% vem do bootstrap, chamado ANTES do bloco `if (...)`.
+    assert '_bootstrap_venv.bat"\nif exist "api_config.json" (' in texto
+
+
 def test_o_pacote_avisa_que_o_zip_carrega_segredo():
     """Um pacote com chave em texto claro não pode sair sem o aviso.
 

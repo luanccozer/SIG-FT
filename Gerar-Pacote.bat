@@ -58,8 +58,22 @@ echo  ============================================================
 echo   [1b/3] Chaves de API
 echo  ============================================================
 echo.
+rem  As chaves no api_config.json ficam cifradas com a DPAPI da SUA conta do
+rem  Windows (sigft\core\cofre.py): copiado cru, o arquivo nao decifraria em
+rem  nenhuma outra maquina e o pacote sairia, na pratica, sem chave. Por isso
+rem  ele e EXPORTADO em claro para o pacote, e cada maquina o cifra com a
+rem  conta dela na primeira abertura. O bootstrap so devolve o %SIGFT_PY%
+rem  (o venv ja existe: o Gerar-Executavel acabou de usa-lo), e vem ANTES do
+rem  bloco porque o %SIGFT_PY% de dentro dele e expandido ao ler o bloco.
+if exist "api_config.json" call "%~dp0scripts\_bootstrap_venv.bat"
 if exist "api_config.json" (
-    copy /y "api_config.json" "dist\SIG-FT\api_config.json" >nul
+    "%SIGFT_PY%" -m sigft.core.cofre --em-claro "api_config.json" "dist\SIG-FT\api_config.json"
+    if errorlevel 1 (
+        echo   [!] Nem todas as chaves sairam no pacote - ver a mensagem acima.
+        echo       Gere de novo na conta do Windows que gravou as chaves.
+        echo.
+        pause
+    )
     echo   api_config.json incluido no pacote.
     echo.
     echo   [!] O SIG-FT.zip passa a conter as chaves EM TEXTO CLARO.

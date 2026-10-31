@@ -18,6 +18,8 @@ texto claro.
 arquivo (era a decisão de 2026-09-18, revista em 2026-10-30). Para passar as
 chaves a um colega, use o `api_config.example.json` preenchido à mão, ou o
 `.env`: um arquivo em texto claro é aceito e cifrado na primeira abertura.
+O pacote do Box continua levando as chaves: o `Gerar-Pacote.bat` exporta o
+arquivo em claro (`exportar_em_claro`) em vez de copiá-lo cifrado.
 
 Fora do Windows (desenvolvimento, CI) a DPAPI não existe e o valor fica em
 base64, que **não é criptografia** -- só evita leitura acidental. O campo
@@ -273,3 +275,61 @@ def migrar_se_preciso(caminho: str | os.PathLike[str]) -> bool:
         return True
     except Exception:  # noqa: BLE001 -- ver o docstring
         return False
+
+
+# ──────────────────────── o pacote do Box (Gerar-Pacote) ────────────────────
+
+def exportar_em_claro(origem: str | os.PathLike[str],
+                      destino: str | os.PathLike[str]) -> list[str]:
+    """Grava em `destino` o `api_config.json` de `origem` com as chaves em CLARO.
+
+    É o que mantém viva a decisão de 2026-09-04 (`docs/DISTRIBUICAO.md`, "As
+    chaves de API viajam no pacote"): o `Gerar-Pacote.bat` leva o
+    `api_config.json` de quem gera para o lado do `.exe`, e cada máquina o
+    importa na primeira abertura (`dados_usuario.importar_do_lugar_antigo`),
+    cifrando com a conta DELA. Copiado cru, o arquivo cifrado com a DPAPI de
+    quem gerou não decifraria em nenhuma outra conta, e o pacote sairia, na
+    prática, sem chave nenhuma.
+
+    Devolve os NOMES das chaves que não decifraram nesta conta (ficam fora do
+    destino); lista vazia = tudo exportado. Nunca põe valor em mensagem.
+    """
+    bruto = _ler_bruto(origem)
+    claro = abrir(bruto)
+    secao = bruto.get(SECAO)
+    faltando = sorted(
+        nome for nome in (secao if isinstance(secao, dict) else {})
+        if isinstance(nome, str) and nome not in claro
+    )
+    destino = Path(destino)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    with open(destino, "w", encoding="utf-8") as arquivo:
+        json.dump(claro, arquivo, ensure_ascii=False, indent=2)
+    return faltando
+
+
+def _principal(argv: list[str]) -> int:
+    """`python -m sigft.core.cofre --em-claro ORIGEM DESTINO` (o Gerar-Pacote.bat).
+
+    Sai com 1 se alguma chave não decifrou ou se não conseguiu gravar, para o
+    `.bat` avisar e parar.
+    """
+    if len(argv) != 3 or argv[0] != "--em-claro":
+        print("uso: python -m sigft.core.cofre --em-claro ORIGEM DESTINO")
+        return 2
+    try:
+        faltando = exportar_em_claro(argv[1], argv[2])
+    except OSError as erro:
+        print(f"Nao foi possivel gravar {argv[2]}: {type(erro).__name__}")
+        return 1
+    if faltando:
+        print("Chaves que NAO decifraram nesta conta do Windows (ficam fora do "
+              "pacote): " + ", ".join(faltando))
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(_principal(sys.argv[1:]))

@@ -205,3 +205,39 @@ def test_fora_do_windows_o_arquivo_fica_so_para_o_dono(monkeypatch, tmp_path):
 
     assert stat.S_IMODE(arquivo.stat().st_mode) == 0o600
     assert not (tmp_path / "api_config.json.tmp").exists()
+
+
+# ───────────────────── o pacote do Box leva as chaves em claro ──────────────
+
+def test_o_pacote_do_box_leva_as_chaves_em_claro_e_a_outra_maquina_as_le(
+        windows, sem_env, tmp_path, monkeypatch):
+    """Decisao de 2026-09-04: as chaves viajam no SIG-FT.zip. Copiado cru, o
+    arquivo cifrado com a DPAPI de quem gerou o pacote nao decifraria em
+    nenhuma outra conta; exportado em claro, a outra maquina o importa e o
+    cifra com a conta dela."""
+    meu = tmp_path / "api_config.json"
+    meu.write_text(json.dumps({"_modelos_ia": {"global": "x"}}), encoding="utf-8")
+    cofre.salvar_chaves(meu, {"GEMINI": SEGREDO, "OPENROUTER": "sk-or-x"})
+    pacote = tmp_path / "dist" / "SIG-FT" / "api_config.json"
+
+    assert cofre.exportar_em_claro(meu, pacote) == []
+
+    bruto = json.loads(pacote.read_text(encoding="utf-8"))
+    assert bruto == {"_modelos_ia": {"global": "x"}, "GEMINI": SEGREDO, "OPENROUTER": "sk-or-x"}
+    # Na outra conta a DPAPI de quem gerou nao serve, mas o claro e lido.
+    monkeypatch.setattr(cofre, "_dpapi", _dpapi_de_outra_conta)
+    assert sigft_config.carregar_chaves(pacote)["GEMINI"] == SEGREDO
+
+
+def test_exportar_avisa_a_chave_que_nao_decifra_sem_o_valor(windows, tmp_path, monkeypatch, capsys):
+    meu = tmp_path / "api_config.json"
+    cofre.salvar_chaves(meu, {"GEMINI": SEGREDO})
+    monkeypatch.setattr(cofre, "_dpapi", _dpapi_de_outra_conta)
+    pacote = tmp_path / "pacote" / "api_config.json"
+
+    assert cofre._principal(["--em-claro", str(meu), str(pacote)]) == 1
+
+    saida = capsys.readouterr().out
+    assert "GEMINI" in saida
+    assert SEGREDO not in saida
+    assert "GEMINI" not in json.loads(pacote.read_text(encoding="utf-8"))
