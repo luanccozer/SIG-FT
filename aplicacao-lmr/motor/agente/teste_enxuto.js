@@ -199,5 +199,77 @@ const semMaterial = n => F.materiaisBons().filter(x => x.pmib !== P(n));
   ok(R.aplica({ respostasR: [], lacunas: [], R: AGENTE.leRespostas(rs), indexados }).resposta === null, 'sem lacunas: resposta null');
 }
 
+// ── Task 3: validador ──
+const baseBoa = () => monta(F.respostasBoas());
+const valida = (base, pendencias = []) => R.valida({ base, pendencias, catalogo: st.catalogo, LMR });
+{
+  const m = baseBoa();
+  ok(!valida(m.base, m.pendencias).length, `fixture sem violação: ${JSON.stringify(valida(m.base, m.pendencias))}`);
+  const sem = m.base.filter(x => x.FICHA_PMIB !== P(2));
+  const v = valida(sem);
+  ok(v.length === 1 && v[0].REGRA === 'PMIB' && v[0].FICHA_PMIB === P(2), `PMIB sem linha: ${JSON.stringify(v)}`);
+  ok(!valida(sem, [{ PMIB: P(2), TIPO: 'LEITURA', DETALHE: 'não achou' }]).length, 'PMIB sem linha com motivo não trava');
+}
+for (const campo of ['ÁREA/PAINEL', 'ELEVAÇÃO', 'EIXO', 'LOCAL', 'RDS-PP', 'TRECHOS', 'QTD POR TRECHO']) {
+  const m = baseBoa();
+  m.base[0][campo] = '';
+  const v = valida(m.base).filter(x => x.REGRA === 'CAMPO');
+  ok(v.length === 1 && v[0].DETALHE.includes(campo) && v[0]['LINHA DA BASE'] === 1, `${campo} vazio: ${JSON.stringify(v)}`);
+  ok(!valida(m.base, [{ PMIB: P(1), TIPO: 'ÁREA', DETALHE: 'x' }]).length, `${campo} vazio com pendência do PMIB não trava`);
+  ok(!valida(m.base, [{ PMIB: '', 'DESCRIÇÃO': 'ÁREA SKID', TIPO: 'ÁREA', DETALHE: 'x' }]).filter(x => x.REGRA === 'CAMPO' && campo !== 'ÁREA/PAINEL').length, `${campo} vazio com pendência da área não trava`);
+}
+{
+  const m = baseBoa();
+  Object.assign(m.base[5], { PAIS: 'GP101 | #ST[XX]=M[XX]ABC10UZ010-UZ001', 'ÁREA/PAINEL': '', 'RDS-PP': '' });
+  ok(!valida(m.base).filter(x => x.REGRA === 'CAMPO').length, 'linha com PAIS dispensa área e RDS-PP');
+}
+{
+  const m = baseBoa();
+  m.base[0]['ELEVAÇÃO'] = '98.5';
+  ok(!valida(m.base).length && m.base[0]['ELEVAÇÃO'] === '98,50', 'elevação corrigível é corrigida na linha');
+  m.base[0]['ELEVAÇÃO'] = 'abc';
+  ok(valida(m.base).some(x => x.REGRA === 'FORMATO' && /elevação/.test(x.DETALHE)), 'elevação inválida');
+}
+for (const [campo, valor, rx] of [['EIXO', 'XY', /eixo/], ['TRECHOS', 'U-99', /trecho/i], ['RDS-PP', '#ST00=Z99ABC10UZ010-UZ001', /M inválido|RDS/], ['RDS-PP', '#ST[XX]=M[XX]ABC10UZ010[XX]', /\[XX\]/]]) {
+  const m = baseBoa();
+  m.base[0][campo] = valor;
+  ok(valida(m.base).some(x => x.REGRA === 'FORMATO' && rx.test(x.DETALHE)), `${campo}=${valor}: ${JSON.stringify(valida(m.base))}`);
+}
+{
+  // formato é conferido também na linha sem QTD (o motor não gera a aplicação dela)
+  const m = baseBoa();
+  Object.assign(m.base[5], { 'QTD POR TRECHO': '', EIXO: 'XY' });
+  ok(valida(m.base, [{ PMIB: P(6), TIPO: 'QTD', DETALHE: 'x' }]).some(x => x.REGRA === 'FORMATO' && /eixo/.test(x.DETALHE)), 'formato em linha sem QTD');
+}
+{
+  const m = baseBoa();
+  m.base[0].LOCAL = 'OUTRO LOCAL ESCRITO';
+  ok(!valida(m.base).length, 'local fora da lista não trava (a spec não pede; a lista fechada ainda é pendência da equipe)');
+}
+// ── Task 3: pendências de área e bloqueio ──
+{
+  const m = baseBoa();
+  m.base[0].LOCAL = ''; m.base[1].LOCAL = '';
+  const p = R.pendenciasDeArea(m.base, []);
+  ok(p.length === 1 && p[0].TIPO === 'ÁREA' && p[0]['DESCRIÇÃO'] === 'ÁREA SKID' && p[0].DETALHE.includes('LOCAL'), `pendência por área: ${JSON.stringify(p)}`);
+  ok(!R.pendenciasDeArea(m.base, p).length, 'não duplica a que já existe');
+  ok(!R.valida({ base: m.base, pendencias: p, catalogo: st.catalogo, LMR }).length, 'área em branco com a pendência gerada não trava');
+  const b = R.abasDoBloqueio([{ REGRA: 'CAMPO', 'LINHA DA BASE': 1, FICHA_PMIB: P(1), DETALHE: 'x' }], [{ CHAMADA: 'c', ERRO: '' }]);
+  ok(b.map(x => x.nome).join() === 'VIOLAÇÕES,CHAMADAS DO AGENTE' && b[0].linhas.length === 1 && b[1].linhas.length === 1, `abas do bloqueio: ${JSON.stringify(b.map(x => x.nome))}`);
+}
+// ── Task 3: checaResposta ──
+{
+  const c = R.checaResposta;
+  ok(!c({ output: 'Li tudo {sem chaves}.\n```json\n{"etapa":1}\n```\nFim.' }).error, 'JSON em bloco com texto em volta');
+  ok(!c({ output: 'Aqui: {"etapa":1} pronto' }).error, 'JSON sem bloco');
+  ok(!c({ output: '{}' }).error, 'resposta da chamada vazia');
+  ok(!c({ output: { etapa: 1 } }).error, 'output já é objeto');
+  ok(/temporar/.test((c({ output: '```json\n{"etapa":1,"tags":[{"tag":"GP' }).error || {}).message), 'JSON cortado');
+  ok(/temporar/.test((c({ output: '' }).error || {}).message), 'resposta vazia');
+  const j = { error: { message: 'modelo não configurado' } };
+  ok(c(j).error.message === 'modelo não configurado', 'erro existente fica intacto');
+  ok(c({ output: '{}', sessionId: 's' }).sessionId === 's', 'mantém os outros campos');
+}
+
 console.log(falhas ? `${falhas} FALHA(S)` : 'TUDO OK');
 process.exit(falhas ? 1 : 0);

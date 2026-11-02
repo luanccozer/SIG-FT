@@ -192,6 +192,73 @@ const RECUPERACAO = (() => {
       pendencias, enviadas: enviadas.length, resolvidas };
   }
 
-  return { lacunas, tarefas, aplica };
+  // ── Validador: trava a entrega ──
+  const OBRIGATORIOS = ['ÁREA/PAINEL', 'RDS-PP', 'LOCAL', 'ELEVAÇÃO', 'EIXO', 'TRECHOS', 'QTD POR TRECHO'];
+  const DA_AREA = ['RDS-PP', 'LOCAL', 'EIXO'];
+  const REGRAS_DE_FORMATO = new Set(['V2', 'V4', 'V5', 'V14', 'V15']);
+
+  /** Campo da área vazio: já passou pela pessoa em "Confira as áreas"; uma pendência por área, como a de ELEVAÇÃO. */
+  function pendenciasDeArea(base, pendencias) {
+    const ja = new Set(pendencias.filter(p => p.TIPO === 'ÁREA').map(p => t(p['DESCRIÇÃO'])));
+    const vazios = new Map();
+    for (const r of base) {
+      const a = t(r['ÁREA/PAINEL']);
+      if (!a || ja.has(`ÁREA ${a}`)) continue;
+      for (const k of DA_AREA) if (!t(r[k]) && !(k === 'RDS-PP' && t(r.PAIS))) (vazios.get(a) || vazios.set(a, new Set()).get(a)).add(k);
+    }
+    return [...vazios].map(([a, ks]) => ({ PMIB: '', ITEM: '', 'DESCRIÇÃO': `ÁREA ${a}`, TIPO: 'ÁREA', DETALHE: `a área ${a} ficou sem ${[...ks].join(', ')}: preencha nas linhas da BASE com ÁREA/PAINEL = ${a}` }));
+  }
+
+  /** Base → violações. Corrige na linha o que é certo (elevação 98.5 → 98,50). Vazia = pode entregar. */
+  function valida({ base, pendencias, catalogo, LMR: M }) {
+    const comPmib = new Set(pendencias.map(p => t(p.PMIB)).filter(Boolean));
+    const comArea = new Set(pendencias.map(p => t(p['DESCRIÇÃO'])).filter(x => x.startsWith('ÁREA ')));
+    const out = [];
+    const viola = (REGRA, r, DETALHE) => out.push({ REGRA, 'LINHA DA BASE': r.LINHA, FICHA_PMIB: r.FICHA_PMIB, DETALHE });
+    const comLinha = new Set(base.map(r => t(r.FICHA_PMIB)));
+    for (const c of catalogo) if (!comLinha.has(c.pmib) && !comPmib.has(c.pmib))
+      out.push({ REGRA: 'PMIB', 'LINHA DA BASE': '', FICHA_PMIB: c.pmib, DETALHE: 'material do Status sem linha na Base e sem pendência com motivo' });
+    for (const r of base) {
+      const elev = t(r['ELEVAÇÃO']);
+      if (elev) { const x = M.formataElevacao(elev).valor; if (x) r['ELEVAÇÃO'] = x; }
+      // shortcut: qualquer pendência do material ou da área dispensa o campo; separar por tipo se aparecer vazio sem explicação
+      const explicado = comPmib.has(t(r.FICHA_PMIB)) || comArea.has(`ÁREA ${t(r['ÁREA/PAINEL'])}`);
+      if (!explicado) for (const k of OBRIGATORIOS) {
+        if (t(r[k])) continue;
+        if (t(r.PAIS) && (k === 'ÁREA/PAINEL' || k === 'RDS-PP')) continue;
+        viola('CAMPO', r, `${k} vazio, sem pendência`);
+      }
+      // formato: gera a aplicação da linha como o Workflow B; TRECHOS e QTD vazios não impedem de conferir o resto
+      const copia = { ...r, TRECHOS: t(r.TRECHOS) || 'U-01', 'QTD POR TRECHO': 1 };
+      if (t(r['RDS-PP']) && !M.partesRds(M.expandeRds(r['RDS-PP'], 'U-01')).m) viola('FORMATO', r, `RDS-PP fora do formato: ${t(r['RDS-PP'])}`);
+      const vistos = new Set();
+      for (const a of M.geraLote([copia], new Set())[0].achados) {
+        // local fora da lista não trava: a lista fechada de locais ainda é pendência da equipe (HANDOFF §10)
+        if (a.SEVERIDADE !== 'bloqueia' || !REGRAS_DE_FORMATO.has(a.REGRA) || /^local fora/.test(a.MENSAGEM) || vistos.has(a.MENSAGEM)) continue;
+        vistos.add(a.MENSAGEM);
+        viola('FORMATO', r, `${a.REGRA}: ${a.MENSAGEM}`);
+      }
+    }
+    return out;
+  }
+
+  const abasDoBloqueio = (violacoes, chamadas) => [
+    { nome: 'VIOLAÇÕES', colunas: ['REGRA', 'LINHA DA BASE', 'FICHA_PMIB', 'DETALHE'], linhas: violacoes, larguras: { DETALHE: 90 } },
+    { nome: 'CHAMADAS DO AGENTE', colunas: ['CHAMADA', 'CARACTERES ENVIADOS', 'CARACTERES RECEBIDOS', 'ERRO'], linhas: chamadas, larguras: { CHAMADA: 24, ERRO: 80 } },
+  ];
+
+  /** Saída do nó AMP Agent: JSON cortado ou inválido vira erro temporário, para usar as mesmas tentativas do erro do nó. */
+  function checaResposta(j) {
+    if (j.error) return j;
+    if (j.output && typeof j.output === 'object') return j;
+    const s = String(j.output == null ? '' : j.output);
+    const blocos = [...s.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)].map(m => m[1]);
+    const ini = s.indexOf('{'), fim = s.lastIndexOf('}');
+    const candidatos = [...blocos, ...(ini >= 0 && fim > ini ? [s.slice(ini, fim + 1)] : [])];
+    for (const c of candidatos) { try { const x = JSON.parse(c); if (x && typeof x === 'object') return j; } catch (e) { /* próximo */ } }
+    return { ...j, error: { message: 'resposta temporariamente inválida: JSON cortado ou inválido' } };
+  }
+
+  return { lacunas, tarefas, aplica, pendenciasDeArea, valida, abasDoBloqueio, checaResposta };
 })();
 if (typeof module !== 'undefined') module.exports = RECUPERACAO;
