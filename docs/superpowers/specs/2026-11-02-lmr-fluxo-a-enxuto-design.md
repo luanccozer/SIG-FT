@@ -108,6 +108,10 @@ Isto não é o "conferente de IA" descartado no HANDOFF §6: ele não revisa nem
 
 Um PMIB sem linha, mas com pendência e motivo, não trava. O código só normaliza o que é certo (`98.5` → `98,50`).
 
+Valor sem a forma `#STnn=...` não é RDS-PP: sai da linha e vira pendência da área, em vez de travar. M inválido (`M99`)
+tem a forma e continua travando. Fora de UG (AMD, AMC) o RDS-PP é o do documento: `[XX]` volta a `00` e a linha que mistura
+UG com AMD ou AMC se divide em duas.
+
 **Quando trava:** o nó de entrega baixa `BLOQUEIO LMR - {sistema}.xlsx` no lugar da Base, com as abas `VIOLAÇÕES` e
 `CHAMADAS DO AGENTE`, e a mensagem final mostra o total. Não há remontagem nesta versão: corrige-se a causa e roda-se de
 novo.

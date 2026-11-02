@@ -230,7 +230,7 @@ for (const campo of ['ÁREA/PAINEL', 'ELEVAÇÃO', 'EIXO', 'LOCAL', 'RDS-PP', 'T
   m.base[0]['ELEVAÇÃO'] = 'abc';
   ok(valida(m.base).some(x => x.REGRA === 'FORMATO' && /elevação/.test(x.DETALHE)), 'elevação inválida');
 }
-for (const [campo, valor, rx] of [['EIXO', 'XY', /eixo/], ['TRECHOS', 'U-99', /trecho/i], ['RDS-PP', '#ST00=Z99ABC10UZ010-UZ001', /M inválido|RDS/], ['RDS-PP', '#ST[XX]=M[XX]ABC10UZ010[XX]', /\[XX\]/]]) {
+for (const [campo, valor, rx] of [['EIXO', 'XY', /eixo/], ['TRECHOS', 'U-99', /trecho/i], ['RDS-PP', 'ABC10UZ010-UZ001', /RDS/], ['RDS-PP', '#ST[XX]=M[XX]ABC10UZ010[XX]', /\[XX\]/]]) {
   const m = baseBoa();
   m.base[0][campo] = valor;
   ok(valida(m.base).some(x => x.REGRA === 'FORMATO' && rx.test(x.DETALHE)), `${campo}=${valor}: ${JSON.stringify(valida(m.base))}`);
@@ -292,12 +292,113 @@ ok(wf.nodes.every(n => !n.credentials), 'sem credencial no JSON');
 const leiaMe = wf.nodes.find(n => n.type === 'n8n-nodes-base.stickyNote').parameters.content;
 ok(['Leitor LMR', 'Ligador LMR', 'Recuperador LMR'].every(x => leiaMe.includes(x)), 'Leia-me cita os 3 agentes');
 ok(wf.nodes.every(n => !String(n.parameters.jsCode || '').includes('\r')), 'código sem CR');
+ok(NO.get('Planeja R').parameters.jsCode.includes('RECUPERACAO.tarefas(l.enviar, indexados, cfg, aa.areas)'), 'Planeja R passa as áreas');
 {
   // os workflows antigos ficam iguais; só os UUIDs mudam ao gerar de novo
   const pasta = path.join(__dirname, '..', 'workflows');
   const norm = s => s.replace(/\\r\\n/g, '\\n').replace(/\r\n/g, '\n').replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, 'U');
   const doGit = execFileSync('git', ['show', 'HEAD:aplicacao-lmr/motor/workflows/LMR_A_agente_amp.json'], { encoding: 'utf8', cwd: pasta, maxBuffer: 1 << 28 });
   ok(norm(fs.readFileSync(path.join(pasta, 'LMR_A_agente_amp.json'), 'utf8')) === norm(doGit), 'LMR_A_agente_amp.json mudou além dos UUIDs');
+}
+
+// ── Revisão final: casos que o motor produz sozinho e não podem travar a entrega ──
+const montaCfg = (c, respostas = F.respostasBoas()) => AGENTE.montaBaseDoAgente({ LMR, statusRows, indexados, cfg: { ...cfg, ...c }, controle: [], respostas, semTexto: false, etapasSemPaginas: [3] });
+{
+  // fora de UG o RDS-PP é o do documento
+  const m = montaCfg({ trechos: 'LISTA', listaTrechos: ['AMD-03', 'AMC-02'] });
+  const base = R.rdsForaDeUg(m.base);
+  ok(base.length === m.base.length && base.every(r => r['RDS-PP'] === '#ST00=M00ABC10UZ010-UZ001'), `AMD/AMC literal: ${JSON.stringify(base.map(r => r['RDS-PP']))}`);
+  const v = R.valida({ base, pendencias: m.pendencias, catalogo: st.catalogo, LMR });
+  ok(!v.length, `AMD/AMC não trava: ${JSON.stringify(v.slice(0, 2))}`);
+  const mista = montaCfg({ trechos: 'LISTA', listaTrechos: ['U-01', 'AMD-03'] });
+  const b2 = R.rdsForaDeUg(mista.base);
+  ok(b2.length === 2 * mista.base.length && b2.every((r, i) => r.LINHA === i + 1), `linha mista divide: ${b2.length}`);
+  ok(b2.filter(r => r.TRECHOS === 'U-01').every(r => /\[XX\]/.test(r['RDS-PP'])) && b2.filter(r => r.TRECHOS === 'AMD-03').every(r => r['RDS-PP'].startsWith('#ST00=M00')), 'UG mantém [XX], AMD fica literal');
+  const v2 = R.valida({ base: b2, pendencias: mista.pendencias, catalogo: st.catalogo, LMR });
+  ok(!v2.length, `linha mista não trava: ${JSON.stringify(v2.slice(0, 2))}`);
+  const so = montaCfg({});
+  ok(JSON.stringify(R.rdsForaDeUg(so.base)) === JSON.stringify(so.base), 'só UG fica igual');
+}
+{
+  // valor que nem tem a forma de RDS-PP sai da linha e vira pendência da área; M inválido continua travando
+  const m = baseBoa();
+  for (const r of m.base) r['RDS-PP'] = 'ABC10UZ010-UZ001';
+  const p = R.limpaRdsSemForma(m.base);
+  ok(p.length === 1 && p[0].TIPO === 'ÁREA' && p[0]['DESCRIÇÃO'] === 'ÁREA SKID' && p[0].DETALHE.includes('ABC10UZ010-UZ001'), `RDS-PP sem forma: ${JSON.stringify(p)}`);
+  ok(m.base.every(r => !r['RDS-PP']) && !valida(m.base, p).length, 'RDS-PP sem forma com pendência não trava');
+  const f = baseBoa();
+  f.base[0]['RDS-PP'] = '#ST00=F00ABC10UZ010-UZ001';
+  ok(!R.limpaRdsSemForma(f.base).length && !valida(f.base).length, `outra letra no lugar do M: ${JSON.stringify(valida(f.base))}`);
+  const x = baseBoa();
+  x.base[0]['RDS-PP'] = '#ST00=M99ABC10UZ010-UZ001';
+  ok(!R.limpaRdsSemForma(x.base).length && valida(x.base).some(y => y.REGRA === 'FORMATO'), 'M inválido continua travando');
+}
+{
+  // filho documental de pai sem área: a linha sai sem local, elevação e eixo
+  const m = baseBoa();
+  Object.assign(m.base[5], { PAIS: 'GP101 | #ST[XX]=M[XX]ABC10UZ010-UZ001', 'ÁREA/PAINEL': '', 'RDS-PP': '', LOCAL: '', 'ELEVAÇÃO': '', EIXO: '' });
+  const p = R.pendenciasDeLinha({ base: m.base, pendencias: [], catalogo: st.catalogo, areas: m.areas });
+  ok(p.length === 1 && p[0].PMIB === P(6) && p[0].TIPO === 'ÁREA', `linha sem área: ${JSON.stringify(p)}`);
+  ok(!valida(m.base, p).length, 'linha sem área com pendência não trava');
+  ok(!R.pendenciasDeLinha({ base: m.base, pendencias: p, catalogo: st.catalogo, areas: m.areas }).length, 'não duplica');
+}
+{
+  // material de 60 Hz em projeto só de 50 Hz: TRECHOS vazio
+  const ms = F.materiaisBons();
+  ms[0].frequencia = '60';
+  const m = montaCfg({ trechos: 'LISTA', listaTrechos: ['U-01', 'U-02'] }, F.respostasBoas(ms));
+  ok(m.base.some(r => r.FICHA_PMIB === P(1) && !r.TRECHOS), 'fixture: linha sem TRECHOS');
+  const p = R.pendenciasDeLinha({ base: m.base, pendencias: m.pendencias, catalogo: st.catalogo, areas: m.areas });
+  ok(p.length === 1 && p[0].PMIB === P(1) && p[0].TIPO === 'FREQUÊNCIA', `sem trecho: ${JSON.stringify(p)}`);
+  ok(!R.valida({ base: m.base, pendencias: [...m.pendencias, ...p], catalogo: st.catalogo, LMR }).length, 'sem trecho com pendência não trava');
+}
+{
+  // RDS-PP por frequência sem trecho no grupo: a linha some no motor; só nesse caso o PMIB sem linha ganha motivo
+  const sem = baseBoa().base.filter(x => x.FICHA_PMIB !== P(2));
+  const p = R.pendenciasDeLinha({ base: sem, pendencias: [], catalogo: st.catalogo, areas: [{ nome: 'SKID', rds: '#ST[F]=M[F]ABC10UZ010-UZ001' }] });
+  ok(p.length === 1 && p[0].PMIB === P(2) && p[0].TIPO === 'FREQUÊNCIA', `[F] sem trecho: ${JSON.stringify(p)}`);
+  ok(!R.pendenciasDeLinha({ base: sem, pendencias: [], catalogo: st.catalogo, areas: [{ nome: 'SKID', rds: '#ST00=M00ABC10UZ010-UZ001' }] }).length, 'PMIB sem linha por outro motivo continua no Validador');
+}
+{
+  // filho documental com linha completa não é material sem posição
+  const m = monta(F.respostasBoas());
+  m.leitura = m.leitura.map(x => (x.PMIB === P(6) ? { ...x, TAGS: '', PAIS: '', 'ÁREA': '' } : x));
+  m.base.find(r => r.FICHA_PMIB === P(6)).PAIS = 'GP101 | #ST[XX]=M[XX]ABC10UZ010-UZ001';
+  const l = R.lacunas({ m, st, indexados });
+  ok(![...l.enviar, ...l.semPagina].some(y => y.pmib === P(6) && y.campo === 'tag'), `lacuna falsa em filho documental: ${JSON.stringify(l.enviar.map(y => [y.pmib, y.campo]))}`);
+}
+{
+  // quantidade da lista de sobressalentes é recusada pelo motor; o Recuperador acha a instalada
+  const ms = F.materiaisBons();
+  Object.assign(ms[5], { qtd_instalada: 8, evidencia: '#ST00=M00ABC10&MPB020 p.1' });
+  const r = aplica(ms, [lacunaDe('L-1', P(6), 'qtd_instalada', null)], [{ lacuna: 'L-1', achou: true, campo: 'qtd_instalada', valor: 4, evidencia: '#ST00=M00ABC10UZ010-UZ901&MPA010 p.2' }]);
+  ok(r.resolvidas === 1 && r.resposta && doMaterial(r, P(6)).qtd_instalada === 4, `quantidade recusada é trocada: ${JSON.stringify(r.pendencias)}`);
+  const linha = r.resposta && monta([...F.respostasBoas(ms), r.resposta]).base.find(x => x.FICHA_PMIB === P(6));
+  ok(linha && Number(linha['QTD POR TRECHO']) === 4, `quantidade chega à Base: ${JSON.stringify(linha)}`);
+}
+{
+  // TAG em vários materiais: uma lacuna só, aplicada a todos; quantidade vem antes de elevação
+  const ms = F.materiaisBons();
+  ms[5].qtd_instalada = null;
+  const m = monta(F.respostasBoas(ms));
+  for (const r of m.base) if (r.TAG === 'GP101') r['ELEVAÇÃO'] = '';
+  const e = R.lacunas({ m, st, indexados }).enviar;
+  const elev = e.filter(y => y.campo === 'elevacao');
+  ok(elev.length === 1 && elev[0].pmibs && [...elev[0].pmibs].sort().join() === [P(1), P(3)].join(), `elevação por TAG: ${JSON.stringify(elev)}`);
+  ok(e.findIndex(y => y.campo === 'qtd_instalada') < e.findIndex(y => y.campo === 'elevacao'), `quantidade antes de elevação: ${e.map(y => y.campo)}`);
+  const a = monta(F.respostasBoas());
+  for (const r of a.base) if (r.TAG === 'GP101') r['ÁREA/PAINEL'] = '';
+  const area = R.lacunas({ m: a, st, indexados }).enviar.filter(y => y.campo === 'area');
+  ok(area.length === 1 && area[0].pmibs && area[0].pmibs.length === 2, `área por TAG: ${JSON.stringify(area)}`);
+  const r = aplica(F.materiaisBons(), [{ ...lacunaDe('L-1', P(1), 'elevacao', 'GP101'), pmibs: [P(1), P(3)] }], [{ lacuna: 'L-1', achou: true, campo: 'elevacao', valor: '98.5', evidencia: 'doc p.1' }]);
+  ok(r.resolvidas === 1 && r.resposta && [P(1), P(3)].every(p => doMaterial(r, p) && doMaterial(r, p).tags[0].elevacao === '98,50'), `vale para todos os materiais da TAG: ${JSON.stringify(r.pendencias)}`);
+}
+{
+  // o Recuperador recebe os nomes das áreas quando procura área
+  const com = R.tarefas([lacunaDe('L-1', P(1), 'area', 'GP101')], indexados, cfg, [{ nome: 'SKID' }, { nome: 'GALERIA' }]);
+  ok(/ÁREAS VÁLIDAS[^\n]*SKID[^\n]*GALERIA/.test(com.tarefas[0].chatInput), 'lista de áreas na mensagem');
+  ok(!/ÁREAS VÁLIDAS/.test(R.tarefas([lacunaDe('L-1', P(1), 'tag', null)], indexados, cfg, [{ nome: 'SKID' }]).tarefas[0].chatInput), 'sem lacuna de área, sem lista');
+  ok(/ÁREAS VÁLIDAS/.test(fs.readFileSync(path.join(__dirname, 'kb', 'recuperador_regras.md'), 'utf8')), 'regra do Recuperador cita a lista');
 }
 
 // ── Task 5: Knowledge base e prompts dos agentes novos ──
@@ -323,8 +424,8 @@ const form = { [rotuloDe('Escopo')]: 'UG', [rotuloDe('Subsistema')]: 'FICTICIO',
   [rotuloDe('Frequência')]: 'Ambas (50 e 60 Hz)', [rotuloDe('Kits')]: 'Levam a TAG do equipamento', [rotuloDe('Peças')]: 'Levam a TAG do equipamento', [rotuloDe('Conferir')]: 'Não', [rotuloDe('Especificação')]: '', [rotuloDe('Etapa de documentos')]: '' };
 
 // imita o n8n nó a nó com o código do próprio workflow; responde(tarefa) devolve o texto do agente ou { error }
-async function simula(responde) {
-  const s = { 'Formulário': [{ json: form, binary: { a: { fileName: 'x.pdf' }, b: { fileName: 'x_STATUS_PMIB - Fictício.xlsx' } } }], 'Lê Status PMIB': statusRows.map(row => ({ json: { row } })), 'Lê BASE (gabarito)': [] };
+async function simula(responde, opcoes = {}) {
+  const s = { 'Formulário': [{ json: { ...form, ...opcoes }, binary: { a: { fileName: 'x.pdf' }, b: { fileName: 'x_STATUS_PMIB - Fictício.xlsx' } } }], 'Lê Status PMIB': statusRows.map(row => ({ json: { row } })), 'Lê BASE (gabarito)': [] };
   let atual = null;
   const $ = no => ({ all: () => s[no] || [], first: ramo => (ramo === 1 && /^Lote /.test(no) ? atual : (s[no] || [])[0]), itemMatching: () => { if (/^Lote /.test(no)) return atual; throw new Error('sem pareamento'); } });
   const exec = (nome, entrada, runIndex = 0) => new AsyncFn('$', '$input', '$execution', '$runIndex', NO.get(nome).parameters.jsCode)($, { all: () => entrada, first: () => entrada[0] }, { id: 77 }, runIndex).then(copia);
@@ -423,6 +524,35 @@ const agenteBom = (ajusta = {}) => tf => {
     const abas = abasDoXlsx(y.b);
     ok(abas.includes('VIOLAÇÕES') && abas.includes('CHAMADAS DO AGENTE') && !abas.includes('BASE'), `abas do bloqueio: ${abas}`);
     ok(y.titulo === 'BASE LMR bloqueada' && /violaç/.test(y.mensagem), `mensagem de bloqueio: ${y.titulo} | ${y.mensagem}`);
+  }
+  {
+    // resposta cortada em todas as tentativas: o que veio inteiro é aproveitado e só o resto vira lacuna
+    const x = await simula(agenteBom({
+      e4: (tf, ms) => `\`\`\`json\n{"etapa":4,"materiais":[${ms.filter(m => tf.pmibs.includes(m.pmib) && m.pmib !== P(2)).map(m => JSON.stringify(m)).join(',')},{"pmib":"${P(2)}","tags":[{"ta`,
+    }));
+    const lacunasR = x.chamadas.filter(t2 => t2.etapa === 'R' && !t2.vazia).flatMap(t2 => t2.lacunasEnviadas);
+    ok(lacunasR.length && lacunasR.every(l => l.pmib === P(2)), `só o material cortado vira lacuna: ${JSON.stringify(lacunasR.map(l => l.pmib))}`);
+    ok(x.b.json.falhas >= 1 && x.b.binary.data.fileName.startsWith('BASE'), `aproveita o corte e registra a falha: ${x.b.json.falhas} ${x.b.binary.data.fileName}`);
+    ok(/Ligador 1 \(1 sem resposta\)/.test(x.mensagem) && /Recuperador \d+ ·/.test(x.mensagem), `falha no agente certo: ${x.mensagem}`);
+  }
+  {
+    // projeto só de AMD/AMC passa pelo fluxo inteiro e sai com o RDS-PP do documento
+    const x = await simula(agenteBom(), { [rotuloDe('Trechos')]: 'LISTA', [rotuloDe('Lista de trechos')]: 'AMD-03, AMC-02' });
+    ok(x.b.binary.data.fileName.startsWith('BASE') && !x.b.json.bloqueada, `AMD/AMC entrega a Base: ${x.mensagem}`);
+  }
+  {
+    // valor sem a forma de RDS-PP na área: a Base sai, com a pendência da área
+    const x = await simula(tf => (tf.etapa === 1 ? F.texto({ etapa: 1, parte: tf.parte, areas: [{ nome: 'SKID', rds: 'ABC10UZ010-UZ001', local: 'CASA DE FORÇA', elevacao: '98,50', eixo: 'CD', trechos: [], evidencia: 'x' }] }) : agenteBom()(tf)));
+    ok(x.b.binary.data.fileName.startsWith('BASE') && /ÁREA/.test(x.b.json.tipos), `RDS-PP sem forma entrega a Base: ${x.mensagem}`);
+  }
+  {
+    // a mensagem final diz tudo, na entrega e no bloqueio
+    const b = await simula(agenteBom());
+    ok(/6 com linha/.test(b.mensagem) && /0 com pendência/.test(b.mensagem), `PMIBs na mensagem: ${b.mensagem}`);
+    const f = await simula(agenteBom({ r: () => ({ error: { message: '424 - runtime' } }), e4: (tf, ms) => F.texto({ etapa: 4, parte: tf.parte, materiais: ms.filter(m => tf.pmibs.includes(m.pmib) && m.pmib !== P(2)) }) }));
+    ok(/Recuperador 1 \(1 sem resposta\)/.test(f.mensagem), `falha por agente: ${f.mensagem}`);
+    const y = await simulaComAreas(agenteBom());
+    ok(/com linha/.test(y.mensagem) && /Leitor \d+/.test(y.mensagem) && /lacunas enviadas/.test(y.mensagem) && /controle:/.test(y.mensagem), `bloqueio traz os números: ${y.mensagem}`);
   }
   console.log(falhas ? `${falhas} FALHA(S)` : 'TUDO OK');
   process.exit(falhas ? 1 : 0);

@@ -33,17 +33,21 @@ const RECUPERACAO = (() => {
       return t(((lido && lido.tags) || []).map(x => (x && x.tag === tag ? x[campo] : '')).find(Boolean));
     };
     const achadas = [];
-    const vistas = new Set();
+    const vistas = new Map();
     const add = (prioridade, pmib, campo, tag, paginas, valorLido = '') => {
       const c = porPmib.get(pmib);
-      const k = `${pmib}|${campo}|${tag || ''}`;
-      if (!c || vistas.has(k)) return;
-      vistas.add(k);
-      achadas.push({ pmib, item: c.item, descricao: c.descricao, codigo: t(c.codigoMaterial) || t(c.codigoCmi), campo, tag: tag || null, prioridade, valorLido, paginas });
+      if (!c) return;
+      // área e elevação são da TAG: uma pergunta só, aplicada a todos os materiais dela
+      const k = campo === 'area' || campo === 'elevacao' ? `${campo}|${tag}` : `${pmib}|${campo}|${tag || ''}`;
+      if (vistas.has(k)) { const a = vistas.get(k); if (!a.pmibs.includes(pmib)) a.pmibs.push(pmib); return; }
+      const x = { pmib, pmibs: [pmib], item: c.item, descricao: c.descricao, codigo: t(c.codigoMaterial) || t(c.codigoCmi), campo, tag: tag || null, prioridade, valorLido, paginas };
+      vistas.set(k, x);
+      achadas.push(x);
     };
-    // 1. material sem nenhuma posição
+    // 1. material sem nenhuma posição (filho documental tem a posição do pai só na Base)
     const semPosicao = new Set();
-    for (const x of m.leitura) if (!t(x.TAGS) && !t(x.PAIS) && !t(x['ÁREA'])) {
+    const comPai = new Set(m.base.filter(r => t(r.PAIS)).map(r => t(r.FICHA_PMIB)));
+    for (const x of m.leitura) if (!t(x.TAGS) && !t(x.PAIS) && !t(x['ÁREA']) && !comPai.has(x.PMIB)) {
       semPosicao.add(x.PMIB);
       add(1, x.PMIB, 'tag', null, paginasDe(indexados, { pmib: x.PMIB, tags: ind.sug[x.PMIB] || [] }));
     }
@@ -54,11 +58,11 @@ const RECUPERACAO = (() => {
       const v8 = p.TIPO === 'LEITURA' && t(p.DETALHE).match(RE_V8);
       if (v8) add(2, p.PMIB, 'tag', v8[1], paginasDe(indexados, { pmib: p.PMIB, tags: ind.sug[p.PMIB] || [] }));
     }
-    // 3. elevação da TAG; quantidade de material sem TAG
-    for (const r of m.base) if (t(r.TAG) && t(r['ÁREA/PAINEL']) && !t(r['ELEVAÇÃO']))
-      add(3, r.FICHA_PMIB, 'elevacao', r.TAG, paginasDe(indexados, { tags: [r.TAG] }), lidoDaTag(r.FICHA_PMIB, r.TAG, 'elevacao'));
+    // 3. quantidade de material sem TAG; elevação da TAG (depois: sem ela ainda sobra a pendência por área)
     for (const p of m.pendencias) if (p.TIPO === 'QTD' && !semPosicao.has(p.PMIB))
       add(3, p.PMIB, 'qtd_instalada', null, paginasDe(indexados, { pmib: p.PMIB, semLista: true }));
+    for (const r of m.base) if (t(r.TAG) && t(r['ÁREA/PAINEL']) && !t(r['ELEVAÇÃO']))
+      add(3, r.FICHA_PMIB, 'elevacao', r.TAG, paginasDe(indexados, { tags: [r.TAG] }), lidoDaTag(r.FICHA_PMIB, r.TAG, 'elevacao'));
 
     const ordenadas = achadas.map((x, i) => [x, i]).sort((a, b) => a[0].prioridade - b[0].prioridade || a[1] - b[1]).map(([x]) => x);
     const comPagina = ordenadas.filter(x => x.paginas.length);
@@ -69,11 +73,12 @@ const RECUPERACAO = (() => {
   const CAMPO = { tag: 'TAG onde o material está instalado', area: 'área da TAG', elevacao: 'elevação da TAG', qtd_instalada: 'quantidade instalada (nunca a de reposição)' };
   const linhaLacuna = (l, indexados) => `- ${l.id} | PMIB ${l.pmib} | item ${l.item} | ${t(l.descricao)} | cód. ${l.codigo || '-'} | procure: ${l.tag ? `${CAMPO[l.campo]} (TAG lida: ${l.tag})` : CAMPO[l.campo]} | campo: ${l.campo}${l.valorLido ? ` | valor recusado: ${l.valorLido}` : ''} | páginas: ${l.paginas.map(p => `${indexados[p.k].doc.arquivo} p.${p.pagina}`).join('; ')}`;
 
-  function mensagem(escolhidas, paginas, cfg, parte, de) {
+  function mensagem(escolhidas, paginas, cfg, parte, de, areas) {
     const ls = [`WORKFLOW LMR — RECUPERADOR${de > 1 ? ` (parte ${parte} de ${de})` : ''}`,
       `Sistema: ${cfg.sistema} | Subsistema: ${cfg.subsistema} | Escopo: ${cfg.escopo}`, '',
       'Não há anexos: o texto das páginas está no fim desta mensagem. Procure só nas páginas indicadas em cada lacuna.', '',
       `LACUNAS (${escolhidas.length}). Responda TODAS, uma vez cada:`, ...escolhidas.map(l => l.linha), '',
+      ...(areas.length && escolhidas.some(l => l.lacuna.campo === 'area') ? [`ÁREAS VÁLIDAS (responda com um destes nomes; se a página não permitir escolher um deles, responda "achou": false): ${areas.map(a => a.nome).join(' ; ')}`, ''] : []),
       `RESPOSTA: só o JSON do formato "Recuperador", num bloco \`\`\`json, com "etapa": "R" e "parte": "${parte}". Não gere arquivo para baixar.`,
       '', '=== TEXTO DAS PÁGINAS ==='];
     for (const p of paginas) ls.push(`### ${p.arquivo} — página ${p.pagina}`, p.texto);
@@ -81,7 +86,7 @@ const RECUPERACAO = (() => {
   }
 
   /** Lacunas → chamadas. Lacuna que não coube fica em sobra e vira pendência no fim. */
-  function tarefas(enviar, indexados, cfg) {
+  function tarefas(enviar, indexados, cfg, areas = []) {
     const max = Number(cfg.chamada) || CHAMADA;
     let fila = enviar;
     const grupos = [];
@@ -117,7 +122,7 @@ const RECUPERACAO = (() => {
     }
     const lista = grupos.map((g, i) => {
       const parte = String(i + 1);
-      const chatInput = mensagem(g.escolhidas, g.paginas, cfg, parte, grupos.length);
+      const chatInput = mensagem(g.escolhidas, g.paginas, cfg, parte, grupos.length, areas);
       return { etapa: 'R', parte, rotulo: `recuperador parte ${parte}`, sessionId: `${cfg.sessao || 'lmr'}-r-p${parte}`, chatInput,
         lacunas: g.escolhidas.map(x => x.lacuna.id), lacunasEnviadas: g.escolhidas.map(x => x.lacuna), controle: [], pmibs: [], caracteres: chatInput.length };
     });
@@ -168,19 +173,21 @@ const RECUPERACAO = (() => {
         } else if (l.campo === 'area' || l.campo === 'elevacao') {
           const valor = l.campo === 'elevacao' ? M.formataElevacao(x.valor).valor : t(x.valor);
           if (!valor) { pende(l, `${id}: ${l.campo} inválido (${t(x.valor)}): não entra`); continue; }
-          const m = doMaterial(l.pmib), alvo = m.tags.find(y => y.tag === l.tag);
-          if (!alvo) { pende(l, `${id}: a TAG ${l.tag} não está mais no material: não entra`); continue; }
-          if (t(alvo[l.campo]) && !l.valorLido) { mantem(t(alvo[l.campo])); continue; }
-          alvo[l.campo] = valor;
-          anotaFonte(m);
+          const alvos = (l.pmibs || [l.pmib]).map(pmib => ({ pmib, m: doMaterial(pmib), alvo: doMaterial(pmib).tags.find(y => y.tag === l.tag) })).filter(a => a.alvo);
+          if (!alvos.length) { pende(l, `${id}: a TAG ${l.tag} não está mais no material: não entra`); continue; }
+          const aceitos = alvos.filter(a => !t(a.alvo[l.campo]) || l.valorLido);
+          if (!aceitos.length) { mantem(t(alvos[0].alvo[l.campo])); continue; }
+          for (const a of aceitos) { a.alvo[l.campo] = valor; anotaFonte(a.m); alterados.add(a.pmib); }
+          resolvidas++;
+          continue;
         } else {
           const q = Number(String(x.valor == null ? '' : x.valor).replace(',', '.'));
           if (!(q > 0)) { pende(l, `${id}: quantidade inválida (${t(x.valor)}): não entra`); continue; }
           if (/&MPB/i.test(fonte) && !/&(MPA|APA|EPA|MLU|MTB|MTC|MLD|MFB|EFF)|LISTA DE MATERIA/i.test(fonte)) { pende(l, `${id}: quantidade ${q} recusada: a fonte é a lista de sobressalentes (reposição)`); continue; }
+          // a lacuna só existe quando o motor não aceitou nenhum valor; a evidência antiga sai porque pode ser a que ele recusou (&MPB)
           const m = doMaterial(l.pmib);
-          if (m.qtd_instalada) { mantem(m.qtd_instalada); continue; }
           m.qtd_instalada = q;
-          anotaFonte(m);
+          m.evidencia = `recuperador: ${fonte}`;
         }
         alterados.add(l.pmib);
         resolvidas++;
@@ -196,6 +203,7 @@ const RECUPERACAO = (() => {
   const OBRIGATORIOS = ['ÁREA/PAINEL', 'RDS-PP', 'LOCAL', 'ELEVAÇÃO', 'EIXO', 'TRECHOS', 'QTD POR TRECHO'];
   const DA_AREA = ['RDS-PP', 'LOCAL', 'EIXO'];
   const REGRAS_DE_FORMATO = new Set(['V2', 'V4', 'V5', 'V14', 'V15']);
+  const RE_FORMA_RDS = /^#ST(\d\d|\[XX\])=[A-Z](\[XX\]|[0-9A]{2,3})[A-Z]{3}\d\d/;
 
   /** Campo da área vazio: já passou pela pessoa em "Confira as áreas"; uma pendência por área, como a de ELEVAÇÃO. */
   function pendenciasDeArea(base, pendencias) {
@@ -207,6 +215,55 @@ const RECUPERACAO = (() => {
       for (const k of DA_AREA) if (!t(r[k]) && !(k === 'RDS-PP' && t(r.PAIS))) (vazios.get(a) || vazios.set(a, new Set()).get(a)).add(k);
     }
     return [...vazios].map(([a, ks]) => ({ PMIB: '', ITEM: '', 'DESCRIÇÃO': `ÁREA ${a}`, TIPO: 'ÁREA', DETALHE: `a área ${a} ficou sem ${[...ks].join(', ')}: preencha nas linhas da BASE com ÁREA/PAINEL = ${a}` }));
+  }
+
+  /** Fora de UG o RDS-PP é o do documento (PLANO, frequência): [XX] volta a 00, e a linha com UG e AMD/AMC se divide. */
+  function rdsForaDeUg(base) {
+    const literal = s => t(s).replace(/#ST\[XX\]=M\[XX\]/g, '#ST00=M00');
+    const out = [];
+    for (const r of base) {
+      const trs = t(r.TRECHOS).split(/\s*,\s*/).filter(Boolean);
+      const fora = trs.filter(x => /^AM[DC]-/.test(x));
+      if (!fora.length || !/\[XX\]/.test(`${r['RDS-PP']} ${r.PAIS}`)) { out.push(r); continue; }
+      const ug = trs.filter(x => !fora.includes(x));
+      if (ug.length) out.push({ ...r, TRECHOS: ug.join(', ') });
+      out.push({ ...r, 'RDS-PP': literal(r['RDS-PP']), PAIS: literal(r.PAIS), TRECHOS: fora.join(', ') });
+    }
+    return out.map((r, i) => ({ ...r, LINHA: i + 1 }));
+  }
+
+  /** Valor sem a forma #STnn=… não é RDS-PP: sai da linha e vira pendência da área. M inválido tem a forma e continua travando (V4). */
+  function limpaRdsSemForma(base) {
+    const achados = new Map();
+    // shortcut: o mesmo valor em PAIS fica na linha e só a pendência avisa; limpar também se aparecer no Workflow B
+    for (const r of base) {
+      const v = t(r['RDS-PP']);
+      if (v && !RE_FORMA_RDS.test(v)) { r['RDS-PP'] = ''; achados.set(t(r['ÁREA/PAINEL']), v); }
+    }
+    return [...achados].map(([a, v]) => ({ PMIB: '', ITEM: '', 'DESCRIÇÃO': `ÁREA ${a}`, TIPO: 'ÁREA', DETALHE: `o RDS-PP ${v} da área ${a} está fora do formato (#STnn=...) e foi retirado: preencha RDS-PP nas linhas da BASE com ÁREA/PAINEL = ${a}` }));
+  }
+
+  /** Vazios que o motor produz sem pendência: linha sem área (pai sem área), sem trecho na frequência, ou PMIB sem linha por RDS-PP de frequência. */
+  function pendenciasDeLinha({ base, pendencias, catalogo, areas }) {
+    const porPmib = new Map(catalogo.map(c => [c.pmib, c]));
+    const ja = new Set(pendencias.map(p => t(p.PMIB)).filter(Boolean));
+    const out = [];
+    const pende = (pmib, TIPO, DETALHE) => {
+      if (ja.has(pmib)) return;
+      ja.add(pmib);
+      const c = porPmib.get(pmib) || {};
+      out.push({ PMIB: pmib, ITEM: c.item || '', 'DESCRIÇÃO': c.descricao || '', TIPO, DETALHE });
+    };
+    for (const r of base) {
+      const pmib = t(r.FICHA_PMIB);
+      if (!t(r['ÁREA/PAINEL'])) pende(pmib, 'ÁREA', `linha ${r.LINHA} sem área${t(r.PAIS) ? ` (montado em ${t(r.PAIS).split('|')[0].trim()}, que também não tem área)` : ''}: preencha ÁREA/PAINEL, LOCAL, ELEVAÇÃO e EIXO`);
+      if (!t(r.TRECHOS)) pende(pmib, 'FREQUÊNCIA', `linha ${r.LINHA}: nenhum trecho do projeto na frequência do material: confira a frequência ou preencha TRECHOS`);
+    }
+    if (areas.some(a => /\[F\]/.test(t(a.rds)))) {
+      const comLinha = new Set(base.map(r => t(r.FICHA_PMIB)));
+      for (const c of catalogo) if (!comLinha.has(c.pmib)) pende(c.pmib, 'FREQUÊNCIA', 'área com RDS-PP por frequência (#ST50 ou #ST60) e nenhum trecho do material nesse grupo: o material ficou sem linha');
+    }
+    return out;
   }
 
   /** Base → violações. Corrige na linha o que é certo (elevação 98.5 → 98,50). Vazia = pode entregar. */
@@ -230,7 +287,7 @@ const RECUPERACAO = (() => {
       }
       // formato: gera a aplicação da linha como o Workflow B; TRECHOS e QTD vazios não impedem de conferir o resto
       const copia = { ...r, TRECHOS: t(r.TRECHOS) || 'U-01', 'QTD POR TRECHO': 1 };
-      if (t(r['RDS-PP']) && !M.partesRds(M.expandeRds(r['RDS-PP'], 'U-01')).m) viola('FORMATO', r, `RDS-PP fora do formato: ${t(r['RDS-PP'])}`);
+      if (t(r['RDS-PP']) && !RE_FORMA_RDS.test(t(r['RDS-PP']))) viola('FORMATO', r, `RDS-PP fora do formato: ${t(r['RDS-PP'])}`);
       const vistos = new Set();
       for (const a of M.geraLote([copia], new Set())[0].achados) {
         // local fora da lista não trava: a lista fechada de locais ainda é pendência da equipe (HANDOFF §10)
@@ -259,6 +316,6 @@ const RECUPERACAO = (() => {
     return { ...j, error: { message: 'resposta temporariamente inválida: JSON cortado ou inválido' } };
   }
 
-  return { lacunas, tarefas, aplica, pendenciasDeArea, valida, abasDoBloqueio, checaResposta };
+  return { lacunas, tarefas, aplica, pendenciasDeArea, rdsForaDeUg, limpaRdsSemForma, pendenciasDeLinha, valida, abasDoBloqueio, checaResposta };
 })();
 if (typeof module !== 'undefined') module.exports = RECUPERACAO;

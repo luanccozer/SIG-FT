@@ -24,7 +24,7 @@ Cada lacuna diz o material (PMIB), o campo a procurar e as páginas. Responda um
 | Campo | O que procurar | Valor |
 |---|---|---|
 | \`tag\` | TAG onde o material está instalado | Lista de TAGs, copiadas como estão escritas, e \`papel\` |
-| \`area\` | Conjunto onde a TAG está montada | Nome da área, se a página disser |
+| \`area\` | Conjunto onde a TAG está montada | Um dos nomes de ÁREAS VÁLIDAS da mensagem |
 | \`elevacao\` | Elevação escrita para essa TAG | Número, como \`98,50\` |
 | \`qtd_instalada\` | Quantidade instalada de material sem TAG | Número, de lista de material ou desenho |
 

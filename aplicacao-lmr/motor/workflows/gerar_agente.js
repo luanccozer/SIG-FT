@@ -310,7 +310,10 @@ const noAgente = agentName => ({ ...AGENTE_NO, agentId: { __rl: true, value: JSO
 const CHECA = `${RECUPERACAO_JS}
 return $input.all().map((item, i) => ({ json: RECUPERACAO.checaResposta(item.json || {}), pairedItem: { item: i } }));`;
 // as lacunas enviadas seguem junto da resposta: reler Planeja R (mensagens grandes) trava o task runner
-const CONFERE_R = lote => CONFERE(lote).replace('caracteres: tf.caracteres,', 'caracteres: tf.caracteres, lacunasEnviadas: tf.lacunasEnviadas || [], semPagina: tf.semPagina || [], sobra: tf.sobra || [],');
+// ao desistir de resposta cortada, a última saída segue até o Confere: leRespostas aproveita o que veio inteiro
+const CONTA_E = (lote, planeja) => CONTA(lote, planeja).replace('erroAgente: erro }', 'erroAgente: erro, output: j.output }');
+const CONFERE_E = lote => CONFERE(lote).replace("j.desistir ? '' : ", '');
+const CONFERE_R = lote => CONFERE_E(lote).replace('caracteres: tf.caracteres,', 'caracteres: tf.caracteres, lacunasEnviadas: tf.lacunasEnviadas || [], semPagina: tf.semPagina || [], sobra: tf.sobra || [],');
 const LEITURA_DAS_ETAPAS = `const st = LMR.lerStatusPmib(statusRows);
 const g1 = $('Guarda E1').first().json, g23 = $('Guarda E23').first().json, g4 = $('Guarda E4').first().json;
 const lidas = [...g1.respostas, ...g23.respostas, ...g4.respostas];
@@ -320,7 +323,7 @@ const montaBase = respostas => AGENTE.montaBaseDoAgente({ LMR, statusRows, index
   respostas, areasConferidas: aa.areas, etapasSemPaginas: [1, 2, 3, 4].filter(k => !todas.tarefas.some(x => x.etapa === k)) });`;
 const PLANEJA_R = `${BIB}\n${RECUPERACAO_JS}\n${CFG}\n${LEITURA_DAS_ETAPAS}
 const l = RECUPERACAO.lacunas({ m: montaBase(lidas), st, indexados });
-const p = RECUPERACAO.tarefas(l.enviar, indexados, cfg);
+const p = RECUPERACAO.tarefas(l.enviar, indexados, cfg, aa.areas);
 const fora = { semPagina: l.semPagina, sobra: p.sobra };
 if (!p.tarefas.length) return [{ json: { etapa: 'R', parte: '0', rotulo: 'recuperador (sem lacunas)', vazia: true, sessionId: cfg.sessao + '-r-vazia', chatInput: 'Responda somente com {}', controle: [], pmibs: [], caracteres: 0, lacunasEnviadas: [], ...fora } }];
 return p.tarefas.map((json, i) => ({ json: i ? json : { ...json, ...fora } }));`;
@@ -336,12 +339,21 @@ for (const c of chamadas) if (c.ERRO) m.pendencias.unshift({ PMIB: '', ITEM: '',
 const fora = (l, motivo) => m.pendencias.push({ PMIB: l.pmib, ITEM: l.item, 'DESCRIÇÃO': l.descricao, TIPO: 'RECUPERADOR', DETALHE: l.campo + (l.tag ? ' da TAG ' + l.tag : '') + ': ' + motivo });
 for (const l of voltas.flatMap(x => x.semPagina || [])) fora(l, 'o índice não achou página onde procurar');
 for (const l of voltas.flatMap(x => x.sobra || [])) fora(l, 'não coube no limite de chamadas do Recuperador');
-m.pendencias.push(...a.pendencias, ...RECUPERACAO.pendenciasDeArea(m.base, m.pendencias));
+m.base = RECUPERACAO.rdsForaDeUg(m.base);
+m.pendencias.push(...a.pendencias, ...RECUPERACAO.limpaRdsSemForma(m.base));
+m.pendencias.push(...RECUPERACAO.pendenciasDeLinha({ base: m.base, pendencias: m.pendencias, catalogo: st.catalogo, areas: m.areas }), ...RECUPERACAO.pendenciasDeArea(m.base, m.pendencias));
 const violacoes = RECUPERACAO.valida({ base: m.base, pendencias: m.pendencias, catalogo: st.catalogo, LMR });
+const tipos = {};
+for (const p of m.pendencias) tipos[p.TIPO] = (tipos[p.TIPO] || 0) + 1;
+const porAgente = l => { const f = l.filter(c => c.ERRO).length; return l.length + (f ? ' (' + f + ' sem resposta)' : ''); };
+const numeros = { ...m.resumo, linhasBase: m.base.length, pendencias: m.pendencias.length, chamadas: chamadas.length, falhas: chamadas.filter(c => c.ERRO).length,
+  pmibsComLinha: new Set(m.base.map(r => String(r.FICHA_PMIB).trim())).size, pmibsComPendencia: new Set(m.pendencias.map(p => String(p.PMIB || '').trim()).filter(Boolean)).size,
+  leitor: porAgente([...g1.chamadas, ...g23.chamadas]), ligador: porAgente(g4.chamadas), recuperador: porAgente(gr.chamadas), lacunasEnviadas: a.enviadas, lacunasResolvidas: a.resolvidas,
+  tipos: Object.entries(tipos).map(([k, n]) => n + ' ' + k).join(', ') };
 if (violacoes.length) {
   const nomeB = 'BLOQUEIO LMR - ' + cfg.sistema + '.xlsx';
   const bytesB = PLANILHA.planilhaSimples(RECUPERACAO.abasDoBloqueio(violacoes, chamadas));
-  return [{ json: { bloqueada: true, violacoes: violacoes.length, primeiras: violacoes.slice(0, 3).map(v => v.FICHA_PMIB + ': ' + v.DETALHE).join(' | '), arquivo: nomeB },
+  return [{ json: { ...numeros, bloqueada: true, violacoes: violacoes.length, primeiras: violacoes.slice(0, 3).map(v => v.FICHA_PMIB + ': ' + v.DETALHE).join(' | '), arquivo: nomeB },
     binary: { data: { data: PLANILHA.base64(bytesB), mimeType: '${XLSX_MIME}', fileName: nomeB, fileExtension: 'xlsx' } } }];
 }
 const extras = [...m.extras, { nome: 'CHAMADAS DO AGENTE', colunas: ['CHAMADA', 'CARACTERES ENVIADOS', 'CARACTERES RECEBIDOS', 'ERRO'], linhas: chamadas, larguras: { CHAMADA: 24, ERRO: 80 } },
@@ -355,17 +367,14 @@ if (gab.length) {
 }
 const bytes = PLANILHA.planilhaDaBase({ colunasBase: LMR.COLUNAS_BASE, base: m.base, cabecalho: m.cabecalho, docs: m.docs, relacoes: m.relacoes, extras });
 const nome = 'BASE LMR - ' + cfg.sistema + '.xlsx';
-const tipos = {};
-for (const p of m.pendencias) tipos[p.TIPO] = (tipos[p.TIPO] || 0) + 1;
-return [{ json: { ...m.resumo, pendencias: m.pendencias.length, chamadas: chamadas.length, falhas: chamadas.filter(c => c.ERRO).length, conferidas: !!aa.conferidas,
-  leitor: g1.chamadas.length + g23.chamadas.length, ligador: g4.chamadas.length, recuperador: gr.chamadas.length, lacunasEnviadas: a.enviadas, lacunasResolvidas: a.resolvidas,
-  tipos: Object.entries(tipos).map(([k, n]) => n + ' ' + k).join(', '), conferencia, arquivo: nome },
+return [{ json: { ...numeros, conferidas: !!aa.conferidas, conferencia, arquivo: nome },
   binary: { data: { data: PLANILHA.base64(bytes), mimeType: '${XLSX_MIME}', fileName: nome, fileExtension: 'xlsx' } } }];`;
 const TITULO_E = "={{ $json.bloqueada ? 'BASE LMR bloqueada' : 'BASE LMR gerada' }}";
-const MENSAGEM_E = "={{ $json.bloqueada ? 'BASE NÃO ENTREGUE: ' + $json.violacoes + ' violações do Validador. Primeiras: ' + $json.primeiras + '. Veja a aba VIOLAÇÕES, corrija a causa e rode de novo.'"
+const NUMEROS_E = "'PMIBs: ' + $json.pmibsComLinha + ' com linha, ' + $json.pmibsComPendencia + ' com pendência · chamadas: Leitor ' + $json.leitor + ', Ligador ' + $json.ligador + ', Recuperador ' + $json.recuperador"
+  + " + ' · ' + $json.lacunasEnviadas + ' lacunas enviadas, ' + $json.lacunasResolvidas + ' resolvidas · controle: ' + $json.controleCertas + ' de ' + $json.controlePerguntas + ' certas · ' + $json.pendencias + ' pendências' + ($json.tipos ? ' (' + $json.tipos + ')' : '')";
+const MENSAGEM_E = "={{ $json.bloqueada ? 'BASE NÃO ENTREGUE: ' + $json.violacoes + ' violações do Validador. Primeiras: ' + $json.primeiras + ' · ' + " + NUMEROS_E + " + '. Veja a aba VIOLAÇÕES, corrija a causa e rode de novo.'"
   + " : 'BASE gerada: ' + $json.linhasBase + ' linhas · ' + $json.materiais + ' materiais (' + $json.lidosPeloAgente + ' lidos pelo agente) · ' + $json.areas + ' áreas' + ($json.conferidas ? ' (conferidas)' : '')"
-  + " + ' · chamadas: Leitor ' + $json.leitor + ', Ligador ' + $json.ligador + ', Recuperador ' + $json.recuperador + ($json.falhas ? ' (' + $json.falhas + ' sem resposta)' : '')"
-  + " + ' · ' + $json.lacunasEnviadas + ' lacunas enviadas, ' + $json.lacunasResolvidas + ' resolvidas · controle: ' + $json.controleCertas + ' de ' + $json.controlePerguntas + ' certas · ' + $json.pendencias + ' pendências' + ($json.tipos ? ' (' + $json.tipos + ')' : '')"
+  + " + ' · ' + " + NUMEROS_E
   + " + ($json.conferencia ? ' · CONFERÊNCIA com a BASE enviada: ' + $json.conferencia.iguais + ' de ' + $json.conferencia.gabarito + ' linhas da aplicação iguais (' + $json.conferencia.iguaisSemNomeDaArea + ' sem contar o nome da área)' : '')"
   + " + '. Revise PENDÊNCIAS e use a BASE no Workflow B.' }}";
 const LEIA_ENXUTO = '## LMR — A Gerar Base (enxuto)\n**Antes da 1ª execução**, nos 4 nós de agente escolha *Credential* = a sua **AMP account** e, em *Custom Agent*:\n- **Agente E1** e **Agente E23**: **Leitor LMR**\n- **Agente E4**: **Ligador LMR**\n- **Agente R**: **Recuperador LMR**\n\nNos 4: *Prompt* = `{{ $json.chatInput }}`; *Session ID* = `{{ $json.sessionId }}` (sem nada depois das chaves); *Files* vazio; *Add option* → **timeout** = o maior valor aceito.\n\n1. ⋯ → *Settings* → *Save manual executions* = **Save**.\n2. **Execute workflow** → PDFs + Status PMIB + opções. Para teste, envie a BASE emitida (gabarito).\n3. **Deixe a aba aberta.** Depois das etapas 1–3 aparece **Confira as áreas**: preencha só o que falta e clique em **Ligar os materiais**.\n4. No fim baixa **BASE LMR - {sistema}.xlsx**. Se o Validador travar, baixa **BLOQUEIO LMR - {sistema}.xlsx** com as violações. Me devolva a mensagem final.';
@@ -411,12 +420,12 @@ const fluxoA = ({ enxuto = false } = {}) => {
     w.add({ parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'loose' },
       conditions: [{ id: crypto.randomUUID(), leftValue: '={{ $json.error }}', rightValue: '', operator: { type: 'string', operation: 'exists', singleValue: true } }], combinator: 'and' }, options: {} },
       name: `Erro? ${sufixo}`, type: 'n8n-nodes-base.if', typeVersion: 2, position: pos(col + 3, lin + 1) });
-    w.code(`Conta tentativas ${sufixo}`, CONTA(lote, planeja), pos(col + 3, lin + 2.2));
+    w.code(`Conta tentativas ${sufixo}`, enxuto ? CONTA_E(lote, planeja) : CONTA(lote, planeja), pos(col + 3, lin + 2.2));
     w.add({ parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'strict' },
       conditions: [{ id: crypto.randomUUID(), leftValue: '={{ $json.desistir }}', rightValue: '', operator: { type: 'boolean', operation: 'true', singleValue: true } }], combinator: 'and' }, options: {} },
       name: `Desiste? ${sufixo}`, type: 'n8n-nodes-base.if', typeVersion: 2, position: pos(col + 4, lin + 2.2) });
     w.add({ parameters: { amount: PAUSA_LONGA, unit: 'seconds' }, name: `Pausa longa ${sufixo}`, type: 'n8n-nodes-base.wait', typeVersion: 1.1, position: pos(col + 2, lin + 2.6), webhookId: crypto.randomUUID() });
-    w.code(`Confere ${sufixo}`, sufixo === 'R' ? CONFERE_R(lote) : CONFERE(lote), pos(col + 4, lin + 1));
+    w.code(`Confere ${sufixo}`, sufixo === 'R' ? CONFERE_R(lote) : enxuto ? CONFERE_E(lote) : CONFERE(lote), pos(col + 4, lin + 1));
     w.liga(planeja, lote);
     w.liga(lote, `Pausa ${sufixo}`, 1);
     w.liga(`Pausa ${sufixo}`, `Agente ${sufixo}`);
