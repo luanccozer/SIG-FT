@@ -152,3 +152,11 @@ procurement, atraso de Itaipu em 15 d.u.) e um Power BI com visão interna e vis
 - Próximo: workflow A (documentos → Base). Pendentes: pasta de PDFs de exemplo, testes S4–S8.
 - Por ordem do Luan (23/10): projeto enviado ao GitHub e cofre atualizado aqui e na cópia
   `15 - PDM/SECOND BRAIN/` do Box. Ver [[Plano - Automacao da Aplicacao LMR no AMP]].
+
+## 2026-10-27 a 11-02 — Aplicação LMR: workflow A e agentes do AMP
+- A1 (índice dos PDFs, sem IA) e A (leitura com a IA do n8n, v1→v3) feitos; no AMP a IA do n8n leu mal
+  (até 1.240/3.580 linhas na Água Pura). Página "Confira as áreas" e workflow "Revisar áreas" criados.
+- Leitura passou para o **agente do AMP**: primeiro no chat (AG1/AG2), depois **dentro do workflow** (nó
+  `CUSTOM.amp`, sondas S9/S10). Workflow atual `LMR_A_agente_amp.json`, testado localmente nos 4 sistemas.
+- Por pedido do Luan (02/11): passagem para outra pessoa — código, workflows, plano e `HANDOFF.md` enviados ao
+  GitHub (`aplicacao-lmr/`, branch `claude/automacao-lmr-amp`). Ver [[Plano - Automacao da Aplicacao LMR no AMP]].

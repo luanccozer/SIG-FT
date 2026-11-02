@@ -11,7 +11,8 @@
 // ── texto → XML e bytes ──
 function xmlEsc(v) {
   return String(v == null ? '' : v)
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, '') // fora do XML (texto de PDF traz U+FFFF)
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 function utf8(s) {
@@ -232,7 +233,7 @@ const LARGURAS_BASE = { LINHA: 7, ESCOPO: 8, SUBSISTEMA: 18, FICHA_PMIB: 17, 'DE
   'CÓDIGO PMIB': 17, 'PART NUMBER': 22, 'DESCRIÇÃO DO MATERIAL': 45, 'RDS-PP DOCUMENTO - PRINCIPAL': 32, TAGS: 30, 'OBSERVAÇÕES': 30,
   MOTIVO: 60, 'ONDE NA BASE': 30, 'DESCRIÇÃO NOVA': 45, RESULTADO: 60, 'COPIAR POSIÇÕES DE': 17, 'PMIB ATUAL': 17, 'PMIB NOVO': 17, TIPO: 22 };
 
-/** d = { colunasBase, base, cabecalho: {campo: valor}, docs, relacoes, historico, diferencas, colunasHistorico, colunasDiferencas } */
+/** d = { colunasBase, base, cabecalho: {campo: valor}, docs, relacoes, historico, diferencas, colunasHistorico, colunasDiferencas, extras?: [abas] } */
 function planilhaDaBase(d) {
   const docsCols = ['CÓDIGO PMIB', 'PART NUMBER', 'DESCRIÇÃO DO MATERIAL', 'RDS-PP DOCUMENTO - PRINCIPAL', 'QTD', 'TAGS', 'OBSERVAÇÕES'];
   const relCols = ['PMIB PAI', 'PMIB FILHO', 'CATEGORIA', 'SEÇÃO', 'ITEM NO STATUS', 'FONTE'];
@@ -244,6 +245,7 @@ function planilhaDaBase(d) {
   if ((d.relacoes || []).length) abas.push({ nome: 'RELAÇÕES', colunas: relCols, linhas: d.relacoes });
   if ((d.historico || []).length) abas.push({ nome: 'HISTÓRICO', colunas: d.colunasHistorico, linhas: d.historico });
   if ((d.diferencas || []).length) abas.push({ nome: 'DIFERENÇAS', colunas: d.colunasDiferencas, linhas: d.diferencas, numeros: ['LINHAS DA APLICAÇÃO ANTES', 'LINHAS DA APLICAÇÃO DEPOIS'] });
+  abas.push(...(d.extras || [])); // abas de revisão do Workflow A (ÁREAS, LEITURA, PENDÊNCIAS…): B e C não leem
   abas.push({ nome: 'LEIA-ME', colunas: ['T'], linhas: LEIA_ME_BASE.map(T => ({ T })), larguras: { T: 120 }, texto: true });
   for (const a of abas) a.larguras = { ...LARGURAS_BASE, ...(a.larguras || {}) };
   return planilhaSimples(abas);

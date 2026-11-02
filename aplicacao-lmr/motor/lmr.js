@@ -229,12 +229,14 @@ function trechosDoMaterial(trechosProjeto, hz) {
     return freqs.size > 1 ? { trechos: [], pergunta: true } : { trechos: trechosProjeto.slice(), pergunta: false };
   }
   if (String(hz).toUpperCase() === 'AMBAS') return { trechos: trechosProjeto.slice(), pergunta: false };
+  if (!freqs.size) return { trechos: trechosProjeto.slice(), pergunta: false }; // trechos sem frequência (AMD, AMC): não há o que filtrar
   const h = Number(String(hz).replace(/\D/g, ''));
   return { trechos: trechosProjeto.filter(t => t.hz === h), pergunta: false };
 }
 
 /** Frequência pela descrição do Status (só conferência, decisão 21). */
 function hzDaDescricao(desc) {
+  if (/\b50\s*[\/-]\s*60\s*HZ\b/i.test(txt(desc))) return 'AMBAS';
   const m = txt(desc).match(/\b(50|60)\s*HZ\b/i);
   return m ? Number(m[1]) : null;
 }

@@ -2,14 +2,14 @@
 tags: [plano, lmr, automacao, amp, n8n, handoff]
 status: em-execucao
 criado: 2026-10-23
-atualizado: 2026-10-23
+atualizado: 2026-11-02
 repositorio: aplicacao-lmr/ (este repositório)
 ---
 
 # Plano — Automação da Aplicação LMR no AMP
 
 > [!warning] Documento de trabalho, datado
-> Estado em 23/10/2026. As regras permanentes estão em [[Aplicacao LMR - Regras de Montagem]].
+> Estado em 02/11/2026 (passagem para outra pessoa: `aplicacao-lmr/HANDOFF.md`). As regras permanentes estão em [[Aplicacao LMR - Regras de Montagem]].
 > O código, os workflows e o plano completo (`PLANO.md`, v1.6) estão em `aplicacao-lmr/` na raiz deste
 > repositório. Guia de uso no AMP: [Guia AMP n8n — Aplicação LMR](https://claude.ai/artifact/14qjTyoFX7Qpd2NYMzZfJh).
 
@@ -51,25 +51,29 @@ A **Base da Aplicação** (`BASE LMR - {sistema}.xlsx`) tem uma linha por materi
 Nós confirmados no AMP: Form Trigger, n8n Form (página final com arquivo), Extract from File,
 Convert to File, Code (JS e Python), IF, Switch, Loop Over Items, Split Out.
 
+## Workflow A — o que aconteceu de 27/10 a 02/11
+
+- **IA do n8n** (GEV LLM Model + Basic LLM Chain; GPT-5.4-mini, Haiku 4.5, Gemini Flash 3): 820–1.240 de 3.580
+  linhas iguais na Água Pura, mesmo em etapas pequenas (A v3). Modelos fracos para ler documento.
+- **Agente do AMP no workflow** (nó `CUSTOM.amp`, descoberto em 28/10): Prompt lê `chatInput`, resposta em
+  `output`; itens com o mesmo Session ID dividem a conversa; PDF em *Files* deu erro 424/500 com o Sonnet 5.5;
+  texto da página no Prompt funciona. Workflow `LMR_A_agente_amp.json`: 4 etapas (áreas, conjuntos,
+  equipamentos, materiais), perguntas de controle, página "Confira as áreas". Testado localmente com
+  "agente perfeito" (Água Pura 3.580/3.580); **ainda não rodou no AMP**.
+- Luan viu o **Gemini 3.5 Flash-Lite** ler no chat um PDF da SFC de 100+ páginas (escaneado) com acerto.
+
 ## Próximos passos
 
-1. **Workflow A** — prioridade do Luan (23/10) para começar aplicações reais.
-   - A1 (índice, sem IA): nome do arquivo → código, revisão e tipo; texto de cada página → TAGs, RDS-PP,
-     elevações, códigos de material; páginas sem texto → fila visual. Validação dentro do AMP contra a
-     Base gabarito (Água Pura: as 3.580 TAGs).
-   - A2 (leitura com IA): Basic LLM Chain + GEV LLM Model, um tema por chamada, toda TAG/código
-     devolvido conferido no texto da página.
-   - A3 (monta a Base): Status + índice + leituras → Base + aba PENDÊNCIAS (frequência, QTD, documento).
-2. Testes de plataforma pendentes: **S4** (GEV Box), **S5/S6** (modelo de IA, texto e imagem),
-   **S7** (sub-workflow), **S8** (formulário de espera).
-3. Box: B e C lendo e gravando na pasta do escopo (depende do S4 e de uma pasta de teste).
+1. Rodar a sonda S10 com um agente **Gemini 3.5 Flash-Lite** (o PDF chega pelo *Files*?).
+2. Aprovar o desenho direto: **Leitor** (Gemini 3.5 Flash-Lite, etapas 1–3) + **Ligador** (Sonnet 5.5, etapa 4)
+   + validador final de formato e de pendências no código. Detalhe em `aplicacao-lmr/HANDOFF.md` §6.
+3. Rodar no AMP com a Água Pura (BASE emitida como gabarito) e depois a Reg. Vel.
+4. Testes no AMP ainda pendentes: C1/C2, S4 (Box), S7, S8.
 
 ## Pendências do Luan
 
-- Pasta de documentos de exemplo (`LMR/Exemplo de Documentos Aplicação LMR/`) saiu do Box local:
-  devolver a da Água Pura ou seguir com amostras + validação no AMP.
-- Resultado do S5/S6 (modelos e tipo do nó GEV LLM Model) e do S4 (pasta de teste no Box).
-- PDFs da SFC de 67–78 MB passam do limite do formulário: precisam vir do Box.
+- Nomes de área da equipe (SPN, SCP), lista fechada de locais, siglas de escopo.
+- Pasta de teste no Box (o acesso do agente ao Box ficou para depois).
 
 ## Relacionados
 [[Aplicacao LMR - Regras de Montagem]] · [[Secao - Aplicacao LMR]] · [[Plano de Acao - Aplicacao LMR]] ·

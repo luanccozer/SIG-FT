@@ -1,0 +1,39 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "agentId": {
+          "__rl": true,
+          "value": "{\"agentName\":\"Leitor LMR\",\"model\":\"bedrock-claude-sonnet-5.5\"}",
+          "mode": "list",
+          "cachedResultName": "Leitor LMR"
+        },
+        "sessionId": "={{ $json.sessionId }}`",
+        "options": {}
+      },
+      "name": "AMP Agent A",
+      "type": "CUSTOM.amp",
+      "typeVersion": 1,
+      "position": [
+        1024,
+        864
+      ],
+      "credentials": {
+        "ampOAuth2Api": {
+          "id": "<id da credencial>",
+          "name": "<sua conta>"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "AMP Agent A": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {}
+}

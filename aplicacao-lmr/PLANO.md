@@ -628,6 +628,139 @@ A assinatura passa a ser **nº de linhas + soma dos hashes das linhas**: não de
    - Caso real Reg. Vel.: C1 acha 0795, 1137, 1141 (saíram) e 1640, 1641 (entraram). Com 0795→1641, excluir 1137 e 1141 e 1640 só na DOCS, o B gera **`5990-62B0A8BD`** (6.030 → 5.990 linhas). Testes em `motor/alteracoes/teste_c.js` (T1–T5).
 4. **A**: documentos → BASE, com IA por documento/página em lotes (mesmo princípio do Loop).
 
+### 9B.7 Workflow A no AMP — três etapas (27/10/2026)
+
+Mesmo princípio do B: um documento por volta do Loop, um Code leve por volta e um arquivo intermediário ligando as etapas. O **ÍNDICE** faz para o A o papel que a Base faz para B e C.
+
+| Etapa | Workflow | IA | Entrada → saída | Estado |
+|---|---|---|---|---|
+| **A1** | `LMR_A1_indice_documentos.json` (10 nós) | não | PDFs + Status PMIB (+ BASE de gabarito, opcional) → `ÍNDICE LMR - {sistema}.xlsx` | pronto localmente; falta o AMP |
+| **A2** | leitura por tema (lista de sobressalentes, localização, TAG → subsistema, PAI/FILHO físico) | sim | ÍNDICE (aba PÁGINAS) → LEITURAS, com cada TAG e código conferido no texto da página (V8) | depende do S5/S6 (nó do modelo) |
+| **A3** | monta a Base | não | ÍNDICE + LEITURAS + formulário (escopo, subsistema, trechos) → `BASE LMR - {sistema}.xlsx` com aba PENDÊNCIAS | depois do A2 |
+
+**A1 — o que faz** (`motor/indice/indice.js` + `motor/workflows/gerar_a1.js`):
+- Formulário (PDFs, vários de uma vez; Status; BASE opcional) → **Separa PDFs** → **Lote de documentos** (Loop, 1 por volta) → **Lê PDF (por página)** (Extract from File, `joinPages = false`) → **Indexa documento** (Code) → [done] → **Monta índice** (Code) → página final com o resumo e o arquivo.
+- **Inventário:** código, revisão e tipo pelo nome do arquivo; código do carimbo = o código de documento que aparece em mais páginas. Nome × carimbo diferentes → aviso (caso real: `M00MK10` no nome × `M00MKF10` no carimbo da lista da Água Pura).
+- **TAGs (padrão KKS)**: o Extract do n8n (pdfjs) cola sem espaço os textos na mesma altura da página (conferido no código-fonte: `join('')`, quebra de linha só quando muda a altura). Cada sequência é coberta por TAGs (2 letras + 3 números + letra opcional) e rótulos de instrumento de 2–4 letras: `BL315FL314S` → `BL315` + `FL314S`; `PITBP316T` → `BP316T`; modelos (`EJA530E`, `SU7621`) e `DN150` não viram TAG. TAG partida em duas linhas numa lista (`BS` / `160T`) é rejuntada. Componentes de RDS-PP não contam.
+- **RDS-PP, elevações** (2 casas), **menções a 50/60 Hz** e **páginas sem texto** (fila da leitura visual) por documento e página.
+- **Materiais do Status** achados nos documentos pelo código do material, código CMI/GE ou modelo.
+- **Sugestão de TAGs pela lista de sobressalentes** (`&MPB`): cada linha da lista termina no código do material; as TAGs entre o código anterior e o atual são as da linha. É sugestão, e o A2 confirma.
+- **Conferência com gabarito** (BASE de um sistema já aplicado, dentro do AMP): cada TAG da BASE como CANDIDATA / SÓ NO TEXTO / CURTA (≤ 3 caracteres, conferir à mão) / NÃO ACHADA; por PMIB, TAGs da BASE × sugeridas (IGUAL / DIFERENTE / SEM SUGESTÃO). Diferença não é necessariamente erro do índice: pode ser divergência entre a lista e a aplicação emitida (ex.: na Água Pura a lista R1A põe uma TAG de transmissor de pressão em outro material).
+- **Aba PÁGINAS**: texto de cada página (até 32.000 caracteres por célula). É a entrada do A2, que assim não reabre os PDFs com texto.
+- **Testes locais:** T1–T3 com documentos fictícios (TAGs coladas, quebra de linha, PDF protegido, páginas escaneadas, DUPLICADO fora); T4 opcional com os trechos reais recuperados da Água Pura (só local).
+
+**Resultado local com os PDFs reais (27/10/2026)** — texto extraído como o n8n (`motor/indice/extrai_como_n8n.mjs`, pdfjs com a mesma regra de altura), conferido contra a BASE de cada sistema:
+
+| Sistema | Docs / páginas (sem texto) | TAGs da BASE achadas | Materiais do Status achados | PMIBs com TAGs sugeridas = BASE |
+|---|---|---|---|---|
+| Água Pura | 13 / 313 (0) | 99 de 99 com 4+ caracteres (35 curtas, à mão) | 86 / 87 | 38 / 87 |
+| Aeração | 5 / 65 (0) | TAGs numéricas (curtas): conferir à mão | 14 / 14 | — |
+| Reg. Vel. | 14 / 927 (44) | 170 / 171 (`F-020` fora do padrão) | 74 / 141 (subitens HYDAC sem documento no exemplo) | 92 / 142 |
+| SFC | 11 / 594 (263: diagramas HF escaneados) | 183 / 211 no texto | 40 / 41 | — (lista sem TAG KKS) |
+
+Ajustes que os PDFs reais pediram: o caractere U+FFFF no texto quebrava o `.xlsx` (removido no `planilha.js`); a coluna TAG da lista vem antes do código (Água Pura) ou depois (Reg. Vel.), lida no cabeçalho; a coluna de código da lista é a do Status com códigos únicos no documento (a Reg. Vel. usa o CÓDIGO GE, porque lá o CÓDIGO DO MATERIAL é o modelo); qualquer código com o formato do Status marca o fim de uma linha; modelo com formato de TAG (`VY150`) sai da sugestão.
+As diferenças que sobram são de dois tipos: (1) peça sem TAG própria em que a lista cita a TAG do equipamento → é o **pai** (insumo para o A3); (2) divergência real lista × aplicação emitida (ex.: Reg. Vel. `QM151S/161S/171S` × `QM151/161/171` trocados entre dois materiais; Água Pura `QM408G` × `QM408V`).
+
+**Versão Box** (`LMR_A1_indice_box.json`, 18 nós): formulário só com o link da pasta → nó Box *Get folder* (lista até 100 itens) → separa PDFs, Status e BASE pelo nome → baixa cada um com *Download* → mesmo índice → grava o ÍNDICE na pasta (*Upload*) e entrega na página final. Usa o nó Box padrão (`n8n-nodes-base.box`); se o AMP só tiver o GEV BOX, troca-se o tipo no gerador.
+
+**Workflow A completo — documentos → BASE (27/10/2026)** (`LMR_A_gerar_base.json`, 16 nós; código em `motor/leitura/leitura.js` e `motor/workflows/gerar_a.js`). Pedido do usuário: primeiro a função principal (leitura com IA → Base), entrada pelo formulário; Box depois.
+- Formulário: PDFs, Status PMIB, ESCOPO, SUBSISTEMA, TRECHOS DO PROJETO (TODAS/ÍMPARES/PARES/LISTA/AMD/AMC) + lista, especificação (opcional), BASE emitida (opcional, gabarito).
+- PDFs → Loop (1 por volta) → índice do A1 → **IA: áreas** (1 chamada: nome, RDS-PP, local, elevação, eixo de cada área/painel) → **IA: materiais** (Loop, 5 materiais por chamada: TAGs com área e RDS-PP próprio, pais, área, QTD instalada, frequência) → **Confere leitura** → **Monta Base**.
+- Os dois nós de IA são **Basic LLM Chain** (v1.5); o modelo (GEV LLM Model) é ligado à mão. O *AI Agent* do n8n foi a 1ª escolha, mas não aceita o GEV LLM Model no AMP (27/10/2026). Erro da IA não para o fluxo: vira PENDÊNCIA.
+- Conferência no código: TAG, pai e RDS-PP devolvidos têm de estar no texto dos documentos (V8); área tem de estar na lista de áreas; eixo e local em lista fechada; RDS-PP de uma UG (`#ST50=M01…`) vira `#ST[XX]=M[XX]…`.
+- Frequência na ordem do §3.2: texto do material (IA) → descrição do Status → RDS-PP da área (#ST50/#ST60) → título da lista de sobressalentes ("50 HZ E 60 HZ" → ambas) → PENDÊNCIA.
+- Filho documental (Status x.y): uma linha por TAG do pai, citando o pai em PAIS (escrita única, R4). QTD de material sem TAG só com fonte; granel = 1.
+- Saída `BASE LMR - {sistema}.xlsx`: BASE, CABEÇALHO, DOCS DE REFERÊNCIA, RELAÇÕES (se houver) + PENDÊNCIAS, LEITURA (o que a IA disse por material, com evidência e fonte da frequência), ÁREAS, RESPOSTAS IA e, com gabarito, CONFERÊNCIA.
+- **Testes locais** (PDFs reais): com respostas de uma "IA perfeita" tiradas do gabarito, a Água Pura reproduz **3.560 de 3.580 linhas** da aplicação (os 20 restantes: 2 materiais com "60Hz" na descrição do Status que a aplicação emitida pôs nas 20 UGs). A Reg. Vel. dá 62%, limitada pelo gabarito antigo (áreas sem nome, 487 linhas bloqueadas). Sem IA a Base sai com tudo em PENDÊNCIAS; IA que inventa TAG, área ou RDS-PP, ou devolve JSON quebrado, vira PENDÊNCIA.
+- **Limite de requisições do modelo** ("The service is receiving too many requests from you", 1ª execução no AMP, 27/10/2026): lotes de 8 materiais (11 chamadas na Água Pura), nó **Pausa** de 20 s antes de cada chamada, e saída de erro dos nós de IA → **Conta tentativas** → **Desiste?** → **Pausa longa** (60 s) → nova tentativa. Só erro temporário (429, limite, tempo, 502–504) é repetido, até 3 por lote (teto 30); erro permanente segue na hora para PENDÊNCIAS. Testes T5 (recusa 2× por chamada → tudo lido) e T6 (recusa sempre → termina com PENDÊNCIAS).
+- **1ª execução real no AMP (27/10/2026, Água Pura, modelo azure-gpt-5-4-mini):** 86/87 materiais lidos, 5 áreas, 162 pendências, 0 de 3.580 linhas iguais (campos iguais: TAGs 53, pais 54, RDS-PP 0, elevação 6, eixo 0, trechos 83 de 87). Causas e correções:
+  - o pedido listava as áreas como "NOME (RDS-PP)" e o modelo copiou o RDS-PP no nome → 72 "área fora da lista". Agora a lista mostra só o nome, numerado, e a conferência aceita o nome com RDS-PP, número ou aspas;
+  - o **eixo não está nos documentos** (a coluna EIXO do workstatement vem vazia) → passou a ser campo do formulário ("Eixo do sistema"); "Elevação padrão" opcional preenche área sem elevação;
+  - o modelo criou áreas por bomba ("CONJ. BOMBA 1") com o código do P&ID como RDS-PP → regras novas: área = conjunto com RDS-PP próprio, 2 a 8 por sistema, RDS-PP sem "&";
+  - nome de área: sigla entre parênteses vira o nome ("PAINEL DE CONTROLE (PWB)" → PWB) e o nome do sistema sai do fim ("SKID DE ÁGUA PURA" → SKID); SPN e SCP não aparecem nos documentos (convenção da equipe, ficam para a revisão);
+  - QTD instalada que cita só a lista de sobressalentes é recusada (é reposição).
+  - Reprocessando as mesmas respostas com o código novo (`motor/leitura/reprocessa.js`): 550 linhas iguais, 46 pendências, eixo 73/87. As diferenças de TAG que sobram são, em boa parte, as divergências lista R1A × aplicação emitida já vistas no A1.
+- Conferência ganhou "linhas iguais sem contar o nome da área" (o nome entra no CÓDIGO LMR e é convenção da equipe).
+- **Elevação por TAG, por material e por área (27/10/2026, pedido do usuário: "a água pura e vários sistemas têm mais de uma elevação").** Ordem: elevação da TAG → do material → da área → PENDÊNCIA (uma por área, com o nº de linhas a preencher). Toda elevação devolvida pela IA, inclusive a da área, tem de estar escrita no texto dos documentos; senão é recusada. O campo "Elevação padrão" saiu (preencheria errado sem avisar). Achados: Água Pura tem 98,50 e 104,20 escritos no P&ID (a IA perfeita mantém 99,4%); na Reg. Vel. nenhuma elevação de material está escrita (98,50 é conhecimento da equipe); na Aeração as elevações só existem no desenho (imagem). A elevação mais próxima no texto do P&ID não serve como pista (42/168). Eixo: o do documento ("eixo B/C" → BC) e, onde faltar, o do formulário. Frequência: o formulário pergunta antes ("Frequência quando o documento não disser": pendência / ambas / 50 / 60).
+- **2ª execução real (27/10/2026, Claude Haiku 4.5):** 87/87 lidos, 6 áreas (SKID UZ010-UZ001, PWB, TANQUE EXPANSÃO CM050 corretos; CN010 chamado de TUBULAÇÃO), 124 pendências; campos iguais: TAGs 61, pais 72, RDS-PP 30, elevação 2, eixo 71, trechos 85. O Haiku deixou a elevação das áreas vazia: o P&ID tem "EL 98.500", mas nada no texto liga a elevação ao skid. Correções: QTD só conferida em material sem TAG (81 pendências a menos); área por reserva (área do material; área pelo documento onde a TAG aparece, ex.: 72.x no diagrama UH010-UH001&EFF010 → PWB); TAG em lista ("72.1; 72.2") ou abreviada ("72.1...72.23") separada no código; frequência do kit = a do equipamento.
+- **3ª execução real (28/10/2026, Gemini Flash 3, versão anterior do workflow):** 87/87 lidos, 6 áreas, 62 pendências; 820/3.580 linhas iguais já sem revisão (o Haiku teve 0), porque o Gemini ligou a elevação 98,50 ao SKID (MFB030 p.1) e nomeou "SISTEMA DE PRESSURIZAÇÃO POR NITROGÊNIO" e "SISTEMA DE COMPENSAÇÃO DE PRESSÃO" (as siglas SPN e SCP da equipe). Não deu RDS-PP ao SCP (tanque CM050). Reprocessado com o código atual + revisão simulada da aba ÁREAS: 1.240 linhas iguais (Haiku 1.160); campos: elevação 77 (Haiku 83), eixo 80 (85), RDS-PP 67 (67), pais 66 (72), TAGs 65 (63), trechos 85 (85). Os erros que sobram são quase os mesmos nos dois modelos (regra/convenção, não modelo):
+  - kits: as aplicações emitidas nunca usam PAIS para kit (Reg. Vel. 93/99 e Aeração 9/9 levam a TAG do equipamento; Água Pura 14/14 sem TAG e sem pai, só a área). A regra §3.7 R3 (kit cita o pai) diverge de todas; decisão pendente do usuário.
+  - frequência: `hzDaDescricao` lia "50/60 Hz" como 60 (corrigido: AMBAS); frequência pelo modelo citado no Status ("Kit … F1015V-717" ← "Bomba 50Hz F1015V-717"); a leitura continua valendo primeiro (decisão 21), mas quando contradiz o Status vira PENDÊNCIA de FREQUÊNCIA (os dois modelos disseram AMBAS para os kits das bombas).
+- **Workflow A v2 (28/10/2026, reestruturação com autonomia dada pelo usuário).** `LMR_A_gerar_base.json`, 26 nós ("LMR - A Gerar Base (IA) v2"). Princípio: o que o código acha sozinho não passa pela IA; a IA recebe mais contexto e escolhe dentro do que foi achado; as áreas são conferidas antes dos materiais.
+  - Diagnóstico da v1: (1) a IA via ±150 caracteres em volta de cada TAG e não enxergava a estrutura das listas de material (item "1 … #ST00=…CN010-CN001&MTB010 - SISTEMA DE PRESSURIZAÇÃO POR NITROGÊNIO" com subitens 1.x = área SPN); (2) TAGs que o código pode achar (lista de materiais do painel) passavam pela IA e voltavam erradas (72.23 × 72.24, KA4); (3) convenção de kit fixa (PAI) diferente de todas as aplicações emitidas; (4) áreas só corrigíveis depois dos materiais (o erro de área se espalhava); (5) JSON quebrado perdia o lote.
+  - Evidências sem IA (`leitura.js`): `tagsDoPainel` (o modelo do Status vem colado às TAGs instaladas na lista de materiais do painel: "5ST301252.1;72.1...72.24"; uma leitura só → vale; variantes → fica com a IA; PN/CL/DN/IP descartados), `ehKit`, `titulosDeDocumentos` (código - título de cada conjunto), `chaveEquip` (CN010, UH010…: liga documento e área). Medido na Água Pura: 21 materiais de painel com TAG certa sem IA.
+  - Regras na montagem: TAGs da lista do painel substituem as lidas e a área passa a ser a do documento do painel; kit pela convenção do formulário (*Levam a TAG do equipamento* | *Sem TAG, 1 por trecho, na área do equipamento* | *Citam o equipamento como PAI*; Água Pura = sem TAG; Reg. Vel. e Aeração = TAG); "AMBAS" lido pela IA cede a 50/60 Hz do Status (descrição ou modelo citado); "50/60 Hz" na descrição = AMBAS. Coluna REGRAS na aba LEITURA mostra cada ajuste.
+  - Prompt de materiais: TAGs já achadas (lista de sobressalentes e lista do painel), trechos de ±400–450 caracteres priorizados por tipo de documento (MPA, APA, MTC, MTB, EFF… antes de MFB/MLU; a lista de sobressalentes entra só pela linha do material), "documentos do conjunto" em cada área, regra de subconjunto, campo `kit`, `pais` só para peça entre equipamentos. Lotes de até 8 materiais limitados a 32 mil caracteres. Prompt de áreas ganhou "DOCUMENTOS DE CONJUNTOS CITADOS COM TÍTULO" (ex.: CM050 - TANQUE DE EXPANSÃO).
+  - Página "Confira as áreas" (nó Form, operação página, campos por JSON montados pelo Code "Lê áreas"): 3 campos por área (nome — REMOVER tira; RDS-PP; elevação), em branco = valor lido; campo "Áreas que faltam" (NOME; RDS-PP; ELEVAÇÃO por linha). Ligada pelo campo do formulário "Conferir as áreas antes de ler os materiais" (Sim/Não). Ainda não testada no AMP (mesmo nó da página final, que funciona).
+  - Robustez: JSON quebrado → recupera os objetos de material inteiros (T12: 50/87 de uma resposta cortada a 60%); teto de tentativas 60.
+  - Medido com as respostas reais da v1 (prompt antigo) + regras novas + revisão simulada das áreas: Gemini 1.240 → **2.300**/3.580 linhas iguais (trechos 87, eixo 87, elevação 84, pais 82, RDS-PP 77, TAGs 73); Haiku 1.160 → 1.680. IA perfeita: 3.580/3.580 (100%; antes 3.560). Testes T1–T12 OK. O que sobra depende do prompt novo (área de nitrogênio e tanque) ou é divergência dos documentos (CN010 × CN401/CN402; QM408G × QM408V; BP316T; QN203R).
+- **Workflow A v3 (28/10/2026): leitura em etapas pequenas e generalização** (pedido do usuário: "vai ser usado em vários sistemas" e sugestão de quebrar a IA em vários processos porque os modelos disponíveis são fracos — adotada). Mesmo arquivo `LMR_A_gerar_base.json` (26 nós; nós da leitura renomeados para *Prepara leituras*, *Lote de leituras*, *IA: leituras*).
+  - Etapas: (1) áreas + página "Confira as áreas" (agora com **trechos por área**); (2) **confirmação das TAGs da lista** — a IA vê o trecho da lista em volta do código do material e as TAGs candidatas e escolhe quais são do material e se a TAG é do próprio material ou do equipamento onde ele é montado (só escolhe entre candidatas), 20 por chamada; (3) **área das TAGs** — TAGs agrupadas pela página do documento mais confiável onde aparecem, resposta = número da área (lista quando a TAG está em mais de uma área), até 40 por chamada; (4) **leitura completa** só dos materiais sem TAG achada pelo código, 5 por chamada. Um só Loop com os três tipos de tarefa (independentes entre si).
+  - Generalização (medida nos 4 sistemas com textos: Água Pura, Reg. Vel., Aeração, SFC — `node leitura/teste_a.js`): prompts sem exemplos do sistema de teste (sem "2 a 8 áreas", sem SKID/nitrogênio); TAG da lista do painel só vale confirmada em outra página; TAG da lista que não aparece em outro documento → troca pela única de mesmo código com outra letra final (QM408G → QM408V) ou PENDÊNCIA; convenção de **peças** no formulário (TAG do equipamento | equipamento como PAI — Reg. Vel. usa PAI); **mesma TAG em mais de uma área** (conjuntos gêmeos, ex.: SFC HF-01/HF-02); **RDS-PP por grupo de frequência** (#ST50=M50…/#ST60=M60… → `#ST[F]=M[F]`, uma linha por frequência: Aeração); trechos sem frequência (AMD/AMC) não zeram mais o material (`lmr.js trechosDoMaterial`); nome de área digitado pelo usuário mantém maiúsculas/minúsculas.
+  - "IA perfeita" + página de áreas simulada (linhas iguais ao gabarito / sem contar o nome da área): Água Pura 3.460/3.580 em 10 chamadas (v2: 13 maiores); Reg. Vel. 3.550/6.030 (3.744); Aeração 160/760 (RDS-PP e trechos 14/14; a elevação por TAG 107,61/105,40/88,60 não está no texto → PENDÊNCIA); SFC 0/452 (452: só a grafia do nome "Cubículo HF-01"). O que sobra é divergência lista R1A × aplicação emitida (CN010, QN406R, BP316T, QN203R, GP231/MA231, KF042) ou dado fora do texto. Assinaturas do B/C inalteradas.
+- **Workflow "LMR - A Revisar áreas"** (`LMR_A_revisar_areas.json`, 13 nós, sem IA): a BASE do A sai com a aba ÁREAS (ÁREA/PAINEL, NOVO NOME, RDS-PP, LOCAL, ELEVAÇÃO, EIXO, LINHAS NA BASE e os valores LIDOS); o usuário preenche e envia de volta; o código aplica nas linhas (só troca o que veio da área: elevação lida por TAG fica), atualiza os PAIS que citam o RDS-PP antigo, junta áreas com o mesmo NOVO NOME e refaz as pendências de elevação. Medido com as respostas reais do Haiku + revisão de 6 linhas na aba ÁREAS: 1.160 de 3.580 linhas iguais ao gabarito; campos iguais: elevação 83, eixo 85, trechos 85, pais 72, RDS-PP 67, TAGs 63 (de 87). O que sobra: divergências lista R1A × aplicação emitida, kits que agora citam o pai (regra §3.7 R3; a aplicação emitida não cita) e itens do nitrogênio/tanque que a IA pôs no SKID (limite de ler desenho por texto).
+- Limite anterior (resolvido acima): uma área tinha uma elevação só.
+
+### 9B.8 Leitura pelo agente do AMP — AG1 e AG2 (28/10/2026)
+
+Os modelos do n8n do AMP (GPT-5.4-mini, Haiku 4.5, Gemini Flash 3) não leram bem nem em etapas pequenas. Decisão do
+usuário: a leitura passa para um **agente do AMP** (modelos mais fortes: Claude Sonnet 5.5, Sonnet 5, Sonnet 4.6, GPT-6
+Luna, GPT-5.4, Gemini 3.5 / 3.1 Flash-Lite, Gemini 3 Flash). O agente **não pode ser chamado de um workflow**; o
+usuário anexa os PDFs no chat (sem Box por enquanto) e o agente devolve arquivos (.json). Plano:
+`docs/superpowers/plans/2026-10-28-agente-lmr.md`.
+
+- **Fluxo:** `AG1 Preparar etapas` (n8n, sem IA) → 4 etapas no agente, **um chat por etapa** → `AG2 Montar Base` (n8n, sem IA) → B.
+- **Etapas** (página a página, pelo tipo do documento e por sinais genéricos do texto; o usuário pode forçar um documento
+  no campo "Etapa de documentos"): 1 Áreas (MLU; páginas com elevação + planta/corte/arranjo/vista) · 2 Conjuntos (MPA, APA,
+  MTB, MTC, EFF, EPA, MLD; páginas com "lista de material") · 3 Equipamentos (todo o resto: MFB, MFE, MDB, ACC, sem tipo)
+  · 4 Materiais (MPB + JSONs das etapas 1–3; a mensagem lista os materiais do Status em partes de 50).
+- **ROTEIRO LMR - {sistema}.xlsx** (saída do AG1; o formulário só entrega 1 arquivo): ROTEIRO (passo a passo, anexos e
+  páginas de cada etapa, páginas sem texto), ETAPA 1…4 (mensagem pronta: o usuário copia a coluna A e cola no chat),
+  CONTROLE (gabarito das perguntas: fica com o usuário), CONFIG, STATUS PMIB e ÍNDICE (texto das páginas em colunas de
+  30 mil caracteres) — o AG2 lê de volta, sem reenviar PDFs nem Status.
+- **Perguntas de controle:** "arquivo X, página N: quais destes códigos estão escritos?" — 3 TAGs da página + 2 do mesmo
+  documento que não estão nela; páginas no início, meio e fim (mais em documento grande, até 5 por documento por etapa).
+  Mostram se o agente leu o documento inteiro (o PDF de 571 páginas da Reg. Vel.). Erro → PENDÊNCIA CONTROLE e repetir a etapa daquele trecho.
+- **AG2:** junta os JSONs (partes, cercas de código, texto em volta, JSON quebrado), confere o controle e o inventário de
+  páginas, aplica a troca de letra final (QM408G → QM408V), completa área/RDS próprio/frequência das TAGs pelas etapas 2–3,
+  convenção de peças e kits, e usa `LEITURA.confereMateriais` + `LEITURA.montaBase`. **Valor lido pelo agente que não está
+  no texto extraído** (desenho, página escaneada): fica, com PENDÊNCIA **CONFERIR** e a página citada (a IA do n8n continua
+  com a regra antiga: sai). TAG fora do texto → PENDÊNCIA (V8); QTD com fonte na lista de sobressalentes → recusada;
+  material sem resposta ou `encontrado: false` → PENDÊNCIA. Abas novas: CONTROLE DO AGENTE, RESPOSTAS DO AGENTE.
+- **Agente:** `motor/agente/system_prompt.md` (system prompt) e Knowledge base `regras_lmr.md` + `formatos_json.md` (sem
+  dados reais). Modelo sugerido para o 1º teste: Claude Sonnet 5.5; depois Sonnet 4.6 com temperatura 0 para comparar.
+- **Testes** (`node agente/teste_agente.js`, `node workflows/gerar_agente.js`): "agente perfeito" (respostas do gabarito) →
+  Água Pura **3.580/3.580**; Reg. Vel. **3.740/6.030** (3.943 sem o nome da área; v3 com IA perfeita: 3.550); Aeração **480/760**
+  (v3: 160); SFC 452/452 sem o nome da área. Controle 100% nos 4. Casos ruins conferidos (controle errado, TAG e elevação
+  inventadas, material faltando, etapa não enviada, QTD de reposição, arquivo sem JSON). Ida e volta pelo .xlsx (openpyxl)
+  com Água Pura: 3.580/3.580. B e C com assinaturas inalteradas; `teste_a.js`, `gerar_a.js` T1–T12 e fase 1 OK.
+
+### 9B.9 Agente do AMP dentro do workflow — "LMR - A Gerar Base (agente AMP)" (28/10/2026)
+
+Fato novo (usuário): o agente do AMP pode ser ligado no workflow — nó `CUSTOM.amp` v1 (`LMR/Nó agente AMP.txt`).
+Campos: Credential, Custom Agent, Prompt (user message), Files, Session ID; opções qualifier e timeout.
+
+- **Sonda S9** (`LMR_S9_sonda_amp_agent.json`, `LMR/Resultado Sonda.txt`): o Prompt padrão lê `$json.chatInput`; a
+  resposta vem em `output` (+ `sessionId`, `files`); itens do mesmo nó dividiram a mesma sessão; com PDF em Files o agente
+  viu só o NOME do arquivo.
+- **Sonda S10** (`LMR_S10_sonda2_amp_agent.json`, `LMR/Resultado Sonda 2.txt`): PDF em Files + pedido para abrir →
+  erro `424 / 500 from runtime`; na mesma sessão o arquivo não existe; **texto da página dentro do Prompt funciona**
+  (Sonnet 5.5 devolveu 15 TAGs certas do P&ID e disse que só leu texto). O Session ID exportado tinha uma crase sobrando.
+- **Decisão:** o agente recebe o **texto das páginas** na mensagem. Valor fora do texto sai (regra estrita, como a IA do
+  n8n); o que só está no desenho entra pela página "Confira as áreas". Files fica para depois (novo teste se o AMP corrigir).
+- **Workflow** `LMR_A_agente_amp.json` (44 nós, gerado por `workflows/gerar_agente.js`): Formulário → índice A1 →
+  E1 → E2+E3 (com as áreas da E1) → **Confira as áreas** (depois das etapas 2/3, uma vez; serve também para sistema sem
+  layout, como a Aeração) → E4 (lotes de 25 materiais, com as páginas da lista desses materiais, as áreas e a tabela de
+  TAGs das etapas 2/3) → Monta Base. Cada chamada: até 80 mil caracteres, só páginas úteis (com TAG, RDS-PP, elevação ou
+  código de material), sessão própria, pausa de 10 s; erro temporário (limite, tempo, 424/500) → 60 s e nova tentativa,
+  até 3; sem resposta → PENDÊNCIA CHAMADA. Abas novas: CHAMADAS DO AGENTE.
+- **Volume** (chamadas por sistema): Água Pura 14 (705 mil caracteres), Reg. Vel. 17 (855 mil), Aeração 4, SFC 10.
+- **Testes** (`agente/teste_workflow.js`, `workflows/gerar_agente.js`): agente perfeito só texto + página de áreas →
+  Água Pura 3.580/3.580; Reg. Vel. 3.740/6.030; Aeração 160/760 (elevação por TAG só no desenho); SFC 452/452 sem nome da
+  área. Simulação nó a nó com recusa 424 repetida: 3.580/3.580. AG1/AG2 ficam como caminho manual.
+
+**Critério de aceite do A1 no AMP (Água Pura, com a BASE como gabarito):** todas as TAGs da BASE com 4+ caracteres achadas (CANDIDATA ou SÓ NO TEXTO); os 87 materiais do Status achados; o código do carimbo identificado em todos os documentos com código. Depois, Aeração (5 PDFs) e SFC (páginas escaneadas e PDFs de 67–78 MB, que testam o limite do formulário).
+
 ---
 
 ## 9A. Roteiro de validação e construção do fluxo completo (v1.5)
