@@ -26,14 +26,14 @@ Formulário → Índice A1
 ```
 
 É o fluxo de `LMR_A_agente_amp.json` com um bloco de agente a mais e o validador dentro do código que monta a Base.
-Estimativa: cerca de 55 nós, contra 44 hoje. O workflow novo é outro arquivo, `LMR_A_enxuto.json`, gerado por
+Estimativa: cerca de 58 nós, contra 44 hoje. O workflow novo é outro arquivo, `LMR_A_enxuto.json`, gerado por
 `workflows/gerar_agente.js`. O atual fica como está até o novo passar nos critérios da §7.
 
 ## 3. Agentes
 
 | Agente no AMP | Etapas | Recebe | Devolve | Knowledge base |
 |---|---|---|---|---|
-| `Leitor LMR` (já existe) | E1, E2, E3 | Páginas por tipo de documento + áreas | `areas`, `tags` (formatos atuais) | Glossário + §3 a §5 de `regras_lmr.md` |
+| `Leitor LMR` (já existe, sem mudança) | E1, E2, E3 | Páginas por tipo de documento + áreas | `areas`, `tags` (formatos atuais) | A atual, completa: o workflow antigo ainda precisa dela |
 | `Ligador LMR` | E4 | Páginas da lista de sobressalentes + áreas + tabela de TAGs | `materiais` (formato atual) | Glossário + §6 de `regras_lmr.md` |
 | `Recuperador LMR` | Nova | Lacunas + páginas candidatas | `recuperacoes` (formato novo, §5) | Glossário + regras da §5 |
 
@@ -62,7 +62,10 @@ Roda depois do Ligador, uma passada só. O código monta as lacunas, nesta prior
 
 1. PMIB sem nenhuma linha ou que não voltou na resposta do Ligador, inclusive os de lote sem resposta.
 2. TAG sem área, ou TAG citada pelo Ligador que não existe na tabela de TAGs nem no texto.
-3. Demais campos obrigatórios vazios ou com formato inválido.
+3. Elevação da TAG e quantidade instalada de material sem TAG, vazias ou com formato inválido.
+
+Campos da área (RDS-PP, local, eixo) não vão ao Recuperador: já passaram pela pessoa na página "Confira as áreas".
+O que ficar vazio vira uma pendência por área.
 
 Cada lacuna leva as páginas em que o índice A1 achou o código. Lacuna sem nenhuma página candidata não vai ao agente e
 vira pendência direto.
@@ -78,10 +81,14 @@ Formato da resposta:
     { "lacuna": "L-1", "achou": true, "campo": "area", "valor": "SKID",
       "evidencia": "#ST00=M00ABC10UZ010-UZ901&MPA010 p.5", "procurou": "" },
     { "lacuna": "L-2", "achou": false, "campo": "tag", "valor": null,
-      "evidencia": "", "procurou": "#ST00=M00ABC10&MPB020 p.3" }
+      "evidencia": "", "procurou": "#ST00=M00ABC10&MPB020 p.3" },
+    { "lacuna": "L-3", "achou": true, "campo": "tag", "valor": ["GP101"], "papel": "peca",
+      "evidencia": "#ST00=M00ABC10UZ010-UZ901&MPA010 p.5", "procurou": "" }
   ]
 }
 ```
+
+`papel` (`proprio` ou `peca`) é obrigatório quando `campo` é `tag`, porque a convenção de peças do formulário depende dele.
 
 Regras aplicadas pelo código:
 
