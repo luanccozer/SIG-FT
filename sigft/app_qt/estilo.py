@@ -35,6 +35,11 @@ ARQUIVOS_DE_FONTE = ("Roboto-Regular.ttf", "NotoEmoji-Regular.ttf")
 # captura: o fundo do conteúdo começa em x=277. Os módulos começam no mesmo x.
 LARGURA_BARRA_LATERAL = 277
 
+# O menu lateral recolhido (2026-10-26): só os ícones. 60 = 7 de margem de cada
+# lado e os botões de 46, com o ícone de 16 no meio; com a barra de rolagem
+# (janela baixa), 7 + 36 + 7 = 50 (`main.MARGENS_DA_BARRA_RECOLHIDA`).
+LARGURA_BARRA_RECOLHIDA = 60
+
 # Medidas que a interface antiga aplica hoje (decisão: espaçamento igual ao atual).
 ALTURA_BOTAO_MENU = 35
 ESPACO_MENU = 4
@@ -424,11 +429,14 @@ QPushButton[menu="true"]:hover, QPushButton[menu="true"][ativo="true"] {{ backgr
     color: {menu['texto']}; }}
 QPushButton[menu="true"][ativo="true"] {{ font-weight: bold; }}
 QPushButton[menu="true"]:disabled {{ color: {p['texto_suave']}; }}
+QPushButton[menu="true"][recolhido="true"] {{ text-align: center; padding: 0; }}
+#traco_secao {{ background: {p['borda']}; border: none; }}
 #marca, #marca:hover, #marca:pressed {{ background: transparent; border: none; padding: 0;
     min-height: 0; }}
 #home {{ background: transparent; text-align: left; font-weight: bold;
          color: {p['texto']}; border: {BORDA_CONTROLE}px solid {p['borda']}; }}
 #home:hover, #home[ativo="true"] {{ background: {menu['fundo']}; color: {menu['texto']}; }}
+#home[recolhido="true"] {{ text-align: center; padding: 0; }}
 QPushButton[barra="true"] {{ min-height: {ALTURA_BOTAO_BARRA - 2 * BORDA_CONTROLE}px;
     min-width: {LARGURA_BOTAO_CTK - 2 * FOLGA_TEXTO_BOTAO_CTK - 2 * BORDA_CONTROLE}px; padding: 0 {FOLGA_TEXTO_BOTAO_CTK}px;
     font-weight: bold; }}
@@ -448,6 +456,9 @@ QLabel[papel="ok"] {{ color: {p['primaria']}; }}
 #faixa_atividade_texto[estado="erro"] {{ color: {p['perigo']}; }}
 #card {{ background: {p['superficie']}; border: 1px solid {p['borda']}; border-radius: {raio_cartao}px; }}
 #card:hover {{ border: 1px solid {p['primaria']}; }}
+#card:disabled, #card:disabled:hover {{ border: 1px solid {p['borda']}; }}
+#card[caminho="true"]:focus {{ border: 1px solid {p['primaria']}; background: {p['superficie_alta']}; }}
+#card_titulo:disabled {{ color: {p['texto_suave']}; }}
 #card_titulo {{ color: {p['primaria']}; font-size: {f['secao']}px; font-weight: bold; background: transparent; }}
 #card_icone {{ background: transparent; }}
 #card_desc {{ color: {p['texto_suave']}; font-size: {f['legenda']}px; background: transparent; }}
@@ -747,6 +758,11 @@ def _folha_ferramentas(tema: str | None = None) -> str:
         f' padding: 0 4px; font-size: {f["corpo"]}px; }}',
         f'#seta_recentes:hover {{ color: {p["texto"]}; }}',
         "#seta_recentes::menu-indicator { image: none; width: 0; }",
+        # O botão do "Como funciona" (widgets/como_funciona.py): compacto, na
+        # altura da linha da frase (fix round 2026-10-28: o de 32 px somava 38 px
+        # a cada cabeçalho e as telas altas passavam de um notebook 1366x768).
+        # A cor é a da variante secundária; aqui só o tamanho.
+        f'#como_funciona_botao {{ min-height: 0; padding: 1px 8px; font-size: {f["legenda"]}px; }}',
         # Ctrl+K (widgets/paleta.py)
         f'#paleta {{ background: {p["superficie"]}; border: 1px solid {p["borda"]};'
         f' border-radius: {raio_cartao}px; }}',

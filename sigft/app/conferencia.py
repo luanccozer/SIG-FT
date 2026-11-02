@@ -93,8 +93,12 @@ MODULOS_ESSENCIAIS = [
     "sigft.app_qt.views.correcao_pdm",
     "sigft.app_qt.views.copia_fichas",
     "sigft.app_qt.views.autospec",
-    "sigft.app_qt.views.pmib_manager",
+    # O PMIB Manager é a seção de abas: ela importa a Gestão PMIB, a Conferência
+    # de Revisões e a Revisão no AMP (2026-10-27).
+    "sigft.app_qt.views.gestao_sobressalentes",
     "sigft.app_qt.views.busca_pmib",
+    # A boas-vindas (2026-10-28): página da pilha, fora do menu.
+    "sigft.app_qt.views.boas_vindas",
 ]
 
 # A frase que a conferência traduz dentro do .exe, e o que a tradução tem de
@@ -151,10 +155,12 @@ def conferir_pacote(modulos: list[str] | None = None) -> tuple[str, bool]:
     * `find_spec` **não importa** o módulo, o que importa num app que não pode
       carregar o pandas inteiro só para conferir.
 
-    E a pergunta certa nunca foi "o arquivo está lá?": módulo Python puro não
-    vira pasta em `_internal/` — o PyInstaller só deixa lá o que tem extensão
-    binária ou arquivo de dados, e o resto vai para dentro do PYZ. Uma
-    conferência por arquivo reprovaria um build perfeitamente bom.
+    E a pergunta certa nunca foi "o arquivo está lá?". Até a 1.3.1-rc.1 o módulo
+    Python puro de terceiros não virava pasta em `_internal/` — ia para dentro
+    do PYZ, e uma conferência por arquivo reprovaria um build perfeitamente
+    bom. Desde 2026-10-27 (`noarchive=True` no `SIG-FT.spec`) todo módulo vira
+    `.pyc` solto, mas `find_spec` responde igual nos dois formatos — e é a
+    pergunta que importa: o aplicativo consegue importar?
     """
     alvos = list(modulos if modulos is not None else MODULOS_ESSENCIAIS)
 

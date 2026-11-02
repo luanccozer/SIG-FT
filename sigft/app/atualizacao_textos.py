@@ -25,9 +25,10 @@ if TYPE_CHECKING:  # pragma: no cover
 TITULO = marcar("Atualização do SIG-FT")
 
 MSG_UAC = marcar(
-    "O SIG-FT está instalado para todos os usuários, então o Windows vai pedir "
-    "permissão de administrador. Se o pedido for recusado, o SIG-FT fecha sem "
-    "atualizar: é só abri-lo de novo."
+    "O SIG-FT está instalado para todos os usuários. Esta atualização o passa "
+    "para a instalação só sua: o Windows vai pedir a senha de administrador uma "
+    "vez, para remover a cópia antiga. Se o pedido for recusado, a versão nova "
+    "funciona do mesmo jeito."
 )
 
 MSG_COMO_FUNCIONA = marcar(
@@ -47,6 +48,11 @@ MSG_TAREFA_AO_ATUALIZAR = marcar(
 )
 
 MSG_DOWNLOAD_CONFERIDO = marcar("Download conferido. Abrindo o instalador...")
+
+# [2026-10-27] A atualização por arquivos: o próprio SIG-FT aplica e se reabre.
+MSG_APLICANDO = marcar("Aplicando a atualização…")
+MSG_CONFERINDO_ARQUIVOS = marcar("Conferindo os arquivos…")
+MSG_REABRINDO = marcar("Atualizado. Reabrindo o SIG-FT…")
 
 TEXTO_ATUALIZAR = marcar("Atualizar agora")
 TEXTO_ATUALIZANDO = marcar("Atualizando...")
@@ -104,20 +110,21 @@ def erro_curto(erro: BaseException, limite: int = 300) -> str:
 def resumo_da_versao(info: Atualizacao, versao_atual: str) -> str:
     """A linha de baixo do título: onde a pessoa está e o que vai receber.
 
-    [2026-10-07] Com o instalador pequeno, o tamanho é o DELE, comparado com o
-    do completo: é o ganho que a pessoa precisa ver."""
+    [2026-10-07] Com a atualização só com o que mudou (desde 2026-10-30, o
+    `.zip` de arquivos), o tamanho é o DELA, comparado com o do instalador
+    completo: é o ganho que a pessoa precisa ver."""
     partes = [t("Você está na v{versao}.", versao=versao_atual)]
     if info.publicado_em:
         detalhe = t("A v{versao} saiu em {data}", versao=info.versao, data=data_br(info.publicado_em))
     else:
         detalhe = t("A v{versao}", versao=info.versao)
-    if info.incremental and info.tamanho:
+    if info.arquivos is not None and info.arquivos.tamanho:
         partes.append(detalhe + ".")
-        if info.tamanho_completo:
+        if info.tamanho:
             partes.append(t("A atualização tem {mb} MB: só o que mudou (o instalador completo tem "
-                            "{completo} MB).", mb=mb(info.tamanho_mb), completo=mb(info.tamanho_completo_mb)))
+                            "{completo} MB).", mb=mb(info.arquivos.tamanho_mb), completo=mb(info.tamanho_mb)))
         else:
-            partes.append(t("A atualização tem {mb} MB: só o que mudou.", mb=mb(info.tamanho_mb)))
+            partes.append(t("A atualização tem {mb} MB: só o que mudou.", mb=mb(info.arquivos.tamanho_mb)))
         return " ".join(partes)
     if info.tamanho:
         detalhe = t("{detalhe} e tem {mb} MB", detalhe=detalhe, mb=mb(info.tamanho_mb))
@@ -146,11 +153,16 @@ def msg_erro_ao_procurar(erro: BaseException) -> str:
     return t("Não foi possível procurar atualizações.\n\n{erro}", erro=erro)
 
 
-def msg_baixando(info: Atualizacao) -> str:
-    return t("Baixando a v{versao} ({mb} MB)...", versao=info.versao, mb=mb(info.tamanho_mb))
+def msg_baixando(info: Atualizacao, *, so_completo: bool = False) -> str:
+    """O tamanho do que vai ser baixado: o `.zip` de arquivos quando há (e
+    `so_completo` não diz que ele não serve), senão o instalador completo."""
+    pacote = info.arquivos if info.arquivos is not None and not so_completo else info
+    return t("Baixando a v{versao} ({mb} MB)...", versao=info.versao, mb=mb(pacote.tamanho_mb))
 
 
 def msg_caiu_no_completo(completo: Atualizacao) -> str:
+    """A atualização por arquivos falhou (a pasta ficou como estava) e vai o
+    instalador completo."""
     return t("A atualização pequena falhou. Baixando o instalador completo ({mb} MB)...",
              mb=mb(completo.tamanho_mb))
 
@@ -159,3 +171,12 @@ def msg_falhou(erro: BaseException) -> str:
     return t("Não foi possível atualizar: {erro}\n\nO SIG-FT continua nesta versão. Tente de novo; "
              "se o erro se repetir, avise quem cuida do SIG-FT. O detalhe completo fica no log "
              "(Documentos\\SIG-FT\\logs\\sigft.log).", erro=erro_curto(erro))
+
+
+def msg_instalador_nao_iniciou(erro: BaseException) -> str:
+    """[2026-10-27] O instalador saiu (ou não respondeu) antes de avisar que
+    subiu (`updater.InstaladorNaoIniciou`): o SIG-FT ficou aberto."""
+    return t("O instalador não chegou a começar, e o SIG-FT continua aberto, nesta versão.\n\n"
+             "{erro}\n\nCostuma ser o antivírus, a política da empresa ou o pedido de permissão "
+             "do Windows recusado. Tente de novo; se o erro se repetir, avise quem cuida do SIG-FT.",
+             erro=erro_curto(erro))

@@ -249,6 +249,8 @@ def test_toda_acao_tem_quem_faca(janela, monkeypatch):
     for metodo in {*qmain.ACAO_NA_HOME.values(), "escolher_tema", "escolher_letra"}:
         monkeypatch.setattr(home, metodo, lambda *a, m=metodo: feitos.append((m, a)))
     monkeypatch.setattr(janela, "abrir_pasta_de_logs", lambda: feitos.append(("logs", ())))
+    monkeypatch.setattr(janela, "alternar_menu", lambda: feitos.append(("menu", ())))
+    monkeypatch.setattr(janela, "mostrar_boas_vindas", lambda: feitos.append(("boas_vindas", ())))
     janela.show_frame("Translator")
     for chave, *_resto in catalogo.ACOES:
         janela.executar_comando(f"acao:{chave}")

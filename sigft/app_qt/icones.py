@@ -46,7 +46,8 @@ NOMES = frozenset({
     "wrench", "copy", "sparkles", "tag", "folder-kanban", "search",
     "clipboard-check", "bot", "circle-dollar-sign", "key-round", "refresh-cw",
     "folder-open", "file", "trash-2", "play", "square", "settings", "arrow-down",
-    "external-link", "sun", "moon", "monitor",
+    "external-link", "sun", "moon", "monitor", "chevrons-left", "chevrons-right",
+    "circle-help",
 })
 
 TAMANHO_PADRAO = 18

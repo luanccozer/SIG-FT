@@ -31,7 +31,7 @@ O módulo frontend implementa a interface gráfica desktop do SIG-FT (hoje em Qt
 - `carregar_modulos()` — Thread que importa dinamicamente 11 backends (`cria_fichas_no_pmib_v1_backend`, `pdm_backend`, `analyzer_backend`, etc.) e atualiza a barra de progresso. Usa `importlib.import_module()` para evitar imports bloqueantes no startup. Ao fim, instancia `SIG_FT_App` e fecha a splash.
 
 **`SIG_FT_App(ctk.CTk)`** — Janela principal (1280x850) com sidebar + container dinâmico.
-- `__init__()` — Carrega logo/ícone, inicializa gestão de chaves API, cria sidebar com 12 botões de menu organizados em 3 seções (Início, Dados Técnicos, Gestão), instancia todos os frames em `self.frames` dict. **[2026-09-25]** No fim, chama `atualizacao.verificar_na_abertura(self)`: numa thread, pergunta ao GitHub se há Release mais novo que `_build_info.VERSAO` e, havendo, abre o aviso modal `JanelaAtualizacao` (o que mudou, "Atualizar agora" / "Agora não"). Só no app empacotado, instalado pelo instalador e com token; falha de rede ou de token vai só para o `sigft.log`. O botão **"Atualizações"** da barra da Home (`HomeView.procurar_atualizacoes`) faz a mesma pergunta e sempre responde. Código em `sigft/app/atualizacao.py` (tela) e `sigft/services/updater.py` (consulta, download, instalador).
+- `__init__()` — Carrega logo/ícone, inicializa gestão de chaves API, cria sidebar com 12 botões de menu organizados em 3 seções (Início, Dados Técnicos, Gestão), instancia todos os frames em `self.frames` dict. **[2026-09-25]** No fim, chama `atualizacao.verificar_na_abertura(self)`: numa thread, pergunta ao GitHub se há Release mais novo que `_build_info.VERSAO` e, havendo, abre o aviso modal `JanelaAtualizacao` (o que mudou, "Atualizar agora" / "Agora não"). Só no app empacotado, instalado pelo instalador e com token; falha de rede ou de token vai só para o `sigft.log`. O botão **"Atualizações"** da barra da Home (`HomeView.procurar_atualizacoes`) faz a mesma pergunta e sempre responde. Código em `sigft/app/atualizacao.py` (tela) e `sigft/services/updater.py` (consulta, download, instalador). **[2026-10-27]** "Atualizar agora" tenta primeiro a atualização por arquivos (`updater.pode_por_arquivos` / `aplicar_por_arquivos`: pasta do programa gravável, o próprio app troca os arquivos, se reabre com `updater.reabrir` e fecha); qualquer falha cai no instalador, que agora só fecha o app depois de avisar que subiu (`/SINAL`; senão `InstaladorNaoIniciou`, e o app fica aberto com o erro). Ver `docs/BUILD.md`, "Atualização por arquivos e o `/SINAL`".
 - `fechar()` — **[2026-09-25]** O "X" da janela principal (`WM_DELETE_WINDOW`). Fechar a janela ENCERRA o processo: quando o laço de eventos acaba, `main()` chama `instancia.encerrar(0)` (`os._exit`), com ou sem thread presa. Havendo tarefa em andamento (thread comum viva: robô, tradução, consulta à IA — ver `instancia.tarefas_em_andamento`), pergunta antes, porque ela é interrompida no ponto em que está. Antes, um robô parado numa pausa mantinha o `SIG-FT.exe` vivo e sem janela, e esse fantasma travava o instalador. **Thread de fundo que não é tarefa da pessoa tem de ser `daemon=True`**, senão o "X" pergunta à toa. Se a própria janela não montar, `SplashScreen.iniciar_app_principal` mostra o erro (com o caminho do `sigft.log`) e encerra, em vez de sobrar uma janela invisível.
 - `load_keys()` — Lê variáveis de ambiente (API_GEMINI_LUAN_GMAIL, GOOGLE_SEARCH_API, GOOGLE_CSE_API, LLAMA_CLOUD_API) e carrega/mescla com `api_config.json` persistido.
 - `save_keys(new_keys)` — Persiste chaves em `api_config.json`, cifradas com a DPAPI do Windows por `sigft/core/cofre.py` (2026-10-30; leitura em `config.carregar_chaves`, que também reescreve cifrado um arquivo antigo em texto claro e trata valor que não decifra como "sem chave").
@@ -86,7 +86,7 @@ Cada módulo herda de `ctk.CTkFrame` e segue padrão: `__init__(parent, controll
 | 8 | `ModuloAutoSpec` | "6. AutoSpec AI (RAG)" | `autospec_backend` | Geração automática de specs via RAG (Retrieval-Augmented Generation) |
 | 9 | `ModuloLMR` | "7.1. LMR (Upload)" | `lmr_backend` | Upload e gestão de Lista de Materiais para Reposição (LMR) |
 | 10 | `ModuloApagarLMR` | "7.2. Apagar LMR" | `apagar_lmr_backend` | Limpeza/exclusão de entradas LMR |
-| 11 | `ModuloPMIBManager` | "8. PMIB Manager" | `pmib_manager_backend` | Gerenciamento geral de fichas PMIB (busca, edição em massa) |
+| 11 | `ModuloPMIBManager` | "8. PMIB Manager" | `pmib_manager_backend` | Gerenciamento geral de fichas PMIB (busca, edição em massa). Desde 2026-10-27 o menu abre a seção `ModuloGestaoSobressalentes` (`views/gestao_sobressalentes.py`), com as abas Gestão PMIB (esta tela), Conferência de Revisões e Revisão no AMP: ver `14-aconex-e-conferencia-de-revisoes.md` |
 | 12 | `ModuloBuscaPMIB` | "9. Search" | `search_pmib_backend` | Busca avançada no portal PMIB |
 
 **Detalhes de ModuloCriaFichas** (principal):
@@ -312,6 +312,78 @@ GE Vernova, Itaipu, nomes de provedor de IA, os nomes dos idiomas):
 | pasta / arquivo / tela | carpeta / archivo / pantalla | folder / file / screen |
 
 Espanhol com "usted"; inglês com imperativo simples; tradução curta (no máximo uns 20% a mais).
+
+### Diário, colunas e menu recolhível (2026-10-26)
+
+- **Diário de quedas** (`sigft/core/diario.py`, sem Qt): `main()` chama `diario.abrir(versao=, idioma=)`
+  depois da pergunta do idioma e antes da janela; ele lê a sessão anterior (`classificar`: `NORMAL`,
+  `CAIU`, `ENCERRADO`) ANTES de gravar a nova `ABERTURA`, e liga `sys.excepthook`,
+  `threading.excepthook` e o `faulthandler` (`logs/queda.log`; o com rastro vira `queda.log.anterior`).
+  `SIG_FT_App.closeEvent` aceito grava `FECHAMENTO pela janela`. Passou de 1 MB, vira `diario.log.1`.
+  Nunca levanta. A Home mostra `aviso_sessao` (cartão `#cartao[borda="aviso"]`) quando
+  `diario.aviso_pendente()`; "Entendido" é `diario.dispensar_aviso()`. Nos testes vem desligado
+  (`SIGFT_SEM_DIARIO`, no `conftest`); quem testa tira a variável e troca o `faulthandler` por um dublê.
+- **Colunas lembradas** (`sigft/app_qt/widgets/colunas.py`): `instalar_colunas(tabela, chave,
+  colunas_internas)` liga mover, largura e o menu do botão direito (esconder, "Restaurar colunas");
+  guarda em `prefs` (seção `colunas`) pela chave da tabela e pela chave interna de cada coluna.
+  `juntar` (pura) ignora coluna sumida, põe a nova no fim e trata preferência estragada como padrão.
+  Na `tabela_ttk`, mexer desliga o `EsticaColunas` e a última coluna estica (e grava largura `None`,
+  para voltar esticando); restaurar o religa.
+  Usam: `TabelaSelecaoDialog(chave_colunas=, colunas_internas=)` (`selecao_de_itens`,
+  `selecao_duplicadas`) e a Revisão antes do portal (`widgets/revisao_portal.py`, chave
+  `revisao_portal`). O Resumo do lote ficou como estava (decisão de 2026-10-26).
+- **Menu recolhível** (`SIG_FT_App.recolher_menu`/`alternar_menu`): barra com
+  `estilo.LARGURA_BARRA_RECOLHIDA`, só ícones (o nome na dica, antes da dica de sempre), seções como
+  `#traco_secao`, a marca só com o símbolo (`Marca.recolher`). Margens de 7 de cada lado
+  (`MARGENS_DA_BARRA_RECOLHIDA`): na janela baixa a barra de rolagem come 10 px e a seta (36) ainda
+  cabe. Lembrado em `prefs.get_opcao("menu_recolhido")`; Ctrl+K `acao:menu` (o texto diz "Recolher
+  menu" ou "Expandir menu", `catalogo.comandos(menu_recolhido=)`). Cor só pela folha
+  (`QPushButton[menu="true"][recolhido="true"]`, `#home[recolhido="true"]`).
+
+### Ajuda para quem começa (2026-10-28)
+
+Desenho: `docs/superpowers/specs/2026-10-28-ajuda-para-quem-comeca-design.md`. Ideia do Corella
+Automation (v1.4.0), adaptada.
+
+- **"Como funciona"** (`sigft/app_qt/widgets/como_funciona.py`; os textos, sem Qt, em
+  `sigft/app/como_funciona.py`): logo abaixo do título de cada tela do menu, sempre no mesmo lugar,
+  uma frase curta à vista e o botão "Como funciona" (ícone `circle-help`, variante secundária), que
+  abre de 3 a 6 itens: o que a tela espera receber, o que ela muda, o que acontece se parar no meio.
+  Fechado na primeira vez; aberto ou fechado fica lembrado por tela (`prefs`,
+  `como_funciona_aberto.<tela>`). A tela chama `instalar_como_funciona(self, "<chave>")` no fim do
+  `_build_ui`; nas seções de abas (Aplicação LMR, PMIB Manager) o bloco segue a aba aberta, e a tela
+  embutida numa aba não ganha bloco. Nos testes vem desligado (`SIGFT_SEM_COMO_FUNCIONA`): os testes de
+  medida conferem cada pixel contra a interface antiga. A varredura de corte (`tests/_varredura.py`)
+  tira a variável e mede cada tela e cada aba também com o bloco aberto.
+- **Boas-vindas** (`sigft/app_qt/views/boas_vindas.py`, regra sem Qt em `sigft/app/boas_vindas.py`):
+  página da pilha (NÃO modal), registrada em `main.TELAS` com a chave `main.CHAVE_BOAS_VINDAS`
+  (`"BoasVindas"`) mas fora do menu lateral. `SIG_FT_App.__init__` monta a Home e, se
+  `boas_vindas.deve_mostrar_boas_vindas()`, mostra a página (`mostrar_boas_vindas`). A pergunta do
+  idioma já foi feita antes da janela; a do nome aparece por cima da página. Tem o título, uma frase,
+  3 cartões de caminho (`CAMINHOS`: Criar fichas novas → `CriaFichas`; Completar fichas que já existem
+  → `UploadConditions`; Acompanhar as listas de sobressalentes → `PMIBManager`), os lembretes do
+  "Como funciona" e do Ctrl+K e o botão "Ir para o início". Caminho cuja tela está em
+  `catalogo.TELAS_BLOQUEADAS` vem apagado (`#card:disabled`, `#card_titulo:disabled`), com a mesma
+  dica do menu (`catalogo.dica_do_menu`), e o clique não faz nada.
+  - **Quando aparece sozinha:** sem a opção `boas_vindas_vista` (`prefs`, seção `opcoes`) E sem
+    rastro de uso na pasta de dados (`rastros_de_uso`): entrada em `user_prefs.json` nas seções
+    `ultimos`, `categorias`, `pastas_padrao`, `arquivos`, `recentes` ou `colunas`
+    (`SECOES_DE_USO`); versão vista das novidades DIFERENTE da atual (a janela de novidades só
+    grava no app instalado e depois da decisão: versão anterior gravada é de quem atualizou);
+    `user_prefs.json` ilegível; arquivo em `logs/` que não seja da própria abertura
+    (`sigft.log`, `diario.*`, `queda.log*`), ou subpasta de `logs/` com arquivo; `api_config.json`
+    com alguma chave preenchida. Idioma, tema, letra, nome, a versão vista quando é a atual e as opções liga/desliga NÃO
+    contam: a primeira abertura os grava antes (ou logo depois) da decisão. Quem atualiza traz as
+    pastas no `user_prefs.json` (pela migração, se vier de antes da pasta de dados) e não vê.
+    Nunca levanta; na dúvida, a Home.
+  - **Vista:** "Ir para o início" e o clique num caminho gravam `boas_vindas_vista`
+    (`boas_vindas.marcar_vista`); só mostrar não grava (quem fecha o app sem escolher a vê de novo).
+  - **Reabre:** Ctrl+K `acao:boas_vindas` ("Boas-vindas"; acha em português também, como as outras
+    ações) e a seção **Ajuda** da janela Configuração ("Rever as boas-vindas", que fecha a janela).
+  - `main.PAGINAS_FORA_DO_MENU` (Home e boas-vindas): as páginas da pilha que não exigem botão no
+    menu nem cartão na Home (`tests/test_tela_correcao_pdm.py`).
+  - Nos testes não abre sozinha (`SIGFT_SEM_BOAS_VINDAS`, no `conftest`); quem testa a página tira a
+    variável. A varredura de corte (pt/es/en, letra Grande) passa por ela.
 
 ## Pontos de Atenção
 

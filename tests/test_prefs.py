@@ -493,8 +493,9 @@ def test_persistencia_estrutura_completa_do_json_apos_uso_combinado(tmp_path, co
     # de novidades. [2026-10-20] "preferencias" entrou com `gravar_preferencia`
     # -- o tema da interface (escuro/claro/sistema).
     # [2026-10-21] "recentes" entrou com `lembrar_recente` -- os últimos arquivos de cada diálogo.
+    # [2026-10-26] "colunas" entrou com `gravar_colunas` -- as colunas lembradas das tabelas.
     assert set(bruto.keys()) == {"ultimos", "categorias", "pastas_padrao", "arquivos", "opcoes",
-                                 "novidades", "preferencias", "recentes"}
+                                 "novidades", "preferencias", "recentes", "colunas"}
     assert bruto == {
         "ultimos": {"autospec.ficha": str(pasta_ultimo)},
         "categorias": {"excel": str(pasta_ultimo)},
@@ -506,6 +507,7 @@ def test_persistencia_estrutura_completa_do_json_apos_uso_combinado(tmp_path, co
         "novidades": {},
         "preferencias": {},
         "recentes": {},
+        "colunas": {},
     }
 
 
@@ -638,3 +640,23 @@ def test_preferencia_nao_apaga_as_outras_secoes(config_path):
 def test_preferencia_ilegivel_e_o_padrao(config_path, bruto):
     config_path.write_text(bruto, encoding="utf-8")
     assert prefs.ler_preferencia("tema", "escuro", config_path=config_path) == "escuro"
+
+
+# =============================================================================
+# ultima_pasta: só a camada da chave
+# =============================================================================
+
+def test_ultima_pasta_e_a_da_chave_sem_cair_na_categoria(tmp_path, config_path):
+    raiz = tmp_path / "raiz"
+    raiz.mkdir()
+    outra = tmp_path / "outra"
+    outra.mkdir()
+    prefs.remember_dir("pmib_manager.pasta_raiz", "pasta", str(raiz), config_path=config_path)
+    assert prefs.ultima_pasta("pmib_manager.pasta_raiz", config_path=config_path) == str(raiz)
+    prefs.remember_dir("outra.tela", "pasta", str(outra), config_path=config_path)
+    assert prefs.ultima_pasta("nunca.usada", config_path=config_path) is None
+
+
+def test_ultima_pasta_que_sumiu_e_none(tmp_path, config_path):
+    prefs.remember_dir("pmib_manager.pasta_raiz", "pasta", str(tmp_path / "sumiu"), config_path=config_path)
+    assert prefs.ultima_pasta("pmib_manager.pasta_raiz", config_path=config_path) is None

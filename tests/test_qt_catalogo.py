@@ -47,8 +47,8 @@ MODULOS_DA_HOME = [('CriaFichas',
   'da mesma seção.'),
  ('PMIBManager',
   'PMIB Manager',
-  'Atualiza o mapeamento a partir do Aconex: renomeia arquivos pelo RDS-PP, calcula o avanço, e mantém as '
-  'abas de lista de preços e de atividades.'),
+  'Atualiza o mapeamento a partir do Aconex, renomeia pelo RDS-PP e calcula o avanço. Em abas, confere as '
+  'revisões das listas e as revisa no AMP.'),
  ('SearchPMIB',
   'Busca PMIB',
   'Procura um código ou descrição nas planilhas de uma pasta inteira, sem abrir arquivo por arquivo.')]

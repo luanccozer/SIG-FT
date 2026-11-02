@@ -4,7 +4,7 @@ de importação (CP 0.2) do plano de refatoração — ver
 docs/refatoracao/PLANO_REFATORACAO.md.
 
 Este ambiente de teste NÃO tem as dependências pesadas de produção instaladas
-(pandas, openpyxl, playwright, google-generativeai, llama_parse, PyPDF2, bs4,
+(pandas, openpyxl, playwright, google-generativeai, llama_parse, pypdf, bs4,
 xlwings, deep_translator, unidecode etc.) — só a stdlib,
 `requests` e (depois de instalado só para rodar os testes) `pytest`.
 [CP 3.2] `langchain-google-genai`/`langchain-core` foram REMOVIDOS de
@@ -108,7 +108,7 @@ _HEAVY_MODULES = [
     # ambiente de teste — `providers/openai_compat.py`/`openrouter.py`
     # dependem disso para os testes injetarem `http_post`/`http_get` fakes
     # sem precisar do pacote de verdade em produção).
-    "PyPDF2",
+    "pypdf",
     "bs4",
     "llama_parse",
     # [CP 0.2] translator_backend.py — tradução PT->ES via Excel COM.
@@ -247,6 +247,20 @@ def _sem_janelas_do_fim_da_tarefa(monkeypatch):
     # [2026-10-21] O aviso do Windows (`app_qt/aviso_windows.py`) NUNCA nos
     # testes: a notificação sairia na máquina de quem roda a suíte.
     monkeypatch.setenv("SIGFT_SEM_AVISO_DO_WINDOWS", "1")
+    # [2026-10-26] O diário de quedas (`sigft/core/diario.py`) NUNCA nos testes: o
+    # `main()` dos testes gravaria no `logs/` e trocaria o `faulthandler` do pytest.
+    # Quem testa o diário tira a variável e usa uma pasta temporária.
+    monkeypatch.setenv("SIGFT_SEM_DIARIO", "1")
+    # [2026-10-28] O "Como funciona" (`app_qt/widgets/como_funciona.py`) fora dos
+    # testes de tela: os de medida conferem cada pixel contra a interface antiga,
+    # que não o tinha. Quem testa o bloco, ou varre as telas com ele (corte em
+    # pt/es/en e letra Grande), tira a variável. O nome é `ENV_DESLIGAR` de lá.
+    monkeypatch.setenv("SIGFT_SEM_COMO_FUNCIONA", "1")
+    # [2026-10-28] A boas-vindas (`sigft/app/boas_vindas.py`) nunca abre sozinha
+    # nos testes: a pasta de dados de cada teste é nova (sem rastro de uso), e a
+    # janela principal abriria nela em vez da Home. Quem testa a página tira a
+    # variável. O nome é `ENV_DESLIGAR` de lá.
+    monkeypatch.setenv("SIGFT_SEM_BOAS_VINDAS", "1")
 
 
 # 7. [2026-10-22] O idioma da interface (`sigft/app/idioma.py`) é estado do

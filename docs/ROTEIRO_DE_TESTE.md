@@ -607,6 +607,152 @@ antes — mande o log. Anote o tempo da ficha para comparar com uma rodada antig
 
 ---
 
+## Etapa 5b — Aconex ao vivo e Conferência de Revisões (2026-10-26, sem portal)
+
+A partir da **1.3.1-rc.1**; desde a **1.3.1-rc.2**, a Conferência é a aba **Conferência de Revisões**
+do PMIB Manager (na rc.1 era o item 10 do menu). É a validação na GE do desenho
+`docs/superpowers/specs/2026-10-26-aconex-ao-vivo-design.md` (portões G1 e G2,
+§10), e o que ela responder decide a Tarefa 11 do plano (ver
+`docs/ACONEX_AO_VIVO.md`). Nada aqui toca o portal.
+
+**Antes de começar:**
+
+- o SIG-FT 1.3.1-rc.1 instalado (caixa "Versões de teste" marcada, ou o
+  instalador do Release, à mão);
+- o **DocManager com o seu perfil do Aconex cadastrado nesta conta do
+  Windows**: o SIG-FT lê o mesmo `Documentos\DocManager_Itaipu\credenciais.json`;
+- a planilha de mapeamento e a pasta raiz dos `_STATUS_PMIB`, as mesmas do
+  Gestão PMIB.
+
+**5b.1 — Testar conexão (G1).** Abra o **PMIB Manager**, aba **Conferência de Revisões**. A mapeadora
+e a pasta raiz já vêm as do Gestão PMIB. Clique em **"Testar conexão com o
+Aconex"**. O console escreve 7 linhas, `OK` ou `FALHOU`:
+
+| Sonda | O que prova |
+|---|---|
+| Login no Aconex | o perfil do DocManager funciona nesta máquina |
+| Register inteiro (busca vazia) | quantos documentos o projeto tem: é a referência das outras |
+| Busca exata do código, com histórico | a busca que o download usa |
+| Busca pelo Tracking ID (duas sintaxes) | se dá para seguir uma lista renomeada sem baixar o histórico inteiro |
+| Busca por título | se dá para achar as listas de sobressalentes no servidor (`title:SOBRESSALENTES`) |
+| Listas novas | das que vieram pelo título, quantas têm PB020 no código e não são de preços (conferido no SIG-FT: o Aconex devolve HTTP 500 ao coringa no código) |
+
+Uma sintaxe que o Aconex ignora devolve o register inteiro e aparece como
+`FALHOU ... a sintaxe não filtrou`. **Copie as 7 linhas e mande**: elas decidem
+a Tarefa 11.
+
+**5b.2 — Gestão PMIB com o STATUS REAL.** Numa **cópia** da mapeadora, rode o
+Gestão PMIB com o extrato do dia, como sempre.
+
+1. O log deve trazer linhas "STATUS REAL de <código>: <antes> → <depois>".
+2. Escolha 3 listas (uma Aprovado, uma Para Assinatura e uma Em Processo) e
+   confira o STATUS REAL contra o status real que o DocManager mostra.
+3. Lista nova: só aparece a com PB020 no código; planilha de comissionamento
+   com "sobressalentes" no título não aparece.
+4. Power BI: atualize e confira "Listas Aprovadas" antes e depois (na base de
+   26/10: 93 listas, 67 aprovadas, 25 aprovadas sem fichas).
+
+**5b.3 — Conferência no Box de verdade.** Clique em **"Conferir revisões"**.
+
+1. Os totais por categoria batem com a mapeadora (na leitura de 26/10: 4
+   aprovadas e 1 não aprovada com divergência, 42 em dia, 48 sem
+   `_STATUS_PMIB`; os números mudam com a mapeadora).
+2. Os PDFs vão para a pasta do `_STATUS_PMIB` de cada lista, com o nome
+   `<código>[<revisão>].pdf`.
+3. **Rode de novo**: a segunda rodada não baixa nada (tudo "já existia").
+
+**5b.4 — Sem cofre.** Numa conta do Windows sem o DocManager: "Conferir
+revisões" mostra as listas e avisa "Sem conexão com o Aconex: as listas
+aparecem, mas nada foi baixado."
+
+O "Gestão PMIB ao vivo" (sem o extrato) chega com a Tarefa 11 e ganha os
+passos dele aqui.
+
+---
+
+## Etapa 5c — Revisão das listas no AMP (2026-10-27, sem portal)
+
+A partir da **1.3.1-rc.2**. É a validação na GE da peça 2
+(`docs/superpowers/specs/2026-10-27-amp-revisao-de-listas-design.md`, §9). O AMP só
+existe dentro da rede da GE: estes passos são no PC da GE. Nenhum arquivo é alterado:
+o resultado é um HTML novo na pasta de cada lista.
+
+**Antes de começar:**
+
+- o SIG-FT 1.3.1-rc.2 instalado;
+- o workflow `amp/revisao_de_listas/workflow_revisao_de_listas.json` importado e
+  **publicado** no n8n do AMP, com a credencial e o modelo ligados (passo a passo em
+  `amp/revisao_de_listas/LEIA-ME.md`);
+- em Configuração → Chaves de API: **AMP Webhook (URL)** com a *Production URL* do
+  webhook e **AMP Webhook (chave)** com o mesmo valor da credencial `X-SIGFT-Chave`;
+- a 5b.3 feita **nesta sessão do SIG-FT**: a Revisão no AMP parte da última conferência.
+
+**5c.1 — Testar conexão.** PMIB Manager → aba **Revisão no AMP** → **"Testar conexão com
+o AMP"**. O console escreve duas linhas:
+
+| Linha | O que prova |
+|---|---|
+| `OK      Ping: workflow 2026-10-27 ...` | a rede, a chave e o workflow publicado |
+| `OK      Eco: os N códigos voltaram iguais` | o AMP não mascara os códigos das listas nem os CÓDIGOS DO MATERIAL |
+
+`HTTP 401/403` é chave diferente da credencial; `HTTP 404`, workflow não publicado ou
+a URL de teste no lugar da *Production URL*. **`FALHOU  Eco: ... (mascarado pelo AMP?)`:
+pare aqui e mande as duas linhas**: com código mascarado, a tabela remontada não serve.
+
+**5c.2 — Uma lista.** Clique em **"Revisar no AMP"**. A rodada manda as listas da
+conferência uma por vez (até 15 minutos cada); para o primeiro teste, clique em
+**"Parar"** logo que a primeira lista for ao AMP: as outras ficam "parado".
+
+1. A coluna **AMP** da lista vira "HTML pronto: ...", e o arquivo
+   `<código>[<em uso>-<atual>] revisao AMP.html` aparece na pasta do `_STATUS_PMIB`.
+   Dois cliques na linha abrem o HTML.
+2. O HTML traz o resumo, o que mudou (com a página e o item de origem), as
+   divergências e o `_STATUS_PMIB` inteiro remontado.
+3. Anote o tempo: o console diz os segundos da lista.
+
+**5c.3 — Conferir o HTML.** Com os dois PDFs e o `_STATUS_PMIB` abertos, confira 5
+itens do "que mudou" contra as páginas citadas. Copie a tabela remontada e cole numa
+**cópia** do `_STATUS_PMIB` (nunca no original nesta fase): as colunas caem no lugar?
+
+**5c.4 — Se falhar.** A coluna AMP diz "falhou: ..." e o botão **"Copiar
+diagnóstico"** liga. Copie, abra uma conversa nova com o Claude (com o repositório
+luanccozer/SIG-FT) e cole: o texto traz os números do pedido, a resposta do n8n, o
+número da execução e onde está o código, sem texto de documento e sem a chave. O
+mesmo texto fica em `Documentos\SIG-FT\logs\amp\`, e a tabela de sintomas está no
+`amp/revisao_de_listas/LEIA-ME.md`. Com o número da execução, o n8n mostra (menu
+*Executions*) em que nó parou.
+
+---
+
+## Etapa 5d — Atualização automática (2026-10-27, sem portal)
+
+A partir da **1.3.1-rc.6**, com a caixa **"Versões de teste"** marcada. Só no
+Windows. O caminho de cada atualização fica no `Documentos\SIG-FT\logs\diario.log`,
+na linha `ATUALIZACAO` (por arquivos ou pelo instalador completo), e
+os detalhes no `sigft.log` (linhas `[atualizacao]`).
+
+**5d.1 — Por arquivos (rc instalada só para você).** Com uma rc instalada em
+`AppData\Local\Programs\SIG-FT Itaipu`, atualize para a rc seguinte. A janela diz
+"Aplicando a atualização…", o SIG-FT fecha e abre sozinho, sem instalador e sem
+pedido de permissão. Confira: a versão nova na Home, a linha
+`ATUALIZACAO por arquivos v<de> -> v<para>` no diário, e em Configurações >
+Aplicativos o SIG-FT Itaipu com a versão nova.
+
+**5d.2 — Program Files: a migração.** Numa máquina com o SIG-FT instalado
+**para todos** (Program Files):
+
+1. Atualize pelo app. Vem o **instalador completo** (desde a 1.3.2 não há mais
+   o instalador pequeno): ele instala a cópia só sua e pede a senha de
+   administrador uma vez, para remover a de Program Files. Confira: a pasta de
+   Program Files sumiu, o SIG-FT abre de `AppData\Local\Programs`, e
+   Documentos\SIG-FT (chaves, preferências) continua igual. Recusando a senha:
+   a cópia nova funciona, e a caixa (só no instalador aberto à mão) diz como
+   remover a antiga.
+2. **Fixe de novo o atalho na barra de tarefas**: o fixado apontava para Program
+   Files e deixa de abrir. Desafixe o velho e fixe o SIG-FT aberto.
+
+---
+
 ## Etapa 6 — Me mandar o resultado
 
 Copie e preencha:
@@ -656,6 +802,25 @@ ETAPA 5 — Portal, motor Playwright
   5.3 Mesmas 5 tarefas .................... [ OK / falhou: ______ ]
       login foi dispensado na 2ª vez? ..... [ sim / não ]
       mais rápido, igual ou mais lento? ... [ ______ ]
+
+ETAPA 5b — Aconex ao vivo e Conferência de Revisões
+  5b.1 Testar conexão ..................... [ colei as 7 linhas / falhou: ______ ]
+  5b.2 STATUS REAL igual ao do DocManager . [ ___ de 3 / falhou: ______ ]
+       lista nova só com PB020? ........... [ sim / não: ______ ]
+       Power BI igual antes e depois? ..... [ sim / não: ______ ]
+  5b.3 Categorias conferem? ............... [ sim / não: ______ ]
+       PDFs nas pastas certas? ............ [ sim / não: ______ ]
+       2ª rodada não baixou nada? ......... [ sim / não ]
+  5b.4 Sem cofre: avisou e não baixou? .... [ sim / não testei ]
+
+ETAPA 5c — Revisão das listas no AMP
+  5c.1 Ping .............................. [ OK / falhou: ______ ]
+       Eco: códigos voltaram iguais? ..... [ sim / mascarado: ______ ]
+  5c.2 HTML gravado na pasta? ............ [ sim / falhou: ______ ]
+       tempo da lista .................... [ ____ s ]
+  5c.3 5 itens conferem com os PDFs? ..... [ ___ de 5 ]
+       tabela colou no lugar? ............ [ sim / não: ______ ]
+  5c.4 Falhou? colei o diagnóstico ....... [ não falhou / colei na conversa ]
 ```
 
 ---

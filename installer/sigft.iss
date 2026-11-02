@@ -8,17 +8,17 @@
 ;      iscc /DMyAppVersion=1.0.0 installer\sigft.iss
 ;  Saida: installer\Output\SIG-FT_Itaipu_Setup.exe
 ;
-;  [2026-10-07] MODO ATUALIZACAO -- o instalador PEQUENO, so com o que mudou:
-;      iscc /DAtualizacao=1 /DVersaoDe=1.2.0-rc.3 /DMyAppVersion=1.2.0-rc.4 installer\sigft.iss
-;  Quem chama e o tools/gerar_atualizacao.py (no release.yml), depois de gerar
-;  ao lado deste arquivo as duas listas que ele inclui. Saida:
-;  installer\Output\SIG-FT_Itaipu_Atualizacao.exe. Ver
-;  docs/superpowers/specs/2026-10-07-atualizacao-incremental-design.md.
+;  [2026-10-30] O modo atualizacao (/DAtualizacao=1, o instalador PEQUENO,
+;  de 2026-10-07 a 2026-10-30) saiu: a atualizacao pequena agora e so o .zip
+;  de arquivos que o proprio app aplica (sigft/services/pacote_arquivos.py),
+;  como no DocManager. Este arquivo gera so o instalador completo.
 ;
 ;  ⚠️ Este arquivo tem testes: tests/test_instalador.py le as diretivas daqui
 ;  e reprova as armadilhas que ja custaram caro a alguem (o AppMutex que
 ;  travava a instalacao, a versao com sufixo, o [InstallDelete] largo demais,
-;  o AppUserModelID divergente e o app que nao reabria depois de atualizar).
+;  o AppUserModelID divergente e o app que nao reabria depois de atualizar),
+;  e a instalacao sempre "so para mim", com a migracao de quem estava em
+;  Program Files (secao C).
 ;  Verde nele nao prova que o instalador COMPILA -- so o Windows com o Inno
 ;  Setup diz isso.
 ; ============================================================================
@@ -52,14 +52,6 @@
 #define AppName "SIG-FT Itaipu"
 #define AppExe "SIG-FT.exe"
 
-; O instalador pequeno so serve para a versao de onde a diferenca saiu: sem
-; ela, nao ha o que conferir antes de copiar (ver PrepareToInstall, no [Code]).
-#ifdef Atualizacao
-  #ifndef VersaoDe
-    #error Modo atualizacao sem /DVersaoDe=<a versao instalada que ele atualiza>
-  #endif
-#endif
-
 [Setup]
 AppId={{9F2C4A18-51D7-4E0B-9A3C-5B7E1D6A2C40}
 AppName={#AppName}
@@ -72,14 +64,7 @@ DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=Output
-#ifdef Atualizacao
-OutputBaseFilename=SIG-FT_Itaipu_Atualizacao
-; Vai para onde o SIG-FT ja esta (UsePreviousAppDir, padrao do Inno).
-DisableDirPage=yes
-DisableReadyPage=yes
-#else
 OutputBaseFilename=SIG-FT_Itaipu_Setup
-#endif
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -89,12 +74,24 @@ SetupIconFile=..\assets\icone-sig-ft.ico
 UninstallDisplayIcon={app}\{#AppExe}
 
 ; --- Escopo da instalacao -------------------------------------------------
-; O padrao continua sendo "para todos" (Program Files, com admin), mas o
-; instalador PERGUNTA -- pedido do usuario. Quem nao tem senha de
-; administrador escolhe "somente para mim" e vai para %LOCALAPPDATA%\Programs;
-; ai a atualizacao automatica roda sem nenhum popup do UAC.
-PrivilegesRequired=admin
-PrivilegesRequiredOverridesAllowed=dialog commandline
+; [2026-10-27] SEMPRE "so para mim", sem pergunta -- pedido do usuario
+; ("eliminar o que esta em Program Files e basear tudo so no que fazemos
+; agora"). Com `lowest`, {autopf} e %LOCALAPPDATA%\Programs: nao pede senha de
+; administrador, e a pasta do programa aceita escrita -- que e o que a
+; atualizacao por arquivos (a do CMI Suite, `updater.aplicar_por_arquivos`)
+; precisa. Ate aqui o padrao era Program Files com a pergunta do escopo
+; (`admin` + `dialog`); quem a respondeu "para todos" e MIGRADO na proxima
+; atualizacao completa (ver `MigrarDaInstalacaoParaTodos`, no [Code]).
+;
+; So `commandline`, sem `dialog`: sem `dialog` o Inno nao pergunta. O app
+; passa `/CURRENTUSER` explicito (`updater.instalar`); `/ALLUSERS` continua
+; aceito para a TI, mas nada no SIG-FT o usa.
+;
+; [2026-10-30] O instalador PEQUENO, que ficava com `admin` + `dialog` por
+; causa dos apps antigos em Program Files, saiu: os apps ate a 1.3.1 nao o
+; acham mais no Release e baixam este, o completo, que os migra.
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=commandline
 
 ; --- Atualizacao por cima da versao anterior ------------------------------
 ; O Windows nao deixa sobrescrever um .exe em execucao: o SIG-FT aberto tem de
@@ -121,11 +118,8 @@ RestartApplications=yes
 [Languages]
 Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
 
-#ifndef Atualizacao
-; Atalhos so no completo: no pequeno eles ja existem, e o [Tasks] perguntaria de novo.
 [Tasks]
 Name: "desktopicon"; Description: "Criar atalho na Area de Trabalho"; GroupDescription: "Atalhos:"; Flags: checkedonce
-#endif
 
 [InstallDelete]
 ; O Inno sobrescreve o que esta em [Files], mas NAO apaga o que sumiu entre
@@ -136,28 +130,15 @@ Name: "desktopicon"; Description: "Criar atalho na Area de Trabalho"; GroupDescr
 ; `unins000.dat`, o registro do que o instalador escreveu: apagando-o, a
 ; entrada em Programas e Recursos fica orfa e o SIG-FT deixa de ser
 ; desinstalavel pelo caminho normal. tests/test_instalador.py reprova isso.
-#ifdef Atualizacao
-; O PEQUENO apaga so o que sumiu desde a VersaoDe, arquivo por arquivo. Limpar
-; o _internal inteiro, como o completo faz, apagaria tudo o que ele nao traz --
-; e ele so traz o que mudou. tests/test_instalador.py (secao I) reprova isso.
-#include "atualizacao_remover.iss"
-#else
 Type: filesandordirs; Name: "{app}\_internal"
-#endif
 
 [Files]
-#ifdef Atualizacao
-; So os arquivos que mudaram desde a VersaoDe (o CHANGELOG entra quando muda).
-#include "atualizacao_arquivos.iss"
-#else
 ; Toda a pasta onedir gerada pelo PyInstaller.
 Source: "..\dist\SIG-FT\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 ; O CHANGELOG viaja junto: e dele que sai o "o que ha de novo" depois de
 ; atualizar. Sem ele no pacote, a janela de novidades abre vazia.
 Source: "..\CHANGELOG.md"; DestDir: "{app}"; Flags: ignoreversion
-#endif
 
-#ifndef Atualizacao
 [Icons]
 ; O AppUserModelID e o MESMO que o programa declara em
 ; sigft/core/instancia.py, antes de a primeira janela existir. Divergindo, o
@@ -169,7 +150,6 @@ Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"; \
 Name: "{group}\Desinstalar {#AppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; \
     AppUserModelID: "GEVernova.SIGFT.Itaipu"; Tasks: desktopicon
-#endif
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "Abrir o {#AppName}"; \
@@ -213,47 +193,112 @@ begin
   Result := ExpandConstant('{param:REABRIR|0}') = '1';
 end;
 
-#ifdef Atualizacao
-// [2026-10-07] O instalador PEQUENO so serve para a versao de onde a
-// diferenca foi calculada (VersaoDe): sobre outra, ele deixaria uma mistura
-// das duas. A versao instalada e a do registro do desinstalador
-// (DisplayVersion, que o Inno grava a partir do AppVersion -- do completo e
-// do pequeno), na mesma visao em que esta instalacao vai gravar. Diferente:
-// nada e copiado, e o app volta a abrir; na abertura seguinte o app escolhe o
-// arquivo pelo que de fato esta instalado.
+// [2026-10-27] O instalador avisa que SUBIU, nos dois modos (pequeno e
+// completo). A atualizacao automatica passa /SINAL=<arquivo> (PARAM_SINAL em
+// sigft/services/updater.py) e so fecha o SIG-FT depois que este arquivo
+// existe; se o instalador morrer antes (antivirus, politica, UAC recusado), o
+// app continua aberto e diz por que. Copiado do CMI Suite (e do DocManager).
+// Sem /SINAL (instalacao a mao), nada muda. Quem fecha o app que ainda estiver
+// aberto continua sendo o CloseApplications=force.
+function InitializeSetup(): Boolean;
+var
+  Sinal: String;
+begin
+  Sinal := ExpandConstant('{param:SINAL|}');
+  if Sinal <> '' then
+    SaveStringToFile(Sinal, 'pronto', False);
+  Result := True;
+end;
+
+// [2026-10-27] Migracao da instalacao "para todos" (Program Files) para a
+// "so para mim". O instalador agora e sempre por usuario (PrivilegesRequired=
+// lowest); quem tinha o SIG-FT em Program Files ficaria com DUAS copias, e o
+// atalho publico antigo continuaria abrindo a versao velha -- que ofereceria a
+// atualizacao de novo, sem fim. Entao, depois de instalar a copia do usuario
+// (ssPostInstall: os arquivos novos ja estao no lugar), se a chave do
+// desinstalador existe em HKLM, o desinstalador ANTIGO roda elevado (`runas`,
+// o UAC pede a senha uma vez), silencioso, e o instalador espera ele acabar.
+//
+// Por que e seguro:
+//   - o app antigo ja fechou: ele so fecha depois de ver o arquivo do /SINAL,
+//     que o InitializeSetup cria logo ao subir; e o CloseApplications=force
+//     fecha o que restar antes de copiar os arquivos;
+//   - o desinstalador antigo so mexe no que ELE instalou (o unins000.dat de
+//     Program Files): a pasta de Program Files, a chave em HKLM e os atalhos
+//     publicos (Menu Iniciar e Area de Trabalho comuns). Nunca Documentos\SIG-FT
+//     (chaves de API, preferencias, logs): nenhum .iss do SIG-FT alcanca essa
+//     pasta (tests/test_instalador.py, secao E), e os atalhos novos ficam no
+//     perfil do usuario, fora do alcance dele;
+//   - se o UAC for recusado ou a desinstalacao falhar, segue: a copia do
+//     usuario ja esta instalada e funciona. Fica so o registro no log do
+//     instalador -- e, na proxima atualizacao completa, nova tentativa.
+// Em /SILENT o `runas` ainda mostra o UAC: e o esperado, uma vez, para quem
+// tinha o SIG-FT para todos. Isto roda depois das entradas do [Run] (ordem do
+// Inno): o app reaberto ja e o novo, e a janela do UAC aparece sobre ele.
 const
   ChaveDesinstalar = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{9F2C4A18-51D7-4E0B-9A3C-5B7E1D6A2C40}_is1';
 
-function VersaoInstalada: String;
+function DesinstaladorParaTodos(var Exe: String): Boolean;
+var
+  Comando: String;
 begin
-  Result := '';
-  if IsAdminInstallMode then
-  begin
-    if IsWin64 then
-      RegQueryStringValue(HKLM64, ChaveDesinstalar, 'DisplayVersion', Result);
-    if Result = '' then
-      RegQueryStringValue(HKLM32, ChaveDesinstalar, 'DisplayVersion', Result);
-  end
-  else
-    RegQueryStringValue(HKCU, ChaveDesinstalar, 'DisplayVersion', Result);
+  Comando := '';
+  if IsWin64 then
+    RegQueryStringValue(HKLM64, ChaveDesinstalar, 'UninstallString', Comando);
+  if Comando = '' then
+    RegQueryStringValue(HKLM32, ChaveDesinstalar, 'UninstallString', Comando);
+  // O Inno grava o UninstallString com aspas: "C:\...\unins000.exe".
+  Exe := RemoveQuotes(Trim(Comando));
+  Result := Exe <> '';
 end;
 
-function PrepareToInstall(var NeedsRestart: Boolean): String;
+// [2026-10-27] Recusada (UAC negado, sem a senha de administrador) ou com
+// erro, a migracao AVISA quem esta vendo, uma vez: sem isso a pessoa ficaria
+// com duas copias sem saber, e o atalho publico abriria a velha. No modo
+// silencioso (a atualizacao automatica), so o log -- caixa ali nao tem quem
+// leia, e a proxima atualizacao completa tenta de novo.
+procedure MigrarDaInstalacaoParaTodos;
 var
-  Instalada: String;
+  Exe: String;
   Codigo: Integer;
+  Removida: Boolean;
 begin
-  Result := '';
-  Instalada := VersaoInstalada;
-  if Instalada <> '{#VersaoDe}' then
+  // Rodando elevado (/ALLUSERS da TI), a instalacao E a de HKLM: nada a migrar.
+  if IsAdminInstallMode or not DesinstaladorParaTodos(Exe) then
+    Exit;
+  if not FileExists(Exe) then
   begin
-    if Instalada = '' then
-      Instalada := '(nenhuma)';
-    Log('Atualizacao recusada: instalada ' + Instalada + ', esperada {#VersaoDe}.');
-    Result := 'Esta atualizacao leva o SIG-FT da v{#VersaoDe} para a v{#MyAppVersion}, mas a versao ' +
-              'instalada e ' + Instalada + '. Nada foi alterado: use o instalador completo, na pagina de Releases.';
-    if ReabrirDepoisDeAtualizar then
-      ExecAsOriginalUser(ExpandConstant('{app}\{#AppExe}'), '', '', SW_SHOWNORMAL, ewNoWait, Codigo);
+    Log('Migracao: chave da instalacao para todos aponta para ' + Exe + ', que nao existe. Nada a remover.');
+    Exit;
+  end;
+  Log('Migracao: removendo a copia para todos os usuarios (' + Exe + '), com o UAC.');
+  Removida := False;
+  if not ShellExec('runas', Exe, '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '',
+                   SW_HIDE, ewWaitUntilTerminated, Codigo) then
+    Log('Migracao: o desinstalador antigo nao rodou (' + SysErrorMessage(Codigo) +
+        '; 1223 = UAC recusado). A copia so para voce ja esta instalada e funciona.')
+  else if Codigo <> 0 then
+    Log(Format('Migracao: o desinstalador antigo saiu com o codigo %d. A copia so para voce ja esta instalada.', [Codigo]))
+  else
+  begin
+    Log('Migracao: a copia para todos os usuarios foi removida.');
+    Removida := True;
+  end;
+  if not Removida then
+  begin
+    if not WizardSilent then
+      MsgBox('A versao nova do SIG-FT Itaipu ja esta instalada so para voce e funciona normalmente.' + #13#10#13#10 +
+             'A copia antiga, instalada para todos os usuarios em Program Files, continua neste computador: ' +
+             'o Windows nao deu a permissao de administrador para remove-la.' + #13#10#13#10 +
+             'Para remove-la: Configuracoes > Aplicativos > SIG-FT Itaipu (a entrada que pede a senha de ' +
+             'administrador) > Desinstalar.', mbInformation, MB_OK)
+    else
+      Log('Migracao: modo silencioso, sem aviso na tela. A copia de Program Files continua; a proxima atualizacao completa tenta de novo.');
   end;
 end;
-#endif
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    MigrarDaInstalacaoParaTodos;
+end;

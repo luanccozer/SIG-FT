@@ -197,6 +197,7 @@ CONVERTIDOS: tuple[str, ...] = (
     "sigft/app_qt/widgets/arrastar.py",
     "sigft/app_qt/widgets/atividade.py",
     "sigft/app_qt/widgets/blocos.py",
+    "sigft/app_qt/widgets/colunas.py",
     "sigft/app_qt/widgets/console.py",
     "sigft/app_qt/widgets/controles.py",
     "sigft/app_qt/widgets/dialogos_selecao.py",
@@ -256,6 +257,16 @@ CONVERTIDOS: tuple[str, ...] = (
     "sigft/app_qt/views/busca_pmib.py",
     "sigft/app_qt/views/lmr.py",
     "sigft/app_qt/views/pmib_manager.py",
+    # Aconex ao vivo (2026-10-26): Conferência de Revisões
+    "sigft/app_qt/views/conferencia_revisoes.py",
+    # Revisão das listas pelo AMP (2026-10-27): as abas do PMIB Manager
+    "sigft/app_qt/views/gestao_sobressalentes.py",
+    "sigft/app_qt/views/revisao_amp.py",
+    # Ajuda para quem começa (2026-10-28): o "Como funciona" de cada tela
+    "sigft/app/como_funciona.py",
+    "sigft/app_qt/widgets/como_funciona.py",
+    # Ajuda para quem começa (2026-10-28): a boas-vindas
+    "sigft/app_qt/views/boas_vindas.py",
 )
 
 # Literais que a varredura acusa e que ficam em português de propósito, por
@@ -290,6 +301,8 @@ NAO_E_INTERFACE: dict[str, set[str]] = {
         "Home",
         # O título da janela: nome do produto e a versão.
         "f'SIG-FT v{_build_info.VERSAO} - GE Vernova'",
+        # O `onde` do erro no diário de quedas: linha de log, não tela (2026-10-27).
+        "abertura da janela",
         # O aviso de quando a Qt não sobe: antes de o idioma valer.
         "f'A Qt não conseguiu iniciar:\\n{texto}'",
         # O relatório do --smoke: quem lê é o Release, não a pessoa.
