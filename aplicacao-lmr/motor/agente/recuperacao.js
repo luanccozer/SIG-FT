@@ -124,6 +124,74 @@ const RECUPERACAO = (() => {
     return { tarefas: lista, sobra: fila };
   }
 
-  return { lacunas, tarefas };
+  const compacto = v => String(v == null ? '' : v).toUpperCase().replace(/\s+/g, '');
+  const noTextoDasPaginas = (valor, paginas, indexados) => paginas.some(p => compacto((indexados[p.k].paginas[p.pagina - 1] || {}).texto).includes(compacto(valor)));
+  const vazio = pmib => ({ pmib, encontrado: false, papel: null, kit: false, tags: [], pais: [], area: null, elevacao: null, qtd_instalada: null, frequencia: null, evidencia: '' });
+
+  /**
+   * Respostas do Recuperador → uma resposta da etapa 4 (R.materiais + o que foi achado), que entra por último em
+   * montaBaseDoAgente e passa pelas mesmas conferências das outras. Só preenche o que estava vazio ou foi recusado.
+   */
+  function aplica({ respostasR, lacunas: enviadas, R, indexados }) {
+    const A = typeof AGENTE !== 'undefined' ? AGENTE : require('./agente.js');
+    const M = typeof LMR !== 'undefined' ? LMR : require('../lmr.js');
+    const porId = new Map(enviadas.map(l => [l.id, l]));
+    const respondidas = new Set(), pendencias = [], materiais = new Map();
+    const pende = (l, detalhe) => pendencias.push({ PMIB: l ? l.pmib : '', ITEM: l ? l.item : '', 'DESCRIÇÃO': l ? l.descricao : 'RECUPERADOR', TIPO: 'RECUPERADOR', DETALHE: detalhe });
+    const doMaterial = pmib => {
+      if (!materiais.has(pmib)) { const m = R.materiais.get(pmib); materiais.set(pmib, m ? { ...m, tags: (m.tags || []).map(x => (x && typeof x === 'object' ? { ...x } : { tag: x })) } : vazio(pmib)); }
+      return materiais.get(pmib);
+    };
+    const alterados = new Set();
+    let resolvidas = 0;
+    for (const { texto } of respostasR) {
+      const j = A.jsonDaResposta(texto);
+      for (const x of (j && Array.isArray(j.recuperacoes) ? j.recuperacoes : [])) {
+        const id = t(x && x.lacuna), l = porId.get(id);
+        if (!l) { pende(null, `resposta para a lacuna ${id || '(sem id)'}, que não foi pedida: ignorada`); continue; }
+        if (t(x.campo) !== l.campo) { pende(l, `${id}: respondeu o campo ${t(x.campo) || '(vazio)'}, mas o pedido era ${l.campo}: ignorada`); respondidas.add(id); continue; }
+        respondidas.add(id);
+        if (x.achou !== true) { pende(l, `${id} (${l.campo}${l.tag ? ` da TAG ${l.tag}` : ''}): não achou${t(x.procurou) ? `; procurou em ${t(x.procurou)}` : ''}`); continue; }
+        const fonte = t(x.evidencia);
+        const mantem = atual => pende(l, `${id}: ${l.campo} já preenchido com ${atual}; mantido o valor (sugestão ignorada: ${t(x.valor)})`);
+        const anotaFonte = m => { m.evidencia = [t(m.evidencia), `recuperador: ${fonte}`].filter(Boolean).join('; '); };
+        if (l.campo === 'tag') {
+          const novas = (Array.isArray(x.valor) ? x.valor : [x.valor]).map(t).filter(Boolean);
+          if (!/^(proprio|peca)$/i.test(t(x.papel))) { pende(l, `${id}: TAG ${novas.join(', ')} sem papel (proprio ou peca): não entra`); continue; }
+          const fora = novas.filter(v => !noTextoDasPaginas(v, l.paginas, indexados));
+          if (!novas.length || fora.length) { pende(l, `${id}: TAG ${fora.join(', ') || '(vazia)'} não está no texto das páginas citadas: não entra`); continue; }
+          const m = doMaterial(l.pmib);
+          if (!l.tag && m.tags.length) { mantem(m.tags.map(y => y.tag).join(', ')); continue; }
+          m.tags = [...m.tags.filter(y => y.tag !== l.tag), ...novas.map(tag => ({ tag, area: null, rds_proprio: null, elevacao: null }))];
+          m.encontrado = true; m.papel = t(x.papel).toLowerCase();
+          anotaFonte(m);
+        } else if (l.campo === 'area' || l.campo === 'elevacao') {
+          const valor = l.campo === 'elevacao' ? M.formataElevacao(x.valor).valor : t(x.valor);
+          if (!valor) { pende(l, `${id}: ${l.campo} inválido (${t(x.valor)}): não entra`); continue; }
+          const m = doMaterial(l.pmib), alvo = m.tags.find(y => y.tag === l.tag);
+          if (!alvo) { pende(l, `${id}: a TAG ${l.tag} não está mais no material: não entra`); continue; }
+          if (t(alvo[l.campo]) && !l.valorLido) { mantem(t(alvo[l.campo])); continue; }
+          alvo[l.campo] = valor;
+          anotaFonte(m);
+        } else {
+          const q = Number(String(x.valor == null ? '' : x.valor).replace(',', '.'));
+          if (!(q > 0)) { pende(l, `${id}: quantidade inválida (${t(x.valor)}): não entra`); continue; }
+          if (/&MPB/i.test(fonte) && !/&(MPA|APA|EPA|MLU|MTB|MTC|MLD|MFB|EFF)|LISTA DE MATERIA/i.test(fonte)) { pende(l, `${id}: quantidade ${q} recusada: a fonte é a lista de sobressalentes (reposição)`); continue; }
+          const m = doMaterial(l.pmib);
+          if (m.qtd_instalada) { mantem(m.qtd_instalada); continue; }
+          m.qtd_instalada = q;
+          anotaFonte(m);
+        }
+        alterados.add(l.pmib);
+        resolvidas++;
+      }
+    }
+    for (const l of enviadas) if (!respondidas.has(l.id)) pende(l, `${l.id} (${l.campo}${l.tag ? ` da TAG ${l.tag}` : ''}): sem resposta do Recuperador`);
+    const lista = [...alterados].map(p => materiais.get(p));
+    return { resposta: lista.length ? { arquivo: 'recuperador', texto: JSON.stringify({ etapa: 4, parte: 'R', arquivos: [], controle: [], observacoes: [], materiais: lista }) } : null,
+      pendencias, enviadas: enviadas.length, resolvidas };
+  }
+
+  return { lacunas, tarefas, aplica };
 })();
 if (typeof module !== 'undefined') module.exports = RECUPERACAO;

@@ -116,5 +116,88 @@ const lacunaFicticia = (i, prioridade = 1, paginas = [{ k: 1, pagina: 1 }]) => (
   ok(tarefas.length === 1 && tarefas[0].caracteres <= 80000, `página enorme: ${tarefas.map(x => x.caracteres)}`);
 }
 
+// ── Task 2: aplica ──
+const respostaR = (...recuperacoes) => [{ arquivo: 'recuperador parte 1', texto: F.texto({ etapa: 'R', parte: '1', recuperacoes }) }];
+const lacunaDe = (id, pmib, campo, tag, valorLido = '') => ({ id, pmib, item: '1', descricao: 'x', codigo: 'c', campo, tag, prioridade: 1, valorLido, paginas: [{ k: 1, pagina: 1 }] });
+const aplica = (materiais, lacunas, recuperacoes) => {
+  const Rl = AGENTE.leRespostas(F.respostasBoas(materiais));
+  return R.aplica({ respostasR: respostaR(...recuperacoes), lacunas, R: Rl, indexados });
+};
+const doMaterial = (r, pmib) => JSON.parse(r.resposta.texto).materiais.find(x => x.pmib === pmib);
+const semMaterial = n => F.materiaisBons().filter(x => x.pmib !== P(n));
+{
+  const r = aplica(semMaterial(2), [lacunaDe('L-1', P(2), 'tag', null)], [{ lacuna: 'L-1', achou: true, campo: 'tag', valor: ['GP102'], papel: 'peca', evidencia: 'doc p.1', procurou: '' }]);
+  const x = doMaterial(r, P(2));
+  ok(x && x.encontrado === true && x.papel === 'peca' && x.tags.map(y => y.tag).join() === 'GP102', `tag recuperada: ${JSON.stringify(x)}`);
+  ok(r.enviadas === 1 && r.resolvidas === 1 && !r.pendencias.length, `contagem: ${r.enviadas}/${r.resolvidas}/${r.pendencias.length}`);
+  ok(JSON.parse(r.resposta.texto).etapa === 4 && JSON.parse(r.resposta.texto).parte === 'R', 'resposta sintética da etapa 4');
+}
+{
+  const r = aplica(semMaterial(2), [lacunaDe('L-1', P(2), 'tag', null)], [{ lacuna: 'L-1', achou: true, campo: 'tag', valor: ['ZZ999'], papel: 'peca', evidencia: 'doc p.1' }]);
+  ok(!r.resposta && r.resolvidas === 0, 'TAG fora do texto não entra');
+  ok(r.pendencias.length === 1 && r.pendencias[0].TIPO === 'RECUPERADOR' && r.pendencias[0].DETALHE.includes('ZZ999'), `pendência: ${JSON.stringify(r.pendencias)}`);
+}
+{
+  const ms = F.materiaisBons();
+  ms[0].tags = [F.tag('ZZ999'), F.tag('GP102')];
+  const r = aplica(ms, [lacunaDe('L-1', P(1), 'tag', 'ZZ999')], [{ lacuna: 'L-1', achou: true, campo: 'tag', valor: 'GP101', papel: 'proprio', evidencia: 'doc p.1' }]);
+  ok(doMaterial(r, P(1)).tags.map(y => y.tag).sort().join() === 'GP101,GP102', `troca a TAG inválida: ${JSON.stringify(doMaterial(r, P(1)).tags)}`);
+}
+{
+  const ms = F.materiaisBons();
+  ms[0].tags = [{ tag: 'GP101', area: null }, { tag: 'GP102', area: 'SKID' }];
+  const r = aplica(ms, [lacunaDe('L-1', P(1), 'area', 'GP101')], [{ lacuna: 'L-1', achou: true, campo: 'area', valor: 'SKID', evidencia: 'doc p.1' }]);
+  const x = doMaterial(r, P(1));
+  ok(x.tags.find(y => y.tag === 'GP101').area === 'SKID' && x.tags.find(y => y.tag === 'GP102').area === 'SKID', `área: ${JSON.stringify(x.tags)}`);
+}
+{
+  const r = aplica(F.materiaisBons(), [lacunaDe('L-1', P(1), 'elevacao', 'GP101')], [{ lacuna: 'L-1', achou: true, campo: 'elevacao', valor: '98.5', evidencia: 'doc p.1' }]);
+  ok(doMaterial(r, P(1)).tags[0].elevacao === '98,50', `elevação normalizada: ${JSON.stringify(doMaterial(r, P(1)).tags)}`);
+  const inv = aplica(F.materiaisBons(), [lacunaDe('L-1', P(1), 'elevacao', 'GP101')], [{ lacuna: 'L-1', achou: true, campo: 'elevacao', valor: 'alta', evidencia: 'doc p.1' }]);
+  ok(!inv.resposta && inv.pendencias.length === 1, 'elevação inválida vira pendência');
+}
+{
+  const ms = F.materiaisBons();
+  ms[5].qtd_instalada = null;
+  const r = aplica(ms, [lacunaDe('L-1', P(6), 'qtd_instalada', null)], [{ lacuna: 'L-1', achou: true, campo: 'qtd_instalada', valor: 4, evidencia: '#ST00=M00ABC10UZ010-UZ901&MPA010 p.2' }]);
+  const x = doMaterial(r, P(6));
+  ok(x.qtd_instalada === 4 && x.evidencia.includes('&MPA010 p.2') && x.evidencia.includes('recuperador'), `quantidade: ${JSON.stringify(x)}`);
+  const rep = aplica(ms, [lacunaDe('L-1', P(6), 'qtd_instalada', null)], [{ lacuna: 'L-1', achou: true, campo: 'qtd_instalada', valor: 4, evidencia: '#ST00=M00ABC10&MPB020 p.1' }]);
+  ok(!rep.resposta && rep.pendencias.length === 1, 'quantidade da lista de sobressalentes é recusada');
+}
+{
+  const r = aplica(semMaterial(2), [lacunaDe('L-1', P(2), 'tag', null)], [{ lacuna: 'L-1', achou: false, campo: 'tag', valor: null, evidencia: '', procurou: 'doc X p.3' }]);
+  ok(r.pendencias.length === 1 && r.pendencias[0].DETALHE.includes('doc X p.3'), `não achou: ${JSON.stringify(r.pendencias)}`);
+}
+{
+  const r = aplica(F.materiaisBons(), [lacunaDe('L-1', P(1), 'area', 'GP101')], [{ lacuna: 'L-1', achou: true, campo: 'area', valor: 'OUTRA', evidencia: 'doc p.1' }]);
+  ok(!r.resposta && r.pendencias[0].DETALHE.includes('SKID'), `campo já preenchido não muda: ${JSON.stringify(r.pendencias)}`);
+  const inv = aplica(F.materiaisBons(), [lacunaDe('L-1', P(1), 'area', 'GP101', 'SKID')], [{ lacuna: 'L-1', achou: true, campo: 'area', valor: 'OUTRA', evidencia: 'doc p.1' }]);
+  ok(doMaterial(inv, P(1)).tags[0].area === 'OUTRA', 'valor recusado pelo motor pode ser substituído');
+}
+{
+  const r = aplica(semMaterial(2), [lacunaDe('L-1', P(2), 'tag', null)], [{ lacuna: 'L-9', achou: true, campo: 'tag', valor: ['GP102'], papel: 'peca' }, { lacuna: 'L-1', achou: true, campo: 'area', valor: 'SKID' }]);
+  ok(!r.resposta && r.resolvidas === 0 && r.pendencias.length >= 2 && r.pendencias.some(p => p.DETALHE.includes('L-9')), `lacuna desconhecida ou campo trocado: ${JSON.stringify(r.pendencias)}`);
+}
+{
+  const r = aplica(semMaterial(2), [lacunaDe('L-1', P(2), 'tag', null)], []);
+  ok(r.pendencias.length === 1 && /sem resposta do Recuperador/.test(r.pendencias[0].DETALHE), `sem resposta: ${JSON.stringify(r.pendencias)}`);
+  const Rl = AGENTE.leRespostas(F.respostasBoas(semMaterial(2)));
+  const q = R.aplica({ respostasR: [{ arquivo: 'r', texto: 'não é JSON' }], lacunas: [lacunaDe('L-1', P(2), 'tag', null), lacunaDe('L-2', P(1), 'elevacao', 'GP101')], R: Rl, indexados });
+  ok(!q.resposta && q.pendencias.length === 2, `resposta sem JSON: ${JSON.stringify(q.pendencias)}`);
+}
+{
+  const r = aplica(semMaterial(2), [lacunaDe('L-1', P(2), 'tag', null)], [{ lacuna: 'L-1', achou: true, campo: 'tag', valor: ['GP102'], evidencia: 'doc p.1' }]);
+  ok(!r.resposta && r.pendencias.length === 1 && /papel/.test(r.pendencias[0].DETALHE), `tag sem papel: ${JSON.stringify(r.pendencias)}`);
+}
+{
+  const ms = semMaterial(2);
+  const rs = F.respostasBoas(ms);
+  const a = R.aplica({ respostasR: respostaR({ lacuna: 'L-1', achou: true, campo: 'tag', valor: ['GP102'], papel: 'proprio', evidencia: 'doc p.1' }), lacunas: [lacunaDe('L-1', P(2), 'tag', null)], R: AGENTE.leRespostas(rs), indexados });
+  const m = monta([...rs, a.resposta]);
+  ok(m.base.some(x => x.FICHA_PMIB === P(2) && x.TAG === 'GP102' && x['ÁREA/PAINEL'] === 'SKID'), 'integração: PMIB recuperado tem linha com a TAG e a área da tabela');
+  ok(R.aplica({ respostasR: [], lacunas: [], R: AGENTE.leRespostas(rs), indexados }).resposta === null, 'sem lacunas: resposta null');
+}
+
 console.log(falhas ? `${falhas} FALHA(S)` : 'TUDO OK');
 process.exit(falhas ? 1 : 0);
