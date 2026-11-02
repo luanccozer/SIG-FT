@@ -54,3 +54,38 @@ Etapa que o ROTEIRO manda **PULAR** (sistema sem esse tipo de documento): siga p
 - Quantas perguntas de controle o agente errou em cada etapa (antes e depois de pedir para ler de novo).
 - Quanto tempo levou cada etapa no agente e se alguma resposta veio cortada ou em partes.
 - Salve o ROTEIRO, os `.json` do agente e a BASE gerada numa pasta nova `LMR/Ouputs agente/`, como foi feito com o Workflow A.
+
+## 7. Fluxo A enxuto (`LMR_A_enxuto.json`): três agentes dentro do workflow
+
+Ainda **não rodou no AMP**. Faça depois dos testes de `docs/planos/roteiro-testes-amp-2026-11-03.md`.
+
+### Criar os dois agentes novos (uma vez)
+
+O `Leitor LMR` continua como está na seção 1. Crie mais estes:
+
+| Campo | Ligador LMR | Recuperador LMR |
+|---|---|---|
+| Descrição | `Liga cada material sobressalente (PMIB) às TAGs onde está instalado e devolve JSON, para montar a aplicação LMR. Recebe as mensagens do workflow LMR.` | `Procura nas páginas indicadas só o que faltou na leitura de um material e devolve JSON, para montar a aplicação LMR. Recebe as mensagens do workflow LMR.` |
+| Modelo | Claude Sonnet 5.5 | Claude Sonnet 5.5 |
+| System prompt | todo o texto de `motor/agente/system_prompt_ligador.md` | todo o texto de `motor/agente/system_prompt_recuperador.md` |
+| Knowledge base | `motor/agente/kb/ligador_regras.md` e `ligador_formatos.md` | `motor/agente/kb/recuperador_regras.md` e `recuperador_formatos.md` |
+| Box | **não** conceder | **não** conceder |
+
+Se o AMP não aceitar `.md`, salve como PDF ou Word com o mesmo nome. Os arquivos de `kb/` são gerados: para mudar, altere `regras_lmr.md` ou `gerar_kb.js` e rode `node agente/gerar_kb.js`.
+
+### Importar e rodar
+
+1. Importe `motor/workflows/LMR_A_enxuto.json` e ative *Save manual executions*.
+2. Nos 4 nós de agente, escolha *Credential* = a sua AMP account e *Custom Agent*:
+
+   | Nó | Custom Agent |
+   |---|---|
+   | Agente E1, Agente E23 | Leitor LMR |
+   | Agente E4 | Ligador LMR |
+   | Agente R | Recuperador LMR |
+
+3. Nos 4: *Prompt* = `{{ $json.chatInput }}`; *Session ID* = `{{ $json.sessionId }}`; *Files* vazio; *timeout* = o maior valor aceito.
+4. **Execute workflow**, com as mesmas opções do Workflow A. A página final baixa um destes arquivos:
+   - **BASE LMR - {sistema}.xlsx:** segue para o Workflow B. Revise PENDÊNCIAS, inclusive as do tipo RECUPERADOR.
+   - **BLOQUEIO LMR - {sistema}.xlsx:** o Validador travou. A aba VIOLAÇÕES diz a linha e o motivo; corrija a causa e rode de novo.
+5. Me devolva a mensagem final.

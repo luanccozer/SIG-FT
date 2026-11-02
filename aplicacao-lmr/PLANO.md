@@ -904,6 +904,10 @@ Etapas 2 e 3 podem começar enquanto a 1 termina S4–S8. Elas só precisam do B
 | — | Revisão | no fim da aplicação, correções voltam pelo fluxo |
 | — | Acesso | exemplos, templates e REF-0013 podem ser analisados |
 
+### Registrada (02/11/2026)
+
+**Fluxo A enxuto:** três agentes no workflow (Leitor, Ligador e Recuperador) e um Validador em código que trava a entrega. Prioridade: cobertura, com erro silencioso de no máximo 2%. Um agente só é dividido quando execuções reais mostrarem que ele é o gargalo. Detalhes em `docs/superpowers/specs/2026-11-02-lmr-fluxo-a-enxuto-design.md`.
+
 ### Adotados por padrão (mudam se você indicar)
 
 - Elevação com 3 casas no documento: arredondamento comercial para 2 casas, com aviso.

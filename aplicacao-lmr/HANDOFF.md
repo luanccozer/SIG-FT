@@ -23,6 +23,7 @@ O gargalo é a **leitura dos documentos**. Montar os códigos já é regra, conf
 | A v3 (IA do n8n em etapas pequenas) | `LMR_A_gerar_base.json` + `LMR_A_revisar_areas.json` | v1/v2 rodaram no AMP com resultado fraco (abaixo); **v3 não rodou** |
 | AG1/AG2 (agente no chat, à mão) | `LMR_AG1_preparar_etapas.json`, `LMR_AG2_montar_base.json` | pronto localmente; **não rodou no AMP** |
 | **A com agente AMP no workflow** | `LMR_A_agente_amp.json` (44 nós) | pronto localmente; **não rodou no AMP** — é o caminho atual |
+| **A enxuto** (Leitor, Ligador, Recuperador + Validador) | `LMR_A_enxuto.json` (58 nós) | testado só com sistema fictício (`agente/teste_enxuto.js`); **não rodou no AMP nem na regressão com dados reais** |
 | Sondas do nó AMP Agent | `LMR_S9_…`, `LMR_S10_…` | **rodaram no AMP** (resultados em `contexto/amp/`) |
 
 Todo `.json` de `motor/workflows/` é **gerado** por um `gerar_*.js`: mude o gerador ou o módulo e rode de novo.
