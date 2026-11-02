@@ -90,6 +90,11 @@ Formulário (PDFs + Status PMIB + opções) → índice A1 (sem IA, texto por p�
 
 ## 6. Decisão em aberto (o próximo passo)
 
+> **Atualização de 02/11/2026:** o desenho abaixo foi substituído pelo fluxo enxuto, com três agentes e o Validador:
+> [`docs/superpowers/specs/2026-11-02-lmr-fluxo-a-enxuto-design.md`](../docs/superpowers/specs/2026-11-02-lmr-fluxo-a-enxuto-design.md) (plano em `docs/superpowers/plans/`).
+> Falta confirmar com o Luan que o Recuperador respeita o descarte do "conferente de IA". Próximos testes:
+> [`docs/planos/roteiro-testes-amp-2026-11-03.md`](docs/planos/roteiro-testes-amp-2026-11-03.md). O texto abaixo fica como histórico.
+
 Na última conversa o Luan pediu **um fluxo direto, só com os agentes necessários**, e deu liberdade total.
 A proposta abaixo **não foi aprovada ainda** (a conversa parou na passagem):
 

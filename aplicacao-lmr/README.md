@@ -76,6 +76,8 @@ node leitura/teste_a.js                    # A v3 nos 4 sistemas (IA perfeita)
 node workflows/gerar_a.js                  # gera A v3 + Revisar áreas; T1–T12
 node agente/teste_agente.js                # agente no chat (AG1/AG2) nos 4 sistemas
 node agente/teste_workflow.js              # agente no workflow nos 4 sistemas
+node agente/gerar_kb.js                    # Knowledge base do Ligador e do Recuperador (agente/kb/)
+node agente/teste_enxuto.js                # A enxuto com sistema fictício; roda em qualquer máquina (depois de gerar_agente)
 node workflows/gerar_agente.js             # gera AG1, AG2 e A agente AMP; simulação nó a nó
 ```
 Os testes do A precisam de `dados/textos_{sistema}.json` (texto dos PDFs; ver `HANDOFF.md` §8).
