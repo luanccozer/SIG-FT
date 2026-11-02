@@ -18,6 +18,7 @@ const { BIN_STATUS, LE_STATUS, SEPARA, INDEXA } = require('./pecas_a.js');
 const RAIZ = path.join(__dirname, '..');
 const ler = (...p) => fs.readFileSync(path.join(RAIZ, ...p), 'utf8');
 const MOTOR = ler('lmr.js'), PLANILHA_JS = ler('planilha.js'), INDICE_JS = ler('indice', 'indice.js'), LEITURA_JS = ler('leitura', 'leitura.js'), AGENTE_JS = ler('agente', 'agente.js');
+const RECUPERACAO_JS = ler('agente', 'recuperacao.js');
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const pos = (col, lin = 0) => [col * 260, lin * 200];
 const SETTINGS = { executionOrder: 'v1', saveManualExecutions: true, saveDataSuccessExecution: 'all', saveDataErrorExecution: 'all', saveExecutionProgress: true };
@@ -303,10 +304,77 @@ const MENSAGEM_A = "={{ 'BASE gerada: ' + $json.linhasBase + ' linhas · ' + $js
   + " + ($json.conferencia ? ' · CONFERÊNCIA com a BASE enviada: ' + $json.conferencia.iguais + ' de ' + $json.conferencia.gabarito + ' linhas da aplicação iguais (' + $json.conferencia.iguaisSemNomeDaArea + ' sem contar o nome da área)' : '')"
   + " + '. Revise PENDÊNCIAS e use a BASE no Workflow B.' }}";
 
-const agA = (() => {
+// ───────────────────────── A enxuto — Leitor, Ligador, Recuperador e Validador ─────────────────────────
+// Depois do Ligador: Planeja R acha as lacunas (RECUPERACAO), o Recuperador procura só o que faltou e Monta Base valida.
+const noAgente = agentName => ({ ...AGENTE_NO, agentId: { __rl: true, value: JSON.stringify({ agentName, model: 'bedrock-claude-sonnet-5.5' }), mode: 'list', cachedResultName: agentName } });
+const CHECA = `${RECUPERACAO_JS}
+return $input.all().map((item, i) => ({ json: RECUPERACAO.checaResposta(item.json || {}), pairedItem: { item: i } }));`;
+// as lacunas enviadas seguem junto da resposta: reler Planeja R (mensagens grandes) trava o task runner
+const CONFERE_R = lote => CONFERE(lote).replace('caracteres: tf.caracteres,', 'caracteres: tf.caracteres, lacunasEnviadas: tf.lacunasEnviadas || [], semPagina: tf.semPagina || [], sobra: tf.sobra || [],');
+const LEITURA_DAS_ETAPAS = `const st = LMR.lerStatusPmib(statusRows);
+const g1 = $('Guarda E1').first().json, g23 = $('Guarda E23').first().json, g4 = $('Guarda E4').first().json;
+const lidas = [...g1.respostas, ...g23.respostas, ...g4.respostas];
+const todas = AGENTE.tarefasWorkflow(indexados, st, cfg, [1, 2, 3, 4], {});
+const aa = $('Aplica áreas').first().json;
+const montaBase = respostas => AGENTE.montaBaseDoAgente({ LMR, statusRows, indexados, cfg, controle: AGENTE.gabaritoDoControle(todas.controle), semTexto: false,
+  respostas, areasConferidas: aa.areas, etapasSemPaginas: [1, 2, 3, 4].filter(k => !todas.tarefas.some(x => x.etapa === k)) });`;
+const PLANEJA_R = `${BIB}\n${RECUPERACAO_JS}\n${CFG}\n${LEITURA_DAS_ETAPAS}
+const l = RECUPERACAO.lacunas({ m: montaBase(lidas), st, indexados });
+const p = RECUPERACAO.tarefas(l.enviar, indexados, cfg);
+const fora = { semPagina: l.semPagina, sobra: p.sobra };
+if (!p.tarefas.length) return [{ json: { etapa: 'R', parte: '0', rotulo: 'recuperador (sem lacunas)', vazia: true, sessionId: cfg.sessao + '-r-vazia', chatInput: 'Responda somente com {}', controle: [], pmibs: [], caracteres: 0, lacunasEnviadas: [], ...fora } }];
+return p.tarefas.map((json, i) => ({ json: i ? json : { ...json, ...fora } }));`;
+const MONTA_E = `${MOTOR}\n${PLANILHA_JS}\n${INDICE_JS}\n${LEITURA_JS}\n${AGENTE_JS}\n${RECUPERACAO_JS}\n${LE_STATUS}\n${CFG}\n${LEITURA_DAS_ETAPAS}
+const ler = no => { try { return $(no).all().map(i => i.json).filter(r => !r.error); } catch (err) { return []; } };
+const voltas = $input.all().map(i => i.json);
+const vr = voltas.filter(x => !x.vazia);
+const gr = { respostas: vr.map(x => ({ arquivo: x.rotulo, texto: x.texto })), chamadas: vr.map(x => ({ CHAMADA: x.rotulo, 'CARACTERES ENVIADOS': x.caracteres, 'CARACTERES RECEBIDOS': (x.texto || '').length, ERRO: x.erro || '' })) };
+const a = RECUPERACAO.aplica({ respostasR: gr.respostas, lacunas: voltas.flatMap(x => x.lacunasEnviadas || []), R: AGENTE.leRespostas(lidas), indexados });
+const m = montaBase(a.resposta ? [...lidas, a.resposta] : lidas);
+const chamadas = [...g1.chamadas, ...g23.chamadas, ...g4.chamadas, ...gr.chamadas];
+for (const c of chamadas) if (c.ERRO) m.pendencias.unshift({ PMIB: '', ITEM: '', 'DESCRIÇÃO': 'AGENTE', TIPO: 'CHAMADA', DETALHE: c.CHAMADA + ': sem resposta do agente depois das tentativas (' + c.ERRO + ')' });
+const fora = (l, motivo) => m.pendencias.push({ PMIB: l.pmib, ITEM: l.item, 'DESCRIÇÃO': l.descricao, TIPO: 'RECUPERADOR', DETALHE: l.campo + (l.tag ? ' da TAG ' + l.tag : '') + ': ' + motivo });
+for (const l of voltas.flatMap(x => x.semPagina || [])) fora(l, 'o índice não achou página onde procurar');
+for (const l of voltas.flatMap(x => x.sobra || [])) fora(l, 'não coube no limite de chamadas do Recuperador');
+m.pendencias.push(...a.pendencias, ...RECUPERACAO.pendenciasDeArea(m.base, m.pendencias));
+const violacoes = RECUPERACAO.valida({ base: m.base, pendencias: m.pendencias, catalogo: st.catalogo, LMR });
+if (violacoes.length) {
+  const nomeB = 'BLOQUEIO LMR - ' + cfg.sistema + '.xlsx';
+  const bytesB = PLANILHA.planilhaSimples(RECUPERACAO.abasDoBloqueio(violacoes, chamadas));
+  return [{ json: { bloqueada: true, violacoes: violacoes.length, primeiras: violacoes.slice(0, 3).map(v => v.FICHA_PMIB + ': ' + v.DETALHE).join(' | '), arquivo: nomeB },
+    binary: { data: { data: PLANILHA.base64(bytesB), mimeType: '${XLSX_MIME}', fileName: nomeB, fileExtension: 'xlsx' } } }];
+}
+const extras = [...m.extras, { nome: 'CHAMADAS DO AGENTE', colunas: ['CHAMADA', 'CARACTERES ENVIADOS', 'CARACTERES RECEBIDOS', 'ERRO'], linhas: chamadas, larguras: { CHAMADA: 24, ERRO: 80 } },
+  { nome: 'RESPOSTAS DO RECUPERADOR', colunas: ['ARQUIVO', 'RESPOSTA'], larguras: { ARQUIVO: 24, RESPOSTA: 150 }, linhas: gr.respostas.map(x => ({ ARQUIVO: x.arquivo, RESPOSTA: String(x.texto).slice(0, 30000) })) }];
+const gab = ler('Lê BASE (gabarito)').filter(x => String(x.FICHA_PMIB || '').trim());
+let conferencia = null;
+if (gab.length) {
+  const c = LEITURA.comparaComGabarito(m.base, gab);
+  conferencia = { ...LEITURA.comparaAplicacao(m.base, gab, LMR), pmibs: c.pmibs, campos: c.total };
+  extras.push({ nome: 'CONFERÊNCIA', colunas: ['PMIB', 'TAGS', 'PAIS', 'RDS', 'ELEV', 'EIXO', 'TRECHOS'], linhas: c.linhas, larguras: { TAGS: 50, PAIS: 40, RDS: 50, TRECHOS: 50 } });
+}
+const bytes = PLANILHA.planilhaDaBase({ colunasBase: LMR.COLUNAS_BASE, base: m.base, cabecalho: m.cabecalho, docs: m.docs, relacoes: m.relacoes, extras });
+const nome = 'BASE LMR - ' + cfg.sistema + '.xlsx';
+const tipos = {};
+for (const p of m.pendencias) tipos[p.TIPO] = (tipos[p.TIPO] || 0) + 1;
+return [{ json: { ...m.resumo, pendencias: m.pendencias.length, chamadas: chamadas.length, falhas: chamadas.filter(c => c.ERRO).length, conferidas: !!aa.conferidas,
+  leitor: g1.chamadas.length + g23.chamadas.length, ligador: g4.chamadas.length, recuperador: gr.chamadas.length, lacunasEnviadas: a.enviadas, lacunasResolvidas: a.resolvidas,
+  tipos: Object.entries(tipos).map(([k, n]) => n + ' ' + k).join(', '), conferencia, arquivo: nome },
+  binary: { data: { data: PLANILHA.base64(bytes), mimeType: '${XLSX_MIME}', fileName: nome, fileExtension: 'xlsx' } } }];`;
+const TITULO_E = "={{ $json.bloqueada ? 'BASE LMR bloqueada' : 'BASE LMR gerada' }}";
+const MENSAGEM_E = "={{ $json.bloqueada ? 'BASE NÃO ENTREGUE: ' + $json.violacoes + ' violações do Validador. Primeiras: ' + $json.primeiras + '. Veja a aba VIOLAÇÕES, corrija a causa e rode de novo.'"
+  + " : 'BASE gerada: ' + $json.linhasBase + ' linhas · ' + $json.materiais + ' materiais (' + $json.lidosPeloAgente + ' lidos pelo agente) · ' + $json.areas + ' áreas' + ($json.conferidas ? ' (conferidas)' : '')"
+  + " + ' · chamadas: Leitor ' + $json.leitor + ', Ligador ' + $json.ligador + ', Recuperador ' + $json.recuperador + ($json.falhas ? ' (' + $json.falhas + ' sem resposta)' : '')"
+  + " + ' · ' + $json.lacunasEnviadas + ' lacunas enviadas, ' + $json.lacunasResolvidas + ' resolvidas · controle: ' + $json.controleCertas + ' de ' + $json.controlePerguntas + ' certas · ' + $json.pendencias + ' pendências' + ($json.tipos ? ' (' + $json.tipos + ')' : '')"
+  + " + ($json.conferencia ? ' · CONFERÊNCIA com a BASE enviada: ' + $json.conferencia.iguais + ' de ' + $json.conferencia.gabarito + ' linhas da aplicação iguais (' + $json.conferencia.iguaisSemNomeDaArea + ' sem contar o nome da área)' : '')"
+  + " + '. Revise PENDÊNCIAS e use a BASE no Workflow B.' }}";
+const LEIA_ENXUTO = '## LMR — A Gerar Base (enxuto)\n**Antes da 1ª execução**, nos 4 nós de agente escolha *Credential* = a sua **AMP account** e, em *Custom Agent*:\n- **Agente E1** e **Agente E23**: **Leitor LMR**\n- **Agente E4**: **Ligador LMR**\n- **Agente R**: **Recuperador LMR**\n\nNos 4: *Prompt* = `{{ $json.chatInput }}`; *Session ID* = `{{ $json.sessionId }}` (sem nada depois das chaves); *Files* vazio; *Add option* → **timeout** = o maior valor aceito.\n\n1. ⋯ → *Settings* → *Save manual executions* = **Save**.\n2. **Execute workflow** → PDFs + Status PMIB + opções. Para teste, envie a BASE emitida (gabarito).\n3. **Deixe a aba aberta.** Depois das etapas 1–3 aparece **Confira as áreas**: preencha só o que falta e clique em **Ligar os materiais**.\n4. No fim baixa **BASE LMR - {sistema}.xlsx**. Se o Validador travar, baixa **BLOQUEIO LMR - {sistema}.xlsx** com as violações. Me devolva a mensagem final.';
+
+const fluxoA = ({ enxuto = false } = {}) => {
   const w = construtor();
-  w.add({ parameters: { formTitle: 'LMR — A Gerar Base (agente AMP)',
-    formDescription: 'Envie os PDFs do sistema e o Status PMIB e preencha os dados da aplicação. O agente Leitor LMR lê o texto dos documentos em 4 etapas. Deixe esta aba aberta: no meio aparece a página "Confira as áreas". No fim esta página baixa a BASE.',
+  w.add({ parameters: { formTitle: enxuto ? 'LMR — A Gerar Base (enxuto)' : 'LMR — A Gerar Base (agente AMP)',
+    formDescription: enxuto ? 'Envie os PDFs do sistema e o Status PMIB e preencha os dados da aplicação. Os agentes Leitor, Ligador e Recuperador LMR leem o texto dos documentos. Deixe esta aba aberta: no meio aparece a página "Confira as áreas". No fim esta página baixa a BASE, ou o BLOQUEIO com as violações.'
+      : 'Envie os PDFs do sistema e o Status PMIB e preencha os dados da aplicação. O agente Leitor LMR lê o texto dos documentos em 4 etapas. Deixe esta aba aberta: no meio aparece a página "Confira as áreas". No fim esta página baixa a BASE.',
     formFields: { values: [
       { fieldLabel: 'Documentos (PDF)', fieldType: 'file', multipleFiles: true, acceptFileTypes: '.pdf', requiredField: true },
       { fieldLabel: 'Status PMIB (.xlsx)', fieldType: 'file', multipleFiles: false, acceptFileTypes: '.xlsx', requiredField: true },
@@ -335,11 +403,11 @@ const agA = (() => {
   w.code('Indexa documento', INDEXA, pos(4, 4));
   w.code('Junta índice', JUNTA, pos(3, 2.5));
   // um Loop por grupo de etapas: Lote → Pausa → Agente → (erro? → conta → desiste? → pausa longa → Agente) → Confere → Lote
-  const loop = (sufixo, planeja, col, lin) => {
+  const loop = (sufixo, planeja, col, lin, nomeAgente) => {
     const lote = `Lote ${sufixo}`;
     w.add({ parameters: { batchSize: 1, options: {} }, name: lote, type: 'n8n-nodes-base.splitInBatches', typeVersion: 3, position: pos(col, lin) });
     w.add({ parameters: { amount: PAUSA, unit: 'seconds' }, name: `Pausa ${sufixo}`, type: 'n8n-nodes-base.wait', typeVersion: 1.1, position: pos(col + 1, lin + 1), webhookId: crypto.randomUUID() });
-    w.add({ parameters: AGENTE_NO, name: `Agente ${sufixo}`, type: 'CUSTOM.amp', typeVersion: 1, position: pos(col + 2, lin + 1), onError: 'continueRegularOutput' });
+    w.add({ parameters: nomeAgente ? noAgente(nomeAgente) : AGENTE_NO, name: `Agente ${sufixo}`, type: 'CUSTOM.amp', typeVersion: 1, position: pos(col + 2, lin + 1), onError: 'continueRegularOutput' });
     w.add({ parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'loose' },
       conditions: [{ id: crypto.randomUUID(), leftValue: '={{ $json.error }}', rightValue: '', operator: { type: 'string', operation: 'exists', singleValue: true } }], combinator: 'and' }, options: {} },
       name: `Erro? ${sufixo}`, type: 'n8n-nodes-base.if', typeVersion: 2, position: pos(col + 3, lin + 1) });
@@ -348,11 +416,12 @@ const agA = (() => {
       conditions: [{ id: crypto.randomUUID(), leftValue: '={{ $json.desistir }}', rightValue: '', operator: { type: 'boolean', operation: 'true', singleValue: true } }], combinator: 'and' }, options: {} },
       name: `Desiste? ${sufixo}`, type: 'n8n-nodes-base.if', typeVersion: 2, position: pos(col + 4, lin + 2.2) });
     w.add({ parameters: { amount: PAUSA_LONGA, unit: 'seconds' }, name: `Pausa longa ${sufixo}`, type: 'n8n-nodes-base.wait', typeVersion: 1.1, position: pos(col + 2, lin + 2.6), webhookId: crypto.randomUUID() });
-    w.code(`Confere ${sufixo}`, CONFERE(lote), pos(col + 4, lin + 1));
+    w.code(`Confere ${sufixo}`, sufixo === 'R' ? CONFERE_R(lote) : CONFERE(lote), pos(col + 4, lin + 1));
     w.liga(planeja, lote);
     w.liga(lote, `Pausa ${sufixo}`, 1);
     w.liga(`Pausa ${sufixo}`, `Agente ${sufixo}`);
-    w.liga(`Agente ${sufixo}`, `Erro? ${sufixo}`);
+    if (enxuto) { w.code(`Checa ${sufixo}`, CHECA, pos(col + 2.5, lin + 0.3)); w.liga(`Agente ${sufixo}`, `Checa ${sufixo}`); w.liga(`Checa ${sufixo}`, `Erro? ${sufixo}`); }
+    else w.liga(`Agente ${sufixo}`, `Erro? ${sufixo}`);
     w.liga(`Erro? ${sufixo}`, `Conta tentativas ${sufixo}`, 0); // true: erro
     w.liga(`Erro? ${sufixo}`, `Confere ${sufixo}`, 1);
     w.liga(`Conta tentativas ${sufixo}`, `Desiste? ${sufixo}`);
@@ -386,13 +455,21 @@ const agA = (() => {
   w.liga('Confira as áreas', 'Aplica áreas');
   w.code('Planeja E4', PLANEJA_E4, pos(14, -1));
   w.liga('Aplica áreas', 'Planeja E4');
-  const l4 = loop('E4', 'Planeja E4', 15, 0);
-  w.code('Monta Base', MONTA_A, pos(16, -1));
-  w.add({ parameters: { operation: 'completion', respondWith: 'returnBinary', inputDataFieldName: 'data', completionTitle: 'BASE LMR gerada', completionMessage: MENSAGEM_A },
-    name: 'Entrega a Base', type: 'n8n-nodes-base.form', typeVersion: 1, position: pos(17, -1), webhookId: crypto.randomUUID() });
-  w.liga(l4, 'Monta Base', 0);
+  const l4 = loop('E4', 'Planeja E4', 15, 0, enxuto ? 'Ligador LMR' : undefined);
+  let fimDasLeituras = l4;
+  if (enxuto) {
+    w.code('Guarda E4', GUARDA, pos(16, -1));
+    w.liga(l4, 'Guarda E4', 0);
+    w.code('Planeja R', PLANEJA_R, pos(17, -1));
+    w.liga('Guarda E4', 'Planeja R');
+    fimDasLeituras = loop('R', 'Planeja R', 18, 0, 'Recuperador LMR');
+  }
+  w.code('Monta Base', enxuto ? MONTA_E : MONTA_A, pos(enxuto ? 19 : 16, -1));
+  w.add({ parameters: { operation: 'completion', respondWith: 'returnBinary', inputDataFieldName: 'data', completionTitle: enxuto ? TITULO_E : 'BASE LMR gerada', completionMessage: enxuto ? MENSAGEM_E : MENSAGEM_A },
+    name: 'Entrega a Base', type: 'n8n-nodes-base.form', typeVersion: 1, position: pos(enxuto ? 20 : 17, -1), webhookId: crypto.randomUUID() });
+  w.liga(fimDasLeituras, 'Monta Base', 0);
   w.liga('Monta Base', 'Entrega a Base');
-  w.add({ parameters: { content: '## LMR — A Gerar Base (agente AMP)\n**Antes da 1ª execução**, nos 3 nós **Agente E1 / E23 / E4**: escolha *Credential* = a sua **AMP account** e *Custom Agent* = **Leitor LMR**; *Prompt* = `{{ $json.chatInput }}`; *Session ID* = `{{ $json.sessionId }}` (sem nada depois das chaves); *Files* vazio; *Add option* → **timeout** = o maior valor aceito.\n\n1. ⋯ → *Settings* → *Save manual executions* = **Save**.\n2. **Execute workflow** → PDFs + Status PMIB + opções (kits/peças como no Workflow A). Para teste, envie a BASE emitida (gabarito).\n3. **Deixe a aba aberta.** Depois das etapas 1–3 aparece **Confira as áreas**: preencha só o que falta (elevação, RDS-PP, trechos da área) e clique em **Ligar os materiais**.\n4. No fim baixa **BASE LMR - {sistema}.xlsx**. Me devolva a mensagem final.\n\nO agente recebe o TEXTO das páginas (o PDF em Files não chega a ele). Pausa de 10 s entre chamadas; erro temporário → espera 60 s e tenta de novo (até 3 vezes).', height: 460, width: 680 },
+  w.add({ parameters: { content: enxuto ? LEIA_ENXUTO : '## LMR — A Gerar Base (agente AMP)\n**Antes da 1ª execução**, nos 3 nós **Agente E1 / E23 / E4**: escolha *Credential* = a sua **AMP account** e *Custom Agent* = **Leitor LMR**; *Prompt* = `{{ $json.chatInput }}`; *Session ID* = `{{ $json.sessionId }}` (sem nada depois das chaves); *Files* vazio; *Add option* → **timeout** = o maior valor aceito.\n\n1. ⋯ → *Settings* → *Save manual executions* = **Save**.\n2. **Execute workflow** → PDFs + Status PMIB + opções (kits/peças como no Workflow A). Para teste, envie a BASE emitida (gabarito).\n3. **Deixe a aba aberta.** Depois das etapas 1–3 aparece **Confira as áreas**: preencha só o que falta (elevação, RDS-PP, trechos da área) e clique em **Ligar os materiais**.\n4. No fim baixa **BASE LMR - {sistema}.xlsx**. Me devolva a mensagem final.\n\nO agente recebe o TEXTO das páginas (o PDF em Files não chega a ele). Pausa de 10 s entre chamadas; erro temporário → espera 60 s e tenta de novo (até 3 vezes).', height: 460, width: 680 },
     name: 'Leia-me', type: 'n8n-nodes-base.stickyNote', typeVersion: 1, position: pos(0, -2.5) });
   w.liga('Formulário', 'Lê BASE (gabarito)');
   w.liga('Formulário', 'Lê Status PMIB');
@@ -403,10 +480,13 @@ const agA = (() => {
   w.liga('Lê PDF (por página)', 'Indexa documento');
   w.liga('Indexa documento', 'Lote de documentos');
   w.liga('Junta índice', 'Planeja E1');
-  return w.fim('LMR - A Gerar Base (agente AMP)');
-})();
+  return w.fim(enxuto ? 'LMR - A Gerar Base (enxuto)' : 'LMR - A Gerar Base (agente AMP)');
+};
+const agA = fluxoA();
+const agE = fluxoA({ enxuto: true });
+for (const n of agE.nodes) if (n.parameters.jsCode) n.parameters.jsCode = n.parameters.jsCode.replace(/\r\n/g, '\n');
 
-for (const [wf, arq] of [[ag1, 'LMR_AG1_preparar_etapas.json'], [ag2, 'LMR_AG2_montar_base.json'], [agA, 'LMR_A_agente_amp.json']]) {
+for (const [wf, arq] of [[ag1, 'LMR_AG1_preparar_etapas.json'], [ag2, 'LMR_AG2_montar_base.json'], [agA, 'LMR_A_agente_amp.json'], [agE, 'LMR_A_enxuto.json']]) {
   const destino = path.join(__dirname, arq);
   fs.writeFileSync(destino, JSON.stringify(wf, null, 2));
   console.log('ok', arq, wf.nodes.length, 'nós,', (fs.statSync(destino).size / 1024).toFixed(0), 'KB');

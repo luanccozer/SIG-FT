@@ -271,5 +271,167 @@ for (const [campo, valor, rx] of [['EIXO', 'XY', /eixo/], ['TRECHOS', 'U-99', /t
   ok(c({ output: '{}', sessionId: 's' }).sessionId === 's', 'mantém os outros campos');
 }
 
-console.log(falhas ? `${falhas} FALHA(S)` : 'TUDO OK');
-process.exit(falhas ? 1 : 0);
+// ── Task 4: workflow gerado ──
+const fs = require('fs');
+const path = require('path');
+const { execFileSync } = require('child_process');
+const wf = require('../workflows/LMR_A_enxuto.json');
+const NO = new Map(wf.nodes.map(n => [n.name, n]));
+const LOOPS = ['E1', 'E23', 'E4', 'R'];
+ok(wf.nodes.length >= 54 && wf.nodes.length <= 62, `nós: ${wf.nodes.length}`);
+for (const n of ['Guarda E4', 'Planeja R', 'Lote R', 'Pausa R', 'Agente R', 'Erro? R', 'Conta tentativas R', 'Desiste? R', 'Pausa longa R', 'Confere R', 'Monta Base', 'Entrega a Base', ...LOOPS.map(s => `Checa ${s}`)]) ok(NO.has(n), `nó ${n}`);
+const agenteDe = s => { const n = NO.get(`Agente ${s}`); return n && JSON.parse(n.parameters.agentId.value); };
+for (const [s, nome] of [['E1', 'Leitor LMR'], ['E23', 'Leitor LMR'], ['E4', 'Ligador LMR'], ['R', 'Recuperador LMR']]) {
+  ok(agenteDe(s) && agenteDe(s).agentName === nome && agenteDe(s).model === 'bedrock-claude-sonnet-5.5', `agente de ${s}: ${JSON.stringify(agenteDe(s))}`);
+}
+const liga = (de, para, saida = 0) => ((wf.connections[de] || { main: [] }).main[saida] || []).some(x => x.node === para);
+ok(liga('Lote E4', 'Guarda E4', 0) && liga('Guarda E4', 'Planeja R') && liga('Planeja R', 'Lote R') && liga('Lote R', 'Monta Base', 0) && liga('Monta Base', 'Entrega a Base'), 'ligações do fim do fluxo');
+ok(!liga('Lote E4', 'Monta Base', 0), 'Lote E4 não vai direto para Monta Base');
+for (const s of LOOPS) ok(liga(`Agente ${s}`, `Checa ${s}`) && liga(`Checa ${s}`, `Erro? ${s}`) && !liga(`Agente ${s}`, `Erro? ${s}`), `Checa no loop ${s}`);
+ok(wf.nodes.every(n => !n.credentials), 'sem credencial no JSON');
+const leiaMe = wf.nodes.find(n => n.type === 'n8n-nodes-base.stickyNote').parameters.content;
+ok(['Leitor LMR', 'Ligador LMR', 'Recuperador LMR'].every(x => leiaMe.includes(x)), 'Leia-me cita os 3 agentes');
+ok(wf.nodes.every(n => !String(n.parameters.jsCode || '').includes('\r')), 'código sem CR');
+{
+  // os workflows antigos ficam iguais; só os UUIDs mudam ao gerar de novo
+  const pasta = path.join(__dirname, '..', 'workflows');
+  const norm = s => s.replace(/\\r\\n/g, '\\n').replace(/\r\n/g, '\n').replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, 'U');
+  const doGit = execFileSync('git', ['show', 'HEAD:aplicacao-lmr/motor/workflows/LMR_A_agente_amp.json'], { encoding: 'utf8', cwd: pasta, maxBuffer: 1 << 28 });
+  ok(norm(fs.readFileSync(path.join(pasta, 'LMR_A_agente_amp.json'), 'utf8')) === norm(doGit), 'LMR_A_agente_amp.json mudou além dos UUIDs');
+}
+
+// ── Task 5: Knowledge base e prompts dos agentes novos ──
+{
+  const pasta = __dirname;
+  const le = (...p) => { try { return fs.readFileSync(path.join(pasta, ...p), 'utf8').replace(/\r\n/g, '\n'); } catch (e) { return ''; } };
+  const glossario = le('regras_lmr.md').split(/^## /m).find(s => s.startsWith('2. Glossário'));
+  for (const a of ['ligador_regras.md', 'recuperador_regras.md']) ok(glossario && le('kb', a).includes(glossario.trim()), `glossário em ${a}`);
+  ok(le('kb', 'ligador_regras.md').includes('Etapa 4') && !le('kb', 'ligador_regras.md').includes('Etapa 1'), 'ligador_regras só com a etapa 4');
+  ok(le('kb', 'ligador_formatos.md').includes('Etapa 4') && !le('kb', 'ligador_formatos.md').includes('Etapa 1'), 'ligador_formatos só com a etapa 4');
+  ok(/recuperacoes/.test(le('kb', 'recuperador_formatos.md')) && /papel/.test(le('kb', 'recuperador_formatos.md')), 'formato do Recuperador');
+  ok(/só preenche|Nunca altere/i.test(le('kb', 'recuperador_regras.md')), 'regra de não alterar');
+  for (const a of ['system_prompt_ligador.md', 'system_prompt_recuperador.md']) for (const x of ['WORKFLOW LMR', 'bloco ```json', 'Use só o que está escrito']) ok(le(a).includes(x), `${a} cita ${x}`);
+  // o Leitor LMR e o workflow antigo seguem com os arquivos de sempre
+  const iguais = execFileSync('git', ['status', '--short', '--', 'system_prompt.md', 'regras_lmr.md', 'formatos_json.md'], { encoding: 'utf8', cwd: pasta });
+  ok(!iguais.trim(), `arquivos do Leitor mudaram: ${iguais}`);
+}
+
+const AsyncFn = Object.getPrototypeOf(async function () {}).constructor;
+const copia = o => JSON.parse(JSON.stringify(o));
+const rotuloDe = ini => NO.get('Formulário').parameters.formFields.values.find(c => c.fieldLabel.startsWith(ini)).fieldLabel;
+const form = { [rotuloDe('Escopo')]: 'UG', [rotuloDe('Subsistema')]: 'FICTICIO', [rotuloDe('Trechos')]: 'TODAS', [rotuloDe('Lista de trechos')]: '', [rotuloDe('Eixo')]: 'CD',
+  [rotuloDe('Frequência')]: 'Ambas (50 e 60 Hz)', [rotuloDe('Kits')]: 'Levam a TAG do equipamento', [rotuloDe('Peças')]: 'Levam a TAG do equipamento', [rotuloDe('Conferir')]: 'Não', [rotuloDe('Especificação')]: '', [rotuloDe('Etapa de documentos')]: '' };
+
+// imita o n8n nó a nó com o código do próprio workflow; responde(tarefa) devolve o texto do agente ou { error }
+async function simula(responde) {
+  const s = { 'Formulário': [{ json: form, binary: { a: { fileName: 'x.pdf' }, b: { fileName: 'x_STATUS_PMIB - Fictício.xlsx' } } }], 'Lê Status PMIB': statusRows.map(row => ({ json: { row } })), 'Lê BASE (gabarito)': [] };
+  let atual = null;
+  const $ = no => ({ all: () => s[no] || [], first: ramo => (ramo === 1 && /^Lote /.test(no) ? atual : (s[no] || [])[0]), itemMatching: () => { if (/^Lote /.test(no)) return atual; throw new Error('sem pareamento'); } });
+  const exec = (nome, entrada, runIndex = 0) => new AsyncFn('$', '$input', '$execution', '$runIndex', NO.get(nome).parameters.jsCode)($, { all: () => entrada, first: () => entrada[0] }, { id: 77 }, runIndex).then(copia);
+  const chamadas = [];
+  let runs = 0;
+  const loop = async (sufixo, planeja) => {
+    const voltas = [];
+    for (const tf of s[planeja]) {
+      atual = tf;
+      let saida;
+      for (;;) {
+        const r = tf.json.vazia ? '{}' : await responde(tf.json);
+        chamadas.push(tf.json);
+        const ag = r && r.error ? { json: { error: r.error } } : { json: { sessionId: tf.json.sessionId, output: r, files: [] } };
+        const [checado] = await exec(`Checa ${sufixo}`, [ag]);
+        if (!checado.json.error) { saida = checado; break; }
+        const [c] = await exec(`Conta tentativas ${sufixo}`, [checado], runs++);
+        if (c.json.desistir) { saida = c; break; }
+      }
+      voltas.push(...await exec(`Confere ${sufixo}`, [saida]));
+    }
+    runs = 0;
+    return voltas;
+  };
+  s['Junta índice'] = [{ json: { indexados: copia(indexados) } }];
+  s['Planeja E1'] = await exec('Planeja E1', s['Junta índice']);
+  s['Guarda E1'] = await exec('Guarda E1', await loop('E1', 'Planeja E1'));
+  s['Planeja E2/E3'] = await exec('Planeja E2/E3', s['Guarda E1']);
+  s['Guarda E23'] = await exec('Guarda E23', await loop('E23', 'Planeja E2/E3'));
+  s['Prepara áreas'] = await exec('Prepara áreas', s['Guarda E23']);
+  s['Aplica áreas'] = await exec('Aplica áreas', s['Prepara áreas']);
+  s['Planeja E4'] = await exec('Planeja E4', s['Aplica áreas']);
+  s['Guarda E4'] = await exec('Guarda E4', await loop('E4', 'Planeja E4'));
+  s['Planeja R'] = await exec('Planeja R', s['Guarda E4']);
+  const [b] = await exec('Monta Base', await loop('R', 'Planeja R'));
+  const expr = v => new Function('$json', `return (${String(v).replace(/^=\{\{/, '').replace(/\}\}$/, '')});`)(b.json);
+  const p = NO.get('Entrega a Base').parameters;
+  return { b, chamadas, planejaR: s['Planeja R'], titulo: expr(p.completionTitle), mensagem: expr(p.completionMessage) };
+}
+const abasDoXlsx = b => {
+  const bytes = Buffer.from(b.binary.data.data, 'base64');
+  const s = bytes.toString('latin1');
+  return [...new Set([...Buffer.from(s, 'latin1').toString('utf8').matchAll(/<sheet [^>]*name="([^"]+)"/g)].map(x => x[1]))];
+};
+// agente fictício: cada etapa responde o certo; depois de cada Teste só muda o que cada um pede
+const blocos = () => { const [e1, e2, e4] = F.respostasBoas(); return { e1: e1.texto, e2: e2.texto, materiais: F.materiaisBons() }; };
+const agenteBom = (ajusta = {}) => tf => {
+  const { e1, e2, materiais } = blocos();
+  if (tf.etapa === 1) return e1;
+  if (tf.etapa === 2 || tf.etapa === 3) return e2;
+  if (tf.etapa === 4) return (ajusta.e4 || (t2 => F.texto({ etapa: 4, parte: t2.parte, materiais: materiais.filter(m => t2.pmibs.includes(m.pmib)) })))(tf, materiais);
+  return (ajusta.r || (() => F.texto({ etapa: 'R', parte: tf.parte, recuperacoes: [] })))(tf);
+};
+
+(async () => {
+  {
+    const x = await simula(agenteBom());
+    ok(x.planejaR.length === 1 && x.planejaR[0].json.vazia === true, `sem lacunas, item vazia: ${x.planejaR.length}`);
+    ok(x.b.binary.data.fileName === 'BASE LMR - Fictício.xlsx' && !x.b.json.bloqueada, `Base sai: ${x.b.binary.data.fileName} ${JSON.stringify(x.b.json.primeiras || '')}`);
+    ok(x.titulo === 'BASE LMR gerada' && /6 linhas/.test(x.mensagem), `mensagem: ${x.titulo} | ${x.mensagem}`);
+    ok(/Leitor \d+/.test(x.mensagem) && /Ligador \d+/.test(x.mensagem) && /Recuperador 0/.test(x.mensagem), `chamadas por agente: ${x.mensagem}`);
+  }
+  {
+    const x = await simula(agenteBom({
+      e4: (tf, ms) => F.texto({ etapa: 4, parte: tf.parte, materiais: ms.filter(m => tf.pmibs.includes(m.pmib) && m.pmib !== P(2)) }),
+      r: tf => F.texto({ etapa: 'R', parte: tf.parte, recuperacoes: tf.lacunas.map(lacuna => ({ lacuna, achou: true, campo: 'tag', valor: ['GP102'], papel: 'proprio', evidencia: '#ST00=M00ABC10UZ010-UZ901&MPA010 p.1', procurou: '' })) }),
+    }));
+    ok(x.b.json.lacunasEnviadas === 1 && x.b.json.lacunasResolvidas === 1, `lacunas: ${x.b.json.lacunasEnviadas}/${x.b.json.lacunasResolvidas}`);
+    ok(/1 lacunas? enviadas?.*1 resolvidas?/.test(x.mensagem), `mensagem conta as lacunas: ${x.mensagem}`);
+    ok(x.b.binary.data.fileName.startsWith('BASE') && x.b.json.linhasBase === 6, `linha recuperada: ${x.b.json.linhasBase}`);
+    ok(x.chamadas.some(t2 => t2.etapa === 'R' && t2.chatInput.includes(P(2))), 'Recuperador recebeu o PMIB');
+  }
+  {
+    const x = await simula(agenteBom({
+      e4: (tf, ms) => F.texto({ etapa: 4, parte: tf.parte, materiais: ms.filter(m => tf.pmibs.includes(m.pmib) && m.pmib !== P(2)) }),
+      r: () => ({ error: { message: '424 - runtime' } }),
+    }));
+    ok(x.b.binary.data.fileName.startsWith('BASE'), `Recuperador falhou, Base sai: ${x.b.binary.data.fileName}`);
+    ok(x.b.json.falhas === 1 && /CHAMADA/.test(x.b.json.tipos) && /RECUPERADOR/.test(x.b.json.tipos), `pendências: ${x.b.json.falhas} ${x.b.json.tipos}`);
+  }
+  {
+    // JSON cortado na E4: repete; depois da última tentativa os PMIBs do lote viram lacunas
+    let vezes = 0;
+    const x = await simula(agenteBom({
+      e4: () => { vezes++; return '```json\n{"etapa":4,"materiais":[{"pmib":"45'; },
+      r: tf => F.texto({ etapa: 'R', parte: tf.parte, recuperacoes: [] }),
+    }));
+    ok(vezes > 1, `JSON cortado repete: ${vezes} tentativas`);
+    ok(x.chamadas.some(t2 => t2.etapa === 'R' && !t2.vazia && t2.chatInput.includes(P(1))), 'PMIBs do lote viram lacunas');
+    ok(x.b.json.falhas >= 1, `chamada com falha: ${x.b.json.falhas}`);
+  }
+  {
+    // violação que passa pelo fluxo inteiro: o motor aceita o RDS-PP lido e o Validador acusa o M inválido
+    const y = await simulaComAreas(agenteBom());
+    ok(y.b.json.bloqueada === true && y.b.binary.data.fileName === 'BLOQUEIO LMR - Fictício.xlsx', `bloqueio: ${y.b.binary.data.fileName}`);
+    const abas = abasDoXlsx(y.b);
+    ok(abas.includes('VIOLAÇÕES') && abas.includes('CHAMADAS DO AGENTE') && !abas.includes('BASE'), `abas do bloqueio: ${abas}`);
+    ok(y.titulo === 'BASE LMR bloqueada' && /violaç/.test(y.mensagem), `mensagem de bloqueio: ${y.titulo} | ${y.mensagem}`);
+  }
+  console.log(falhas ? `${falhas} FALHA(S)` : 'TUDO OK');
+  process.exit(falhas ? 1 : 0);
+})().catch(e => { console.error(e); process.exit(1); });
+
+// o mesmo fluxo, com um RDS-PP de M inválido vindo da leitura da área
+async function simulaComAreas(responde) {
+  return simula(tf => {
+    if (tf.etapa !== 1) return responde(tf);
+    return F.texto({ etapa: 1, parte: tf.parte, areas: [{ nome: 'SKID', rds: '#ST00=M99ABC10UZ010-UZ001', local: 'CASA DE FORÇA', elevacao: '98,50', eixo: 'CD', trechos: [], evidencia: 'x' }] });
+  });
+}
