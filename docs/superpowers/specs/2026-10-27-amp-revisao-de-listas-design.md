@@ -7,6 +7,11 @@ cá o formato da passagem entre as peças.
 
 As decisões marcadas *(minha decisão)* são de quem escreveu este desenho, não do Luan.
 
+> **Atualização de 02/11/2026:** o agente único do §5 e o workflow do §6 foram trocados por dois
+> agentes criados no AMP (Revisor de Listas e Conferente de Listas), chamados pelo nó AMP Agent.
+> O `pedido.md` saiu. O contrato com o SIG-FT (§4, §7 e §8) não mudou. Ver
+> `docs/superpowers/specs/2026-11-02-amp-agentes-revisao-design.md`.
+
 ## 1. Por quê
 
 A dor é atenção. As listas de sobressalentes mudam de revisão e ninguém percebe o que mudou. A

@@ -54,7 +54,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: true, modo: 'ping', versao_workflow: \"2026-10-27\", execucao: $execution.id }) }}",
+        "responseBody": "={{ JSON.stringify({ ok: true, modo: 'ping', versao_workflow: \"2026-11-02\", execucao: $execution.id }) }}",
         "options": {
           "responseCode": 200
         }
@@ -65,12 +65,12 @@
       "typeVersion": 1.1,
       "position": [
         440,
-        160
+        140
       ]
     },
     {
       "parameters": {
-        "jsCode": "// Gerado por amp/revisao_de_listas/gerar_workflow.py a partir do pedido.md. Nao edite aqui.\nconst PEDIDO = \"Você revisa listas de sobressalentes do projeto Itaipu (Consórcio CMI). Compare duas revisões de uma\\nlista de sobressalentes com a planilha de controle dela, a _STATUS_PMIB, e diga o que mudou e o que\\nprecisa ser atualizado.\\n\\n## O que você recebe\\n\\n- REVISÃO EM USO: o texto do PDF da revisão que a _STATUS_PMIB reflete hoje. Pode não vir, quando a\\n  lista ainda não tem revisão em uso.\\n- REVISÃO ATUAL: o texto do PDF da última revisão emitida.\\n- _STATUS_PMIB: a linha de revisão e a tabela da aba \\\"Lista de Materiais\\\", com as colunas separadas\\n  por tabulação.\\n\\nO texto de cada PDF traz a marca \\\"--- página N ---\\\" no começo de cada página.\\n\\n## O que fazer\\n\\n1. Compare a revisão em uso com a atual: os itens que entraram, os que saíram e os que mudaram\\n   (quantidade, unidade, descrição, código do material, marca e modelo, código CMI...).\\n2. Compare a revisão atual com a _STATUS_PMIB: o que falta, o que sobra e o que está diferente.\\n3. Diga o que precisa ser atualizado na _STATUS_PMIB.\\n\\n## Regras da equipe\\n\\n- A _STATUS_PMIB fica idêntica à lista.\\n- O item que sai da lista vai para a SEM_LISTA_STATUS_PMIB, com a origem em OBSERVAÇÕES (de qual\\n  lista e de qual revisão saiu).\\n- Linhas a mais na _STATUS_PMIB vindas de entrega DOCUMENTAL são explosão pedida por Itaipu, não\\n  erro: mantenha-as.\\n- Nas linhas que continuam, preserve o que a equipe já preencheu: código PMIB, status, autorização e\\n  as demais colunas de andamento.\\n- No fim, a linha de revisão passa a \\\"REVISÃO DA LISTA DE SOBRESSALENTES ATUAL EM USO: <revisão\\n  atual> - DATA DE ALTERAÇÃO: <a data de hoje, que vem na seção LISTA>\\\".\\n- Cite a página do PDF de onde saiu cada mudança. O que não tiver certeza, marque \\\"a conferir\\\". Não\\n  invente.\\n\\n## O que devolver\\n\\nUm único documento HTML, com:\\n\\n1. um resumo no topo: as revisões comparadas e quantas mudanças de cada tipo;\\n2. o que mudou entre as revisões, com a página de cada mudança;\\n3. as divergências com a _STATUS_PMIB e as ações;\\n4. a _STATUS_PMIB remontada inteira, com as mesmas colunas na mesma ordem, numa tabela com um botão\\n   que copia a tabela como texto separado por tabulação, que cola direto no Excel;\\n5. as linhas que vão para a SEM_LISTA_STATUS_PMIB, também com botão de copiar;\\n6. a linha de revisão nova.\\n\\nResponda só com o HTML, sem nada antes ou depois.\\n\";\nconst corpo = $input.first().json.body || {};\nif (corpo.modo === 'eco') {\n  const codigos = (corpo.codigos || []).map(String);\n  const prompt = 'Repita exatamente, um por linha e na mesma ordem, os códigos abaixo. '\n    + 'Não comente, não corrija e não acrescente nada.\\n\\n' + codigos.join('\\n');\n  return [{ json: { modo: 'eco', prompt } }];\n}\nconst secao = (titulo, conteudo) => `## ${titulo}\\n\\n${conteudo}\\n`;\nconst lista = corpo.lista || {};\nconst emUso = corpo.revisao_em_uso;\nconst atual = corpo.revisao_atual || {};\nconst status = corpo.status_pmib || {};\nconst partes = [\n  PEDIDO,\n  secao('LISTA', `Código: ${lista.codigo || ''}\\nRevisão em uso: ${lista.revisao_em_uso || '(nenhuma)'}\\n`\n    + `Revisão atual: ${lista.revisao_atual || ''}\\nSTATUS REAL: ${lista.status_real || ''}\\n`\n    + `Data de hoje: ${lista.data_de_hoje || ''}`),\n  secao(`REVISÃO EM USO (${emUso ? emUso.arquivo : 'não há'})`,\n    emUso ? emUso.texto : 'A lista ainda não tem revisão em uso: compare só a revisão atual com a _STATUS_PMIB.'),\n  secao(`REVISÃO ATUAL (${atual.arquivo || ''})`, atual.texto || ''),\n  secao(`_STATUS_PMIB (${status.arquivo || ''}, aba ${status.aba || ''})`,\n    `${status.linha_de_revisao || ''}\\n\\n${status.tsv || ''}`),\n];\nreturn [{ json: { modo: 'revisar', prompt: partes.join('\\n') } }];\n"
+        "jsCode": "// Gerado por amp/revisao_de_listas/gerar_workflow.py a partir de js/monta_pedido.js. Nao edite aqui.\nconst VERSAO_WORKFLOW = \"2026-11-02\";\n\n// ── comum: as funções que os nós de código deste workflow dividem ──\n// gerar_workflow.py copia este arquivo no começo de cada nó de código.\n\n// Texto sem acento, em maiúsculas e com os espaços juntados: a comparação ignora o que não é mudança.\nfunction semAcento(s) {\n  return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '');\n}\nfunction normal(s) {\n  return semAcento(s).toUpperCase().replace(/\\s+/g, ' ').trim();\n}\nfunction compacto(s) {\n  return semAcento(s).toUpperCase().replace(/\\s+/g, '');\n}\n\n// Uma célula como o Excel cola: sem tabulação nem quebra de linha dentro.\nfunction celula(v) {\n  return v === null || v === undefined ? '' : String(v).replace(/[\\t\\r\\n]+/g, ' ').trim();\n}\nfunction numero(v) {\n  if (v === null || v === undefined || v === '') return null;\n  const n = Number(v);\n  return Number.isFinite(n) ? n : null;\n}\nfunction esc(s) {\n  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;').replace(/'/g, '&#39;');\n}\n\n// O SIG-FT marca o começo de cada página do PDF com \"--- página N ---\".\nfunction paginasDoTexto(texto) {\n  const paginas = new Map();\n  const partes = String(texto ?? '').split(/^--- página (\\d+) ---[ \\t]*$/m);\n  for (let i = 1; i < partes.length; i += 2) paginas.set(Number(partes[i]), partes[i + 1] || '');\n  return paginas;\n}\n\n// O _STATUS_PMIB chega em tabulação: o cabeçalho na primeira linha e as linhas de dados depois. A\n// LINHA que os agentes citam é a posição da linha de dados, a partir de 1.\nfunction lerTsv(tsv) {\n  const linhas = String(tsv ?? '').split(/\\r?\\n/);\n  while (linhas.length && !linhas[linhas.length - 1].trim()) linhas.pop();\n  const cabecalho = (linhas.shift() ?? '').split('\\t');\n  const dados = linhas.map(l => {\n    const c = l.split('\\t');\n    while (c.length < cabecalho.length) c.push('');\n    return c.slice(0, cabecalho.length);\n  });\n  return { cabecalho, dados };\n}\n\n// As colunas que vêm da lista são as que ficam à esquerda de CÓDIGO PMIB; dali para a direita é o\n// andamento da equipe, que nenhuma ação muda.\nconst NOMES_DA_LISTA = new Set(['ITEM', 'QTD.', 'QTD', 'QUANTIDADE', 'UNID.', 'UNID', 'UNIDADE', 'DESCRICAO',\n  'CODIGO DO MATERIAL', 'CODIGO CMI', 'MARCA/MODELO', 'FABRICANTE', 'CODIGO DO FORNECEDOR', 'CODIGO GE']);\nfunction colunasDaLista(cabecalho) {\n  const nomes = cabecalho.map(normal);\n  const pmib = nomes.findIndex(n => n.startsWith('CODIGO PMIB'));\n  return nomes.map((n, i) => [n, i])\n    .filter(([n, i]) => n && (pmib >= 0 ? i < pmib : NOMES_DA_LISTA.has(n)))\n    .map(([, i]) => i);\n}\nfunction indiceDaColuna(cabecalho, nome) {\n  const alvo = normal(nome);\n  return cabecalho.findIndex(c => normal(c) === alvo);\n}\n\n// A resposta do nó AMP Agent vem em `output`; o erro (com \"continuar na saída normal\"), em `error`.\n// A mensagem de erro é cortada: ela vai para o diagnóstico do SIG-FT.\nfunction saidaDoAgente(j) {\n  if (j && j.error !== undefined && j.error !== null && j.error !== '') {\n    const e = j.error;\n    const mensagem = typeof e === 'string' ? e : (e.message || e.description || JSON.stringify(e));\n    return { erro: String(mensagem).slice(0, 300) };\n  }\n  const o = j ? j.output : undefined;\n  const texto = typeof o === 'string' ? o : (o !== undefined && o !== null ? JSON.stringify(o) : '');\n  return texto.trim() ? { texto } : { erro: 'o agente não devolveu resposta' };\n}\n\n// Os agentes do AMP costumam escrever uma frase antes do JSON e pôr o JSON numa cerca de código.\nfunction extrairJson(texto) {\n  const s = String(texto ?? '').trim();\n  const tentativas = [];\n  const cerca = s.match(/```(?:json)?\\s*([\\s\\S]*?)```/i);\n  if (cerca) tentativas.push(cerca[1]);\n  const a = s.indexOf('{'), b = s.lastIndexOf('}');\n  if (a >= 0 && b > a) tentativas.push(s.slice(a, b + 1));\n  tentativas.push(s);\n  for (const t of tentativas) {\n    try {\n      const v = JSON.parse(t);\n      if (v && typeof v === 'object' && !Array.isArray(v)) return v;\n    } catch (e) { /* a próxima tentativa */ }\n  }\n  return null;\n}\n\nfunction idsUnicos(lista, prefixo) {\n  const vistos = new Set();\n  return lista.map((item, k) => {\n    let id = celula(item.id);\n    if (!id || vistos.has(id)) {\n      let n = k + 1;\n      while (vistos.has(`${prefixo}${n}`)) n++;\n      id = `${prefixo}${n}`;\n    }\n    vistos.add(id);\n    return { ...item, id };\n  });\n}\nfunction objetos(lista) {\n  return (Array.isArray(lista) ? lista : []).filter(x => x && typeof x === 'object' && !Array.isArray(x));\n}\nfunction valoresDe(v) {\n  const valores = {};\n  if (v && typeof v === 'object' && !Array.isArray(v)) for (const [coluna, valor] of Object.entries(v)) valores[coluna] = celula(valor);\n  return valores;\n}\n\nfunction normalizarAcoes(lista, prefixo) {\n  return idsUnicos(objetos(lista), prefixo).map(a => ({\n    id: a.id,\n    acao: celula(a.acao).toLowerCase(),\n    linha: numero(a.linha),\n    inserir_apos: numero(a.inserir_apos),\n    valores: valoresDe(a.valores),\n    pagina: numero(a.pagina),\n    trecho: String(a.trecho ?? ''),\n    motivo: celula(a.motivo),\n    mudanca: a.mudanca ? celula(a.mudanca) : null,\n    a_conferir: a.a_conferir === true,\n    duvida: celula(a.duvida),\n  }));\n}\n\nfunction normalizarMudancas(lista) {\n  return idsUnicos(objetos(lista), 'M').map(m => ({\n    id: m.id,\n    tipo: celula(m.tipo).toLowerCase(),\n    item_em_uso: m.item_em_uso === null || m.item_em_uso === undefined ? null : celula(m.item_em_uso),\n    item_atual: m.item_atual === null || m.item_atual === undefined ? null : celula(m.item_atual),\n    descricao: celula(m.descricao),\n    codigo_material: celula(m.codigo_material),\n    campos: objetos(m.campos).map(c => ({ campo: celula(c.campo), antes: celula(c.antes), depois: celula(c.depois) })),\n    pagina_em_uso: numero(m.pagina_em_uso),\n    pagina_atual: numero(m.pagina_atual),\n    trecho: String(m.trecho ?? ''),\n    explicacao: celula(m.explicacao),\n    a_conferir: m.a_conferir === true,\n    duvida: celula(m.duvida),\n  }));\n}\n\n// A mensagem do Revisor a partir do pedido no formato do SIG-FT ({lista, revisao_em_uso, revisao_atual,\n// status_pmib}). O _STATUS_PMIB ganha a coluna LINHA, que os dois agentes citam.\nfunction mensagemDoRevisor(corpo) {\n  const lista = corpo.lista || {};\n  const emUso = corpo.revisao_em_uso;\n  const atual = corpo.revisao_atual || {};\n  const status = corpo.status_pmib || {};\n  const { cabecalho, dados } = lerTsv(status.tsv);\n  const tabela = [['LINHA', ...cabecalho], ...dados.map((linha, k) => [String(k + 1), ...linha])]\n    .map(linha => linha.join('\\t')).join('\\n');\n  const documentos = [\n    '## LISTA',\n    `Código da lista: ${lista.codigo || ''}`,\n    `Revisão em uso (a que a _STATUS_PMIB reflete hoje): ${lista.revisao_em_uso || '(nenhuma)'}`,\n    `Revisão atual (a última emitida): ${lista.revisao_atual || ''}`,\n    `STATUS REAL da revisão atual: ${lista.status_real || '(vazio)'}`,\n    `Data de hoje: ${lista.data_de_hoje || ''}`,\n    '',\n    emUso ? `## REVISÃO EM USO — ${emUso.arquivo || ''} (${emUso.paginas || '?'} páginas)` : '## REVISÃO EM USO',\n    emUso ? String(emUso.texto || '')\n      : 'Não há: a lista ainda não tem revisão em uso. Compare só a revisão atual com a _STATUS_PMIB.',\n    '',\n    `## REVISÃO ATUAL — ${atual.arquivo || ''} (${atual.paginas || '?'} páginas)`,\n    String(atual.texto || ''),\n    '',\n    `## _STATUS_PMIB — ${status.arquivo || ''}, aba ${status.aba || ''}, ${dados.length} linhas`,\n    `Linha de revisão: ${status.linha_de_revisao || '(não encontrada)'}`,\n    tabela,\n  ].join('\\n');\n  return { documentos, chatInput: 'Revise a lista abaixo e responda só com o JSON combinado.\\n\\n' + documentos };\n}\n\nfunction mensagemDoConferente(documentos, revisor) {\n  return 'Confira o resultado do Revisor contra os documentos e responda só com o JSON combinado.\\n\\n'\n    + documentos + '\\n\\n## RESULTADO DO REVISOR\\n' + JSON.stringify(revisor, null, 1);\n}\n\nfunction normalizarRevisor(r) {\n  const lista = v => (Array.isArray(v) ? v : []);\n  return {\n    resumo: celula(r.resumo),\n    itens_revisao_em_uso: numero(r.itens_revisao_em_uso),\n    itens_revisao_atual: numero(r.itens_revisao_atual),\n    mudancas: normalizarMudancas(r.mudancas),\n    acoes: normalizarAcoes(r.acoes, 'A'),\n    linhas_documentais_mantidas: lista(r.linhas_documentais_mantidas).map(numero).filter(n => n !== null),\n    observacoes: lista(r.observacoes).map(celula).filter(Boolean),\n  };\n}\n\n// ── Monta o pedido: a mensagem do Revisor de Listas (ou a do eco) a partir do que o SIG-FT mandou ──\nconst corpo = $input.first().json.body || {};\nconst execucao = String($execution.id);\n\nif (corpo.modo === 'eco') {\n  const codigos = (corpo.codigos || []).map(String);\n  const chatInput = 'MODO ECO\\nRepita exatamente, um por linha e na mesma ordem, os códigos abaixo. '\n    + 'Não comente, não corrija e não acrescente nada.\\n\\n' + codigos.join('\\n');\n  return [{ json: { modo: 'eco', chatInput, sessionId: `sigft-eco-${execucao}` } }];\n}\n\nconst { documentos, chatInput } = mensagemDoRevisor(corpo);\nreturn [{ json: { modo: 'revisar', chatInput, sessionId: `sigft-revisor-${execucao}`, documentos, corpo } }];\n"
       },
       "id": "4a0c8e7f-5d96-4b1d-86f8-9d0a1b2c3d06",
       "name": "Monta o pedido",
@@ -83,30 +83,168 @@
     },
     {
       "parameters": {
-        "promptType": "define",
-        "text": "={{ $json.prompt }}"
+        "agentId": {
+          "__rl": true,
+          "value": "{\"agentName\":\"Revisor de Listas\",\"model\":\"bedrock-claude-sonnet-5.5\"}",
+          "mode": "list",
+          "cachedResultName": "Revisor de Listas"
+        },
+        "sessionId": "={{ $json.sessionId }}",
+        "options": {}
       },
       "id": "5b1d9f8a-6ea7-4c2e-97a9-ae1b2c3d4e07",
-      "name": "Agente da revisão",
-      "type": "@n8n/n8n-nodes-langchain.chainLlm",
-      "typeVersion": 1.5,
+      "name": "Revisor de Listas",
+      "type": "CUSTOM.amp",
+      "typeVersion": 1,
       "position": [
         660,
         420
       ],
-      "onError": "continueErrorOutput"
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "// Gerado por amp/revisao_de_listas/gerar_workflow.py. Nao edite aqui.\nconst VERSAO = \"2026-10-27\";\nconst modo = $('Monta o pedido').first().json.modo;\nconst texto = String($input.first().json.text ?? '');\nconst execucao = $execution.id;\nif (modo === 'eco') {\n  return [{ json: { resposta: { ok: true, modo, texto, versao_workflow: VERSAO, execucao } } }];\n}\nlet html = texto.trim();\nconst cerca = html.match(/```(?:html)?\\s*([\\s\\S]*?)```/i);\nif (cerca) html = cerca[1].trim();\nconst ok = /<html|<table/i.test(html);\nconst resposta = { ok, modo, html, versao_workflow: VERSAO, execucao };\nif (!ok) resposta.erro = 'o agente não devolveu HTML';\nreturn [{ json: { resposta } }];\n"
+        "jsCode": "// Gerado por amp/revisao_de_listas/gerar_workflow.py a partir de js/le_revisor.js. Nao edite aqui.\nconst VERSAO_WORKFLOW = \"2026-11-02\";\n\n// ── comum: as funções que os nós de código deste workflow dividem ──\n// gerar_workflow.py copia este arquivo no começo de cada nó de código.\n\n// Texto sem acento, em maiúsculas e com os espaços juntados: a comparação ignora o que não é mudança.\nfunction semAcento(s) {\n  return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '');\n}\nfunction normal(s) {\n  return semAcento(s).toUpperCase().replace(/\\s+/g, ' ').trim();\n}\nfunction compacto(s) {\n  return semAcento(s).toUpperCase().replace(/\\s+/g, '');\n}\n\n// Uma célula como o Excel cola: sem tabulação nem quebra de linha dentro.\nfunction celula(v) {\n  return v === null || v === undefined ? '' : String(v).replace(/[\\t\\r\\n]+/g, ' ').trim();\n}\nfunction numero(v) {\n  if (v === null || v === undefined || v === '') return null;\n  const n = Number(v);\n  return Number.isFinite(n) ? n : null;\n}\nfunction esc(s) {\n  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;').replace(/'/g, '&#39;');\n}\n\n// O SIG-FT marca o começo de cada página do PDF com \"--- página N ---\".\nfunction paginasDoTexto(texto) {\n  const paginas = new Map();\n  const partes = String(texto ?? '').split(/^--- página (\\d+) ---[ \\t]*$/m);\n  for (let i = 1; i < partes.length; i += 2) paginas.set(Number(partes[i]), partes[i + 1] || '');\n  return paginas;\n}\n\n// O _STATUS_PMIB chega em tabulação: o cabeçalho na primeira linha e as linhas de dados depois. A\n// LINHA que os agentes citam é a posição da linha de dados, a partir de 1.\nfunction lerTsv(tsv) {\n  const linhas = String(tsv ?? '').split(/\\r?\\n/);\n  while (linhas.length && !linhas[linhas.length - 1].trim()) linhas.pop();\n  const cabecalho = (linhas.shift() ?? '').split('\\t');\n  const dados = linhas.map(l => {\n    const c = l.split('\\t');\n    while (c.length < cabecalho.length) c.push('');\n    return c.slice(0, cabecalho.length);\n  });\n  return { cabecalho, dados };\n}\n\n// As colunas que vêm da lista são as que ficam à esquerda de CÓDIGO PMIB; dali para a direita é o\n// andamento da equipe, que nenhuma ação muda.\nconst NOMES_DA_LISTA = new Set(['ITEM', 'QTD.', 'QTD', 'QUANTIDADE', 'UNID.', 'UNID', 'UNIDADE', 'DESCRICAO',\n  'CODIGO DO MATERIAL', 'CODIGO CMI', 'MARCA/MODELO', 'FABRICANTE', 'CODIGO DO FORNECEDOR', 'CODIGO GE']);\nfunction colunasDaLista(cabecalho) {\n  const nomes = cabecalho.map(normal);\n  const pmib = nomes.findIndex(n => n.startsWith('CODIGO PMIB'));\n  return nomes.map((n, i) => [n, i])\n    .filter(([n, i]) => n && (pmib >= 0 ? i < pmib : NOMES_DA_LISTA.has(n)))\n    .map(([, i]) => i);\n}\nfunction indiceDaColuna(cabecalho, nome) {\n  const alvo = normal(nome);\n  return cabecalho.findIndex(c => normal(c) === alvo);\n}\n\n// A resposta do nó AMP Agent vem em `output`; o erro (com \"continuar na saída normal\"), em `error`.\n// A mensagem de erro é cortada: ela vai para o diagnóstico do SIG-FT.\nfunction saidaDoAgente(j) {\n  if (j && j.error !== undefined && j.error !== null && j.error !== '') {\n    const e = j.error;\n    const mensagem = typeof e === 'string' ? e : (e.message || e.description || JSON.stringify(e));\n    return { erro: String(mensagem).slice(0, 300) };\n  }\n  const o = j ? j.output : undefined;\n  const texto = typeof o === 'string' ? o : (o !== undefined && o !== null ? JSON.stringify(o) : '');\n  return texto.trim() ? { texto } : { erro: 'o agente não devolveu resposta' };\n}\n\n// Os agentes do AMP costumam escrever uma frase antes do JSON e pôr o JSON numa cerca de código.\nfunction extrairJson(texto) {\n  const s = String(texto ?? '').trim();\n  const tentativas = [];\n  const cerca = s.match(/```(?:json)?\\s*([\\s\\S]*?)```/i);\n  if (cerca) tentativas.push(cerca[1]);\n  const a = s.indexOf('{'), b = s.lastIndexOf('}');\n  if (a >= 0 && b > a) tentativas.push(s.slice(a, b + 1));\n  tentativas.push(s);\n  for (const t of tentativas) {\n    try {\n      const v = JSON.parse(t);\n      if (v && typeof v === 'object' && !Array.isArray(v)) return v;\n    } catch (e) { /* a próxima tentativa */ }\n  }\n  return null;\n}\n\nfunction idsUnicos(lista, prefixo) {\n  const vistos = new Set();\n  return lista.map((item, k) => {\n    let id = celula(item.id);\n    if (!id || vistos.has(id)) {\n      let n = k + 1;\n      while (vistos.has(`${prefixo}${n}`)) n++;\n      id = `${prefixo}${n}`;\n    }\n    vistos.add(id);\n    return { ...item, id };\n  });\n}\nfunction objetos(lista) {\n  return (Array.isArray(lista) ? lista : []).filter(x => x && typeof x === 'object' && !Array.isArray(x));\n}\nfunction valoresDe(v) {\n  const valores = {};\n  if (v && typeof v === 'object' && !Array.isArray(v)) for (const [coluna, valor] of Object.entries(v)) valores[coluna] = celula(valor);\n  return valores;\n}\n\nfunction normalizarAcoes(lista, prefixo) {\n  return idsUnicos(objetos(lista), prefixo).map(a => ({\n    id: a.id,\n    acao: celula(a.acao).toLowerCase(),\n    linha: numero(a.linha),\n    inserir_apos: numero(a.inserir_apos),\n    valores: valoresDe(a.valores),\n    pagina: numero(a.pagina),\n    trecho: String(a.trecho ?? ''),\n    motivo: celula(a.motivo),\n    mudanca: a.mudanca ? celula(a.mudanca) : null,\n    a_conferir: a.a_conferir === true,\n    duvida: celula(a.duvida),\n  }));\n}\n\nfunction normalizarMudancas(lista) {\n  return idsUnicos(objetos(lista), 'M').map(m => ({\n    id: m.id,\n    tipo: celula(m.tipo).toLowerCase(),\n    item_em_uso: m.item_em_uso === null || m.item_em_uso === undefined ? null : celula(m.item_em_uso),\n    item_atual: m.item_atual === null || m.item_atual === undefined ? null : celula(m.item_atual),\n    descricao: celula(m.descricao),\n    codigo_material: celula(m.codigo_material),\n    campos: objetos(m.campos).map(c => ({ campo: celula(c.campo), antes: celula(c.antes), depois: celula(c.depois) })),\n    pagina_em_uso: numero(m.pagina_em_uso),\n    pagina_atual: numero(m.pagina_atual),\n    trecho: String(m.trecho ?? ''),\n    explicacao: celula(m.explicacao),\n    a_conferir: m.a_conferir === true,\n    duvida: celula(m.duvida),\n  }));\n}\n\n// A mensagem do Revisor a partir do pedido no formato do SIG-FT ({lista, revisao_em_uso, revisao_atual,\n// status_pmib}). O _STATUS_PMIB ganha a coluna LINHA, que os dois agentes citam.\nfunction mensagemDoRevisor(corpo) {\n  const lista = corpo.lista || {};\n  const emUso = corpo.revisao_em_uso;\n  const atual = corpo.revisao_atual || {};\n  const status = corpo.status_pmib || {};\n  const { cabecalho, dados } = lerTsv(status.tsv);\n  const tabela = [['LINHA', ...cabecalho], ...dados.map((linha, k) => [String(k + 1), ...linha])]\n    .map(linha => linha.join('\\t')).join('\\n');\n  const documentos = [\n    '## LISTA',\n    `Código da lista: ${lista.codigo || ''}`,\n    `Revisão em uso (a que a _STATUS_PMIB reflete hoje): ${lista.revisao_em_uso || '(nenhuma)'}`,\n    `Revisão atual (a última emitida): ${lista.revisao_atual || ''}`,\n    `STATUS REAL da revisão atual: ${lista.status_real || '(vazio)'}`,\n    `Data de hoje: ${lista.data_de_hoje || ''}`,\n    '',\n    emUso ? `## REVISÃO EM USO — ${emUso.arquivo || ''} (${emUso.paginas || '?'} páginas)` : '## REVISÃO EM USO',\n    emUso ? String(emUso.texto || '')\n      : 'Não há: a lista ainda não tem revisão em uso. Compare só a revisão atual com a _STATUS_PMIB.',\n    '',\n    `## REVISÃO ATUAL — ${atual.arquivo || ''} (${atual.paginas || '?'} páginas)`,\n    String(atual.texto || ''),\n    '',\n    `## _STATUS_PMIB — ${status.arquivo || ''}, aba ${status.aba || ''}, ${dados.length} linhas`,\n    `Linha de revisão: ${status.linha_de_revisao || '(não encontrada)'}`,\n    tabela,\n  ].join('\\n');\n  return { documentos, chatInput: 'Revise a lista abaixo e responda só com o JSON combinado.\\n\\n' + documentos };\n}\n\nfunction mensagemDoConferente(documentos, revisor) {\n  return 'Confira o resultado do Revisor contra os documentos e responda só com o JSON combinado.\\n\\n'\n    + documentos + '\\n\\n## RESULTADO DO REVISOR\\n' + JSON.stringify(revisor, null, 1);\n}\n\nfunction normalizarRevisor(r) {\n  const lista = v => (Array.isArray(v) ? v : []);\n  return {\n    resumo: celula(r.resumo),\n    itens_revisao_em_uso: numero(r.itens_revisao_em_uso),\n    itens_revisao_atual: numero(r.itens_revisao_atual),\n    mudancas: normalizarMudancas(r.mudancas),\n    acoes: normalizarAcoes(r.acoes, 'A'),\n    linhas_documentais_mantidas: lista(r.linhas_documentais_mantidas).map(numero).filter(n => n !== null),\n    observacoes: lista(r.observacoes).map(celula).filter(Boolean),\n  };\n}\n\n// ── Lê o Revisor: o eco volta direto; a revisão segue para a conferência; a falha vira erro 502 ──\n// O erro nunca repete a resposta do agente: ela pode trazer texto do documento, e o erro vai para o\n// diagnóstico do SIG-FT.\nconst pedido = $('Monta o pedido').first().json;\nconst execucao = String($execution.id);\nconst saida = saidaDoAgente($input.first().json);\nconst falha = erro => [{ json: { rota: 'erro', resposta: {\n  ok: false, modo: pedido.modo, etapa: 'revisor', erro, versao_workflow: VERSAO_WORKFLOW, execucao } } }];\n\nif (saida.erro) return falha(`o agente Revisor de Listas falhou: ${saida.erro}`);\nif (pedido.modo === 'eco') {\n  return [{ json: { rota: 'ok', resposta: {\n    ok: true, modo: 'eco', texto: saida.texto, versao_workflow: VERSAO_WORKFLOW, execucao } } }];\n}\nconst revisor = extrairJson(saida.texto);\nif (!revisor) return falha(`o Revisor de Listas não devolveu o JSON combinado (${saida.texto.length} caracteres)`);\nreturn [{ json: { rota: 'conferir', revisor: normalizarRevisor(revisor) } }];\n"
       },
-      "id": "6c2eaf9b-7fb8-4d3f-a8ba-bf2c3d4e5f08",
-      "name": "Prepara a resposta",
+      "id": "a1c3e5f7-0b2d-4f61-8a3c-5e7f9b1d3f12",
+      "name": "Lê o Revisor",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        900,
-        340
+        880,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "c3e5a7b9-2d4f-4b83-8c5e-7a9b1d3f5b14",
+              "leftValue": "={{ $json.rota }}",
+              "rightValue": "conferir",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2d4f6a8-1c3e-4a72-9b4d-6f8a0c2e4a13",
+      "name": "Vai à conferência?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "id": "d4f6b8c0-3e5a-4c94-9d6f-8b0c2e4a6c15",
+      "name": "Espera 10 s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        300
+      ],
+      "webhookId": "e5a7c9d1-4f6b-4da5-8e7a-9c1d3f5b7d16"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gerado por amp/revisao_de_listas/gerar_workflow.py a partir de js/prepara_conferencia.js. Nao edite aqui.\nconst VERSAO_WORKFLOW = \"2026-11-02\";\n\n// ── comum: as funções que os nós de código deste workflow dividem ──\n// gerar_workflow.py copia este arquivo no começo de cada nó de código.\n\n// Texto sem acento, em maiúsculas e com os espaços juntados: a comparação ignora o que não é mudança.\nfunction semAcento(s) {\n  return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '');\n}\nfunction normal(s) {\n  return semAcento(s).toUpperCase().replace(/\\s+/g, ' ').trim();\n}\nfunction compacto(s) {\n  return semAcento(s).toUpperCase().replace(/\\s+/g, '');\n}\n\n// Uma célula como o Excel cola: sem tabulação nem quebra de linha dentro.\nfunction celula(v) {\n  return v === null || v === undefined ? '' : String(v).replace(/[\\t\\r\\n]+/g, ' ').trim();\n}\nfunction numero(v) {\n  if (v === null || v === undefined || v === '') return null;\n  const n = Number(v);\n  return Number.isFinite(n) ? n : null;\n}\nfunction esc(s) {\n  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;').replace(/'/g, '&#39;');\n}\n\n// O SIG-FT marca o começo de cada página do PDF com \"--- página N ---\".\nfunction paginasDoTexto(texto) {\n  const paginas = new Map();\n  const partes = String(texto ?? '').split(/^--- página (\\d+) ---[ \\t]*$/m);\n  for (let i = 1; i < partes.length; i += 2) paginas.set(Number(partes[i]), partes[i + 1] || '');\n  return paginas;\n}\n\n// O _STATUS_PMIB chega em tabulação: o cabeçalho na primeira linha e as linhas de dados depois. A\n// LINHA que os agentes citam é a posição da linha de dados, a partir de 1.\nfunction lerTsv(tsv) {\n  const linhas = String(tsv ?? '').split(/\\r?\\n/);\n  while (linhas.length && !linhas[linhas.length - 1].trim()) linhas.pop();\n  const cabecalho = (linhas.shift() ?? '').split('\\t');\n  const dados = linhas.map(l => {\n    const c = l.split('\\t');\n    while (c.length < cabecalho.length) c.push('');\n    return c.slice(0, cabecalho.length);\n  });\n  return { cabecalho, dados };\n}\n\n// As colunas que vêm da lista são as que ficam à esquerda de CÓDIGO PMIB; dali para a direita é o\n// andamento da equipe, que nenhuma ação muda.\nconst NOMES_DA_LISTA = new Set(['ITEM', 'QTD.', 'QTD', 'QUANTIDADE', 'UNID.', 'UNID', 'UNIDADE', 'DESCRICAO',\n  'CODIGO DO MATERIAL', 'CODIGO CMI', 'MARCA/MODELO', 'FABRICANTE', 'CODIGO DO FORNECEDOR', 'CODIGO GE']);\nfunction colunasDaLista(cabecalho) {\n  const nomes = cabecalho.map(normal);\n  const pmib = nomes.findIndex(n => n.startsWith('CODIGO PMIB'));\n  return nomes.map((n, i) => [n, i])\n    .filter(([n, i]) => n && (pmib >= 0 ? i < pmib : NOMES_DA_LISTA.has(n)))\n    .map(([, i]) => i);\n}\nfunction indiceDaColuna(cabecalho, nome) {\n  const alvo = normal(nome);\n  return cabecalho.findIndex(c => normal(c) === alvo);\n}\n\n// A resposta do nó AMP Agent vem em `output`; o erro (com \"continuar na saída normal\"), em `error`.\n// A mensagem de erro é cortada: ela vai para o diagnóstico do SIG-FT.\nfunction saidaDoAgente(j) {\n  if (j && j.error !== undefined && j.error !== null && j.error !== '') {\n    const e = j.error;\n    const mensagem = typeof e === 'string' ? e : (e.message || e.description || JSON.stringify(e));\n    return { erro: String(mensagem).slice(0, 300) };\n  }\n  const o = j ? j.output : undefined;\n  const texto = typeof o === 'string' ? o : (o !== undefined && o !== null ? JSON.stringify(o) : '');\n  return texto.trim() ? { texto } : { erro: 'o agente não devolveu resposta' };\n}\n\n// Os agentes do AMP costumam escrever uma frase antes do JSON e pôr o JSON numa cerca de código.\nfunction extrairJson(texto) {\n  const s = String(texto ?? '').trim();\n  const tentativas = [];\n  const cerca = s.match(/```(?:json)?\\s*([\\s\\S]*?)```/i);\n  if (cerca) tentativas.push(cerca[1]);\n  const a = s.indexOf('{'), b = s.lastIndexOf('}');\n  if (a >= 0 && b > a) tentativas.push(s.slice(a, b + 1));\n  tentativas.push(s);\n  for (const t of tentativas) {\n    try {\n      const v = JSON.parse(t);\n      if (v && typeof v === 'object' && !Array.isArray(v)) return v;\n    } catch (e) { /* a próxima tentativa */ }\n  }\n  return null;\n}\n\nfunction idsUnicos(lista, prefixo) {\n  const vistos = new Set();\n  return lista.map((item, k) => {\n    let id = celula(item.id);\n    if (!id || vistos.has(id)) {\n      let n = k + 1;\n      while (vistos.has(`${prefixo}${n}`)) n++;\n      id = `${prefixo}${n}`;\n    }\n    vistos.add(id);\n    return { ...item, id };\n  });\n}\nfunction objetos(lista) {\n  return (Array.isArray(lista) ? lista : []).filter(x => x && typeof x === 'object' && !Array.isArray(x));\n}\nfunction valoresDe(v) {\n  const valores = {};\n  if (v && typeof v === 'object' && !Array.isArray(v)) for (const [coluna, valor] of Object.entries(v)) valores[coluna] = celula(valor);\n  return valores;\n}\n\nfunction normalizarAcoes(lista, prefixo) {\n  return idsUnicos(objetos(lista), prefixo).map(a => ({\n    id: a.id,\n    acao: celula(a.acao).toLowerCase(),\n    linha: numero(a.linha),\n    inserir_apos: numero(a.inserir_apos),\n    valores: valoresDe(a.valores),\n    pagina: numero(a.pagina),\n    trecho: String(a.trecho ?? ''),\n    motivo: celula(a.motivo),\n    mudanca: a.mudanca ? celula(a.mudanca) : null,\n    a_conferir: a.a_conferir === true,\n    duvida: celula(a.duvida),\n  }));\n}\n\nfunction normalizarMudancas(lista) {\n  return idsUnicos(objetos(lista), 'M').map(m => ({\n    id: m.id,\n    tipo: celula(m.tipo).toLowerCase(),\n    item_em_uso: m.item_em_uso === null || m.item_em_uso === undefined ? null : celula(m.item_em_uso),\n    item_atual: m.item_atual === null || m.item_atual === undefined ? null : celula(m.item_atual),\n    descricao: celula(m.descricao),\n    codigo_material: celula(m.codigo_material),\n    campos: objetos(m.campos).map(c => ({ campo: celula(c.campo), antes: celula(c.antes), depois: celula(c.depois) })),\n    pagina_em_uso: numero(m.pagina_em_uso),\n    pagina_atual: numero(m.pagina_atual),\n    trecho: String(m.trecho ?? ''),\n    explicacao: celula(m.explicacao),\n    a_conferir: m.a_conferir === true,\n    duvida: celula(m.duvida),\n  }));\n}\n\n// A mensagem do Revisor a partir do pedido no formato do SIG-FT ({lista, revisao_em_uso, revisao_atual,\n// status_pmib}). O _STATUS_PMIB ganha a coluna LINHA, que os dois agentes citam.\nfunction mensagemDoRevisor(corpo) {\n  const lista = corpo.lista || {};\n  const emUso = corpo.revisao_em_uso;\n  const atual = corpo.revisao_atual || {};\n  const status = corpo.status_pmib || {};\n  const { cabecalho, dados } = lerTsv(status.tsv);\n  const tabela = [['LINHA', ...cabecalho], ...dados.map((linha, k) => [String(k + 1), ...linha])]\n    .map(linha => linha.join('\\t')).join('\\n');\n  const documentos = [\n    '## LISTA',\n    `Código da lista: ${lista.codigo || ''}`,\n    `Revisão em uso (a que a _STATUS_PMIB reflete hoje): ${lista.revisao_em_uso || '(nenhuma)'}`,\n    `Revisão atual (a última emitida): ${lista.revisao_atual || ''}`,\n    `STATUS REAL da revisão atual: ${lista.status_real || '(vazio)'}`,\n    `Data de hoje: ${lista.data_de_hoje || ''}`,\n    '',\n    emUso ? `## REVISÃO EM USO — ${emUso.arquivo || ''} (${emUso.paginas || '?'} páginas)` : '## REVISÃO EM USO',\n    emUso ? String(emUso.texto || '')\n      : 'Não há: a lista ainda não tem revisão em uso. Compare só a revisão atual com a _STATUS_PMIB.',\n    '',\n    `## REVISÃO ATUAL — ${atual.arquivo || ''} (${atual.paginas || '?'} páginas)`,\n    String(atual.texto || ''),\n    '',\n    `## _STATUS_PMIB — ${status.arquivo || ''}, aba ${status.aba || ''}, ${dados.length} linhas`,\n    `Linha de revisão: ${status.linha_de_revisao || '(não encontrada)'}`,\n    tabela,\n  ].join('\\n');\n  return { documentos, chatInput: 'Revise a lista abaixo e responda só com o JSON combinado.\\n\\n' + documentos };\n}\n\nfunction mensagemDoConferente(documentos, revisor) {\n  return 'Confira o resultado do Revisor contra os documentos e responda só com o JSON combinado.\\n\\n'\n    + documentos + '\\n\\n## RESULTADO DO REVISOR\\n' + JSON.stringify(revisor, null, 1);\n}\n\nfunction normalizarRevisor(r) {\n  const lista = v => (Array.isArray(v) ? v : []);\n  return {\n    resumo: celula(r.resumo),\n    itens_revisao_em_uso: numero(r.itens_revisao_em_uso),\n    itens_revisao_atual: numero(r.itens_revisao_atual),\n    mudancas: normalizarMudancas(r.mudancas),\n    acoes: normalizarAcoes(r.acoes, 'A'),\n    linhas_documentais_mantidas: lista(r.linhas_documentais_mantidas).map(numero).filter(n => n !== null),\n    observacoes: lista(r.observacoes).map(celula).filter(Boolean),\n  };\n}\n\n// ── Prepara a conferência: os mesmos conteúdos do Revisor e, no fim, o resultado dele ──\n// O resultado vai já normalizado (ids M1..., A1...), o mesmo que o \"Monta o resultado\" vai usar.\nconst pedido = $('Monta o pedido').first().json;\nconst revisor = $input.first().json.revisor;\nreturn [{ json: { chatInput: mensagemDoConferente(pedido.documentos, revisor),\n  sessionId: `sigft-conferente-${$execution.id}`, revisor } }];\n"
+      },
+      "id": "f6b8d0e2-5a7c-4eb6-9f8b-0d2e4a6c8e17",
+      "name": "Prepara a conferência",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "agentId": {
+          "__rl": true,
+          "value": "{\"agentName\":\"Conferente de Listas\",\"model\":\"gemini-3.5-flash-lite\"}",
+          "mode": "list",
+          "cachedResultName": "Conferente de Listas"
+        },
+        "sessionId": "={{ $json.sessionId }}",
+        "options": {}
+      },
+      "id": "07c9e1f3-6b8d-4fc7-8a9c-1e3f5b7d9f18",
+      "name": "Conferente de Listas",
+      "type": "CUSTOM.amp",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gerado por amp/revisao_de_listas/gerar_workflow.py a partir de js/monta_resultado.js. Nao edite aqui.\nconst VERSAO_WORKFLOW = \"2026-11-02\";\n\n// ── comum: as funções que os nós de código deste workflow dividem ──\n// gerar_workflow.py copia este arquivo no começo de cada nó de código.\n\n// Texto sem acento, em maiúsculas e com os espaços juntados: a comparação ignora o que não é mudança.\nfunction semAcento(s) {\n  return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '');\n}\nfunction normal(s) {\n  return semAcento(s).toUpperCase().replace(/\\s+/g, ' ').trim();\n}\nfunction compacto(s) {\n  return semAcento(s).toUpperCase().replace(/\\s+/g, '');\n}\n\n// Uma célula como o Excel cola: sem tabulação nem quebra de linha dentro.\nfunction celula(v) {\n  return v === null || v === undefined ? '' : String(v).replace(/[\\t\\r\\n]+/g, ' ').trim();\n}\nfunction numero(v) {\n  if (v === null || v === undefined || v === '') return null;\n  const n = Number(v);\n  return Number.isFinite(n) ? n : null;\n}\nfunction esc(s) {\n  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;').replace(/'/g, '&#39;');\n}\n\n// O SIG-FT marca o começo de cada página do PDF com \"--- página N ---\".\nfunction paginasDoTexto(texto) {\n  const paginas = new Map();\n  const partes = String(texto ?? '').split(/^--- página (\\d+) ---[ \\t]*$/m);\n  for (let i = 1; i < partes.length; i += 2) paginas.set(Number(partes[i]), partes[i + 1] || '');\n  return paginas;\n}\n\n// O _STATUS_PMIB chega em tabulação: o cabeçalho na primeira linha e as linhas de dados depois. A\n// LINHA que os agentes citam é a posição da linha de dados, a partir de 1.\nfunction lerTsv(tsv) {\n  const linhas = String(tsv ?? '').split(/\\r?\\n/);\n  while (linhas.length && !linhas[linhas.length - 1].trim()) linhas.pop();\n  const cabecalho = (linhas.shift() ?? '').split('\\t');\n  const dados = linhas.map(l => {\n    const c = l.split('\\t');\n    while (c.length < cabecalho.length) c.push('');\n    return c.slice(0, cabecalho.length);\n  });\n  return { cabecalho, dados };\n}\n\n// As colunas que vêm da lista são as que ficam à esquerda de CÓDIGO PMIB; dali para a direita é o\n// andamento da equipe, que nenhuma ação muda.\nconst NOMES_DA_LISTA = new Set(['ITEM', 'QTD.', 'QTD', 'QUANTIDADE', 'UNID.', 'UNID', 'UNIDADE', 'DESCRICAO',\n  'CODIGO DO MATERIAL', 'CODIGO CMI', 'MARCA/MODELO', 'FABRICANTE', 'CODIGO DO FORNECEDOR', 'CODIGO GE']);\nfunction colunasDaLista(cabecalho) {\n  const nomes = cabecalho.map(normal);\n  const pmib = nomes.findIndex(n => n.startsWith('CODIGO PMIB'));\n  return nomes.map((n, i) => [n, i])\n    .filter(([n, i]) => n && (pmib >= 0 ? i < pmib : NOMES_DA_LISTA.has(n)))\n    .map(([, i]) => i);\n}\nfunction indiceDaColuna(cabecalho, nome) {\n  const alvo = normal(nome);\n  return cabecalho.findIndex(c => normal(c) === alvo);\n}\n\n// A resposta do nó AMP Agent vem em `output`; o erro (com \"continuar na saída normal\"), em `error`.\n// A mensagem de erro é cortada: ela vai para o diagnóstico do SIG-FT.\nfunction saidaDoAgente(j) {\n  if (j && j.error !== undefined && j.error !== null && j.error !== '') {\n    const e = j.error;\n    const mensagem = typeof e === 'string' ? e : (e.message || e.description || JSON.stringify(e));\n    return { erro: String(mensagem).slice(0, 300) };\n  }\n  const o = j ? j.output : undefined;\n  const texto = typeof o === 'string' ? o : (o !== undefined && o !== null ? JSON.stringify(o) : '');\n  return texto.trim() ? { texto } : { erro: 'o agente não devolveu resposta' };\n}\n\n// Os agentes do AMP costumam escrever uma frase antes do JSON e pôr o JSON numa cerca de código.\nfunction extrairJson(texto) {\n  const s = String(texto ?? '').trim();\n  const tentativas = [];\n  const cerca = s.match(/```(?:json)?\\s*([\\s\\S]*?)```/i);\n  if (cerca) tentativas.push(cerca[1]);\n  const a = s.indexOf('{'), b = s.lastIndexOf('}');\n  if (a >= 0 && b > a) tentativas.push(s.slice(a, b + 1));\n  tentativas.push(s);\n  for (const t of tentativas) {\n    try {\n      const v = JSON.parse(t);\n      if (v && typeof v === 'object' && !Array.isArray(v)) return v;\n    } catch (e) { /* a próxima tentativa */ }\n  }\n  return null;\n}\n\nfunction idsUnicos(lista, prefixo) {\n  const vistos = new Set();\n  return lista.map((item, k) => {\n    let id = celula(item.id);\n    if (!id || vistos.has(id)) {\n      let n = k + 1;\n      while (vistos.has(`${prefixo}${n}`)) n++;\n      id = `${prefixo}${n}`;\n    }\n    vistos.add(id);\n    return { ...item, id };\n  });\n}\nfunction objetos(lista) {\n  return (Array.isArray(lista) ? lista : []).filter(x => x && typeof x === 'object' && !Array.isArray(x));\n}\nfunction valoresDe(v) {\n  const valores = {};\n  if (v && typeof v === 'object' && !Array.isArray(v)) for (const [coluna, valor] of Object.entries(v)) valores[coluna] = celula(valor);\n  return valores;\n}\n\nfunction normalizarAcoes(lista, prefixo) {\n  return idsUnicos(objetos(lista), prefixo).map(a => ({\n    id: a.id,\n    acao: celula(a.acao).toLowerCase(),\n    linha: numero(a.linha),\n    inserir_apos: numero(a.inserir_apos),\n    valores: valoresDe(a.valores),\n    pagina: numero(a.pagina),\n    trecho: String(a.trecho ?? ''),\n    motivo: celula(a.motivo),\n    mudanca: a.mudanca ? celula(a.mudanca) : null,\n    a_conferir: a.a_conferir === true,\n    duvida: celula(a.duvida),\n  }));\n}\n\nfunction normalizarMudancas(lista) {\n  return idsUnicos(objetos(lista), 'M').map(m => ({\n    id: m.id,\n    tipo: celula(m.tipo).toLowerCase(),\n    item_em_uso: m.item_em_uso === null || m.item_em_uso === undefined ? null : celula(m.item_em_uso),\n    item_atual: m.item_atual === null || m.item_atual === undefined ? null : celula(m.item_atual),\n    descricao: celula(m.descricao),\n    codigo_material: celula(m.codigo_material),\n    campos: objetos(m.campos).map(c => ({ campo: celula(c.campo), antes: celula(c.antes), depois: celula(c.depois) })),\n    pagina_em_uso: numero(m.pagina_em_uso),\n    pagina_atual: numero(m.pagina_atual),\n    trecho: String(m.trecho ?? ''),\n    explicacao: celula(m.explicacao),\n    a_conferir: m.a_conferir === true,\n    duvida: celula(m.duvida),\n  }));\n}\n\n// A mensagem do Revisor a partir do pedido no formato do SIG-FT ({lista, revisao_em_uso, revisao_atual,\n// status_pmib}). O _STATUS_PMIB ganha a coluna LINHA, que os dois agentes citam.\nfunction mensagemDoRevisor(corpo) {\n  const lista = corpo.lista || {};\n  const emUso = corpo.revisao_em_uso;\n  const atual = corpo.revisao_atual || {};\n  const status = corpo.status_pmib || {};\n  const { cabecalho, dados } = lerTsv(status.tsv);\n  const tabela = [['LINHA', ...cabecalho], ...dados.map((linha, k) => [String(k + 1), ...linha])]\n    .map(linha => linha.join('\\t')).join('\\n');\n  const documentos = [\n    '## LISTA',\n    `Código da lista: ${lista.codigo || ''}`,\n    `Revisão em uso (a que a _STATUS_PMIB reflete hoje): ${lista.revisao_em_uso || '(nenhuma)'}`,\n    `Revisão atual (a última emitida): ${lista.revisao_atual || ''}`,\n    `STATUS REAL da revisão atual: ${lista.status_real || '(vazio)'}`,\n    `Data de hoje: ${lista.data_de_hoje || ''}`,\n    '',\n    emUso ? `## REVISÃO EM USO — ${emUso.arquivo || ''} (${emUso.paginas || '?'} páginas)` : '## REVISÃO EM USO',\n    emUso ? String(emUso.texto || '')\n      : 'Não há: a lista ainda não tem revisão em uso. Compare só a revisão atual com a _STATUS_PMIB.',\n    '',\n    `## REVISÃO ATUAL — ${atual.arquivo || ''} (${atual.paginas || '?'} páginas)`,\n    String(atual.texto || ''),\n    '',\n    `## _STATUS_PMIB — ${status.arquivo || ''}, aba ${status.aba || ''}, ${dados.length} linhas`,\n    `Linha de revisão: ${status.linha_de_revisao || '(não encontrada)'}`,\n    tabela,\n  ].join('\\n');\n  return { documentos, chatInput: 'Revise a lista abaixo e responda só com o JSON combinado.\\n\\n' + documentos };\n}\n\nfunction mensagemDoConferente(documentos, revisor) {\n  return 'Confira o resultado do Revisor contra os documentos e responda só com o JSON combinado.\\n\\n'\n    + documentos + '\\n\\n## RESULTADO DO REVISOR\\n' + JSON.stringify(revisor, null, 1);\n}\n\nfunction normalizarRevisor(r) {\n  const lista = v => (Array.isArray(v) ? v : []);\n  return {\n    resumo: celula(r.resumo),\n    itens_revisao_em_uso: numero(r.itens_revisao_em_uso),\n    itens_revisao_atual: numero(r.itens_revisao_atual),\n    mudancas: normalizarMudancas(r.mudancas),\n    acoes: normalizarAcoes(r.acoes, 'A'),\n    linhas_documentais_mantidas: lista(r.linhas_documentais_mantidas).map(numero).filter(n => n !== null),\n    observacoes: lista(r.observacoes).map(celula).filter(Boolean),\n  };\n}\n\n// ── Monta o resultado: junta o Revisor e o Conferente, confere a prova no PDF e remonta a _STATUS_PMIB ──\n// Só entra na tabela a ação que o Conferente confirmou (ou corrigiu) e cuja prova o código achou no\n// texto da revisão atual. O resto fica em \"A conferir\", fora da tabela, para a pessoa decidir. As\n// colunas da equipe (CÓDIGO PMIB e as que ficam à direita dele) nunca mudam.\n\n// A página onde o trecho está (a citada primeiro), ou null.\nfunction acharTrecho(paginas, trecho, pagina) {\n  const alvoNormal = normal(trecho), alvoCompacto = compacto(trecho);\n  if (!alvoCompacto) return null;\n  const ordem = [...paginas.keys()].sort((a, b) => (a === pagina ? -1 : b === pagina ? 1 : a - b));\n  for (const p of ordem) {\n    const texto = paginas.get(p);\n    if (normal(texto).includes(alvoNormal) || compacto(texto).includes(alvoCompacto)) return p;\n  }\n  return null;\n}\n\n// A página onde o código aparece como palavra inteira (VE-100 não casa com VE-1000), ou null.\nfunction acharCodigo(paginas, codigo) {\n  const alvo = normal(codigo);\n  if (!alvo) return null;\n  const re = new RegExp('(^|[^A-Z0-9])' + alvo.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&') + '($|[^A-Z0-9])');\n  for (const [p, texto] of paginas) if (re.test(normal(texto))) return p;\n  return null;\n}\n\n// \"corrigido\": vale o que o Conferente diz, e a prova passa a ser o trecho dele.\nfunction aplicarCorrecao(acao, v) {\n  if (v.trecho) { acao.trecho = String(v.trecho); acao.pagina = numero(v.pagina); }\n  const c = v.correcao;\n  if (!c || typeof c !== 'object') return;\n  if (c.acao) acao.acao = celula(c.acao).toLowerCase();\n  if ('linha' in c) acao.linha = numero(c.linha);\n  if ('inserir_apos' in c) acao.inserir_apos = numero(c.inserir_apos);\n  if ('pagina' in c) acao.pagina = numero(c.pagina);\n  if (c.trecho) acao.trecho = String(c.trecho);\n  Object.assign(acao.valores, valoresDe(c.valores));\n}\n\nfunction revisarResultado(corpo, revisor, conferente, aviso) {\n  const lista = corpo.lista || {};\n  const { cabecalho, dados } = lerTsv((corpo.status_pmib || {}).tsv);\n  const daLista = new Map(colunasDaLista(cabecalho).map(i => [normal(cabecalho[i]), i]));\n  const iCodigo = indiceDaColuna(cabecalho, 'CODIGO DO MATERIAL');\n  const iDescricao = indiceDaColuna(cabecalho, 'DESCRICAO');\n  const iObs = indiceDaColuna(cabecalho, 'OBSERVACOES');\n  const atual = paginasDoTexto((corpo.revisao_atual || {}).texto);\n  const todoAtual = compacto([...atual.values()].join(' '));\n  const vereditos = new Map(objetos(conferente && conferente.vereditos).map(v => [celula(v.id), v]));\n  const existe = n => Number.isInteger(n) && n >= 1 && n <= dados.length;\n\n  // O que o código confere sozinho. Bloqueio: a ação não entra na tabela. Nota: entra, com aviso.\n  function prova(acao) {\n    const bloqueios = [], notas = [];\n    acao.colunas = {};\n    for (const [coluna, valor] of Object.entries(acao.valores)) {\n      const i = daLista.get(normal(coluna));\n      if (i === undefined) notas.push(`a coluna \"${coluna}\" não é da lista e foi ignorada`);\n      else acao.colunas[i] = valor;\n    }\n    const codigo = iCodigo >= 0 ? acao.colunas[iCodigo] : undefined;\n    if (!['atualizar', 'remover', 'inserir'].includes(acao.acao)) bloqueios.push(`ação desconhecida: \"${acao.acao}\"`);\n    if ((acao.acao === 'atualizar' || acao.acao === 'remover') && !existe(acao.linha)) {\n      bloqueios.push(`a LINHA ${acao.linha ?? '(vazia)'} não existe na _STATUS_PMIB`);\n    }\n    if (acao.acao === 'inserir' && acao.inserir_apos !== null && acao.inserir_apos !== 0 && !existe(acao.inserir_apos)) {\n      bloqueios.push(`não há LINHA ${acao.inserir_apos} para inserir depois dela`);\n    }\n    if (acao.acao === 'atualizar' && !Object.keys(acao.colunas).length) bloqueios.push('nada a mudar nas colunas da lista');\n    if (acao.acao === 'inserir' && !Object.values(acao.colunas).some(Boolean)) bloqueios.push('o item novo veio sem valores');\n    if (acao.acao === 'atualizar' || acao.acao === 'inserir') {\n      const p = compacto(acao.trecho) ? acharTrecho(atual, acao.trecho, acao.pagina) : null;\n      if (!compacto(acao.trecho)) bloqueios.push('sem trecho do PDF');\n      else if (p === null) bloqueios.push('o trecho citado não está no texto da revisão atual');\n      else {\n        if (acao.pagina !== null && p !== acao.pagina) notas.push(`o trecho está na página ${p}, e não na ${acao.pagina}`);\n        acao.pagina = p;\n      }\n      if (codigo && acharCodigo(atual, codigo) === null && !todoAtual.includes(compacto(codigo))) {\n        bloqueios.push(`o código ${codigo} não aparece na revisão atual`);\n      }\n    }\n    if (acao.acao === 'inserir' && codigo) {\n      const k = dados.findIndex(l => compacto(l[iCodigo]) === compacto(codigo));\n      if (k >= 0) bloqueios.push(`o código ${codigo} já está na LINHA ${k + 1}`);\n    }\n    if (acao.acao === 'remover' && existe(acao.linha) && iCodigo >= 0) {\n      // Aqui vale também o código grudado no texto vizinho (a extração do PDF pode juntar as células):\n      // na dúvida, a remoção fica a conferir.\n      const antigo = celula(dados[acao.linha - 1][iCodigo]);\n      if (compacto(antigo).length >= 4) {\n        const p = acharCodigo(atual, antigo);\n        if (p !== null) bloqueios.push(`o código ${antigo} ainda aparece na revisão atual (página ${p})`);\n        else if (todoAtual.includes(compacto(antigo))) bloqueios.push(`o código ${antigo} ainda aparece na revisão atual`);\n      }\n    }\n    return { bloqueios, notas };\n  }\n\n  function oQueMuda(acao) {\n    const linha = existe(acao.linha) ? dados[acao.linha - 1] : null;\n    if (acao.acao === 'remover') {\n      return 'sai' + (linha ? ': ' + [linha[iCodigo], linha[iDescricao]].filter(Boolean).join(' · ') : '');\n    }\n    const pares = Object.entries(acao.valores);\n    if (acao.acao === 'inserir') return 'entra: ' + pares.filter(([, v]) => v).map(([c, v]) => `${c} ${v}`).join(' · ');\n    return pares.map(([c, v]) => {\n      const i = daLista.get(normal(c));\n      const antes = linha && i !== undefined ? linha[i] : '?';\n      return `${c}: ${antes || '(vazio)'} → ${v || '(vazio)'}`;\n    }).join(' · ');\n  }\n\n  const decisoes = [];\n  for (const original of revisor.acoes) {\n    const acao = JSON.parse(JSON.stringify(original));\n    const v = vereditos.get(acao.id);\n    const veredito = v ? celula(v.veredito).toLowerCase() : '';\n    const d = { id: acao.id, origem: 'Revisor', acao, veredito, motivo_conferente: v ? celula(v.motivo) : '',\n      situacao: 'a_conferir', notas: [] };\n    if (conferente && (veredito === 'confirmado' || veredito === 'corrigido')) {\n      if (veredito === 'corrigido') aplicarCorrecao(acao, v);\n      const { bloqueios, notas } = prova(acao);\n      d.notas.push(...notas, ...bloqueios);\n      if (!bloqueios.length) d.situacao = 'aplicada';\n    } else {\n      if (!conferente) d.notas.push(aviso || 'a conferência não foi feita');\n      else if (!v) d.notas.push('o Conferente não deu veredito');\n      else if (veredito === 'rejeitado') d.situacao = 'rejeitada';\n      else d.notas.push('o Conferente não conseguiu decidir');\n      const { bloqueios } = prova(acao);\n      if (d.situacao !== 'rejeitada') d.notas.push(...bloqueios);\n    }\n    d.texto = oQueMuda(acao);\n    decisoes.push(d);\n  }\n\n  const usados = new Set(decisoes.map(d => d.id));\n  normalizarAcoes(conferente && conferente.faltou, 'F').forEach((acao, k) => {\n    if (usados.has(acao.id)) { let n = k + 1; while (usados.has(`F${n}`)) n++; acao.id = `F${n}`; }\n    usados.add(acao.id);\n    const { bloqueios, notas } = prova(acao);\n    decisoes.push({ id: acao.id, origem: 'Conferente', acao, veredito: '', motivo_conferente: acao.motivo,\n      situacao: 'a_conferir', notas: ['achado só pelo Conferente', ...notas, ...bloqueios], texto: oQueMuda(acao) });\n  });\n\n  // Conflitos entre o que vai ser aplicado: a LINHA removida não é atualizada, a célula não recebe dois\n  // valores e o mesmo código não entra duas vezes.\n  const aplicadas = tipo => decisoes.filter(d => d.situacao === 'aplicada' && d.acao.acao === tipo);\n  const removidas = new Set(aplicadas('remover').map(d => d.acao.linha));\n  const celulas = new Map();\n  for (const d of aplicadas('atualizar')) {\n    if (removidas.has(d.acao.linha)) { d.situacao = 'a_conferir'; d.notas.push('outra ação remove a mesma LINHA'); continue; }\n    const conflito = Object.entries(d.acao.colunas)\n      .find(([i, v]) => celulas.has(`${d.acao.linha}:${i}`) && celulas.get(`${d.acao.linha}:${i}`) !== v);\n    if (conflito) {\n      d.situacao = 'a_conferir';\n      d.notas.push(`outra ação já muda ${cabecalho[conflito[0]]} da LINHA ${d.acao.linha}`);\n      continue;\n    }\n    for (const [i, v] of Object.entries(d.acao.colunas)) celulas.set(`${d.acao.linha}:${i}`, v);\n  }\n  const codigosNovos = new Set();\n  for (const d of aplicadas('inserir')) {\n    const c = iCodigo >= 0 ? compacto(d.acao.colunas[iCodigo]) : '';\n    if (c && codigosNovos.has(c)) { d.situacao = 'a_conferir'; d.notas.push('outra ação já insere o mesmo código'); }\n    else if (c) codigosNovos.add(c);\n  }\n\n  // A tabela remontada: a ordem da _STATUS_PMIB, sem as removidas, com as novas no lugar pedido.\n  const linhas = dados.map((cels, k) => ({ linha: k + 1, cels: cels.slice(), mudou: new Set(), nova: false }));\n  for (const d of aplicadas('atualizar')) {\n    const l = linhas[d.acao.linha - 1];\n    for (const [i, v] of Object.entries(d.acao.colunas)) if (l.cels[i] !== v) { l.cels[i] = v; l.mudou.add(Number(i)); }\n  }\n  const depois = new Map();\n  for (const d of aplicadas('inserir')) {\n    const cels = cabecalho.map(() => '');\n    for (const [i, v] of Object.entries(d.acao.colunas)) cels[i] = v;\n    const chave = d.acao.inserir_apos === null ? -1 : d.acao.inserir_apos;\n    if (!depois.has(chave)) depois.set(chave, []);\n    depois.get(chave).push({ linha: null, cels, mudou: new Set(), nova: true });\n  }\n  const remontada = [...(depois.get(0) || [])];\n  for (const l of linhas) {\n    if (!removidas.has(l.linha)) remontada.push(l);\n    remontada.push(...(depois.get(l.linha) || []));\n  }\n  remontada.push(...(depois.get(-1) || []));\n\n  // O que sai vai para a SEM_LISTA_STATUS_PMIB com o andamento e a origem em OBSERVAÇÕES.\n  const nota = `Saiu da lista ${lista.codigo || ''} na revisão ${lista.revisao_atual || ''} `\n    + `(estava na revisão ${lista.revisao_em_uso || 'em uso'}), em ${lista.data_de_hoje || ''}.`;\n  const cabecalhoSemLista = iObs >= 0 ? cabecalho : [...cabecalho, 'OBSERVAÇÕES'];\n  const k = iObs >= 0 ? iObs : cabecalho.length;\n  const semLista = linhas.filter(l => removidas.has(l.linha)).map(l => {\n    const cels = iObs >= 0 ? l.cels.slice() : [...l.cels, ''];\n    cels[k] = cels[k] ? `${cels[k]} | ${nota}` : nota;\n    return cels;\n  });\n\n  const mudancas = revisor.mudancas.map(m => {\n    const v = vereditos.get(m.id);\n    return { ...m, veredito: v ? celula(v.veredito).toLowerCase() : '', motivo_conferente: v ? celula(v.motivo) : '' };\n  });\n  const conta = s => decisoes.filter(d => d.situacao === s).length;\n  const lidas = v => (Array.isArray(v) ? v : []).map(celula).filter(Boolean);\n  return {\n    lista, cabecalho, remontada, cabecalhoSemLista, semLista, decisoes, mudancas, aviso,\n    resumo: revisor.resumo,\n    linhaDeRevisao: `REVISÃO DA LISTA DE SOBRESSALENTES ATUAL EM USO: ${lista.revisao_atual || ''} - `\n      + `DATA DE ALTERAÇÃO: ${lista.data_de_hoje || ''}`,\n    observacoes: [...revisor.observacoes.map(o => ['Revisor', o]),\n      ...lidas(conferente && conferente.observacoes).map(o => ['Conferente', o])],\n    contagem: {\n      mudancas: mudancas.length, aplicadas: conta('aplicada'), a_conferir: conta('a_conferir'),\n      rejeitadas: conta('rejeitada'), sem_lista: semLista.length, linhas_antes: dados.length,\n      linhas_depois: remontada.length, itens_revisao_em_uso: revisor.itens_revisao_em_uso,\n      itens_revisao_atual: revisor.itens_revisao_atual,\n      itens_revisao_atual_conferente: conferente ? numero(conferente.itens_revisao_atual) : null,\n    },\n  };\n}\n\nconst CSS = `body{font:14px/1.45 \"Segoe UI\",system-ui,Arial,sans-serif;margin:24px;color:#1b1f24;background:#fff}\nh1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:28px 0 8px;border-bottom:1px solid #d0d7de;padding-bottom:4px}\n.sub{font-size:15px;margin:0}.meta{color:#57606a;font-size:12px}\ntable{border-collapse:collapse;margin:8px 0;font-size:12.5px}th,td{border:1px solid #d0d7de;padding:4px 6px;vertical-align:top;text-align:left}\nth{background:#f6f8fa}.numeros th{font-weight:normal;background:#fff}.numeros td{text-align:right;font-weight:600}\nq{font-family:Consolas,monospace;font-size:12px}q::before,q::after{content:\"\"}\n.aviso{background:#ffebe9;border:1px solid #ff8182;padding:8px 12px}.atencao{background:#fff8c5;border:1px solid #d4a72c;padding:8px 12px}\ntr.nova td{background:#dafbe1}td.mudou{background:#fff8c5;font-weight:600}\n.rola{overflow:auto;max-height:70vh}button{margin:6px 0;padding:6px 14px;cursor:pointer}\ncode{font-family:Consolas,monospace;background:#f6f8fa;padding:2px 4px}\n@media print{.rola{max-height:none;overflow:visible}button{display:none}}`;\n\n// O botão copia o texto separado por tabulação, que o Excel cola em colunas.\nconst COPIA = `document.querySelectorAll('button[data-alvo]').forEach(function (b) {\n  var rotulo = b.textContent;\n  b.addEventListener('click', function () {\n    var texto = document.getElementById(b.getAttribute('data-alvo')).value;\n    var feito = function () { b.textContent = 'Copiado'; setTimeout(function () { b.textContent = rotulo; }, 2000); };\n    var antigo = function () {\n      var a = document.createElement('textarea');\n      a.value = texto; a.style.position = 'fixed'; a.style.opacity = '0';\n      document.body.appendChild(a); a.select();\n      var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}\n      document.body.removeChild(a);\n      if (ok) feito(); else b.textContent = 'Não copiou: selecione a tabela e copie à mão';\n    };\n    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(texto).then(feito, antigo);\n    else antigo();\n  });\n});`;\n\nfunction paginaHtml(r, meta) {\n  const L = r.lista, c = r.contagem;\n  const tsv = linhas => linhas.map(l => l.join('\\t')).join('\\n');\n  const tabela = (cabecalho, corpo) => `<table><thead><tr>${cabecalho.map(x => `<th>${esc(x)}</th>`).join('')}</tr></thead>`\n    + `<tbody>${corpo.join('')}</tbody></table>`;\n  const linha = (...cels) => `<tr>${cels.map(x => `<td>${x}</td>`).join('')}</tr>`;   // as células já vêm escapadas\n  const trecho = t => (t ? `<q>${esc(t)}</q>` : '');\n  const copiar = (id, rotulo, texto) => `<button type=\"button\" data-alvo=\"${id}\">${esc(rotulo)}</button>`\n    + `<textarea id=\"${id}\" hidden>${esc(texto)}</textarea>`;\n  const onde = a => (a.acao !== 'inserir' ? a.linha ?? '' : a.inserir_apos === null ? 'no fim'\n    : a.inserir_apos === 0 ? 'no começo' : `depois da ${a.inserir_apos}`);\n  const grupo = s => r.decisoes.filter(d => d.situacao === s);\n  const tabelaDecisoes = lista => tabela(\n    ['Id', 'Quem achou', 'Ação', 'LINHA', 'O que muda', 'Página', 'Trecho do PDF', 'Conferente', 'Notas'],\n    lista.map(d => linha(esc(d.id), esc(d.origem), esc(d.acao.acao), esc(onde(d.acao)), esc(d.texto),\n      esc(d.acao.pagina ?? ''), trecho(d.acao.trecho), esc([d.veredito, d.motivo_conferente].filter(Boolean).join(': ')),\n      esc(d.notas.join(' · ')))));\n\n  const avisos = [];\n  if (r.aviso) {\n    avisos.push(`<p class=\"aviso\"><b>A conferência não foi feita</b> (${esc(r.aviso)}). Nada foi aplicado na tabela: `\n      + 'todas as ações estão em \"A conferir\".</p>');\n  }\n  if (c.a_conferir) {\n    avisos.push(`<p class=\"atencao\"><b>${c.a_conferir} ação(ões) a conferir</b>: elas não estão na tabela remontada. `\n      + 'Decida cada uma antes de colar.</p>');\n  }\n  if (c.itens_revisao_atual !== null && c.itens_revisao_atual_conferente !== null\n      && c.itens_revisao_atual !== c.itens_revisao_atual_conferente) {\n    avisos.push(`<p class=\"atencao\">O Revisor contou ${esc(c.itens_revisao_atual)} materiais na revisão atual, e o `\n      + `Conferente, ${esc(c.itens_revisao_atual_conferente)}.</p>`);\n  }\n\n  const mudancas = r.mudancas.length ? tabela(\n    ['Id', 'Tipo', 'Item (em uso → atual)', 'Material', 'O que mudou', 'Página (em uso → atual)', 'Trecho do PDF', 'Conferente'],\n    r.mudancas.map(m => linha(esc(m.id), esc(m.tipo), esc(`${m.item_em_uso ?? '—'} → ${m.item_atual ?? '—'}`),\n      esc([m.codigo_material, m.descricao].filter(Boolean).join(' · ')),\n      esc(m.campos.map(x => `${x.campo}: ${x.antes || '(vazio)'} → ${x.depois || '(vazio)'}`).join(' · ') || m.explicacao)\n        + (m.a_conferir ? `<br><i>dúvida do Revisor: ${esc(m.duvida)}</i>` : ''),\n      esc(`${m.pagina_em_uso ?? '—'} → ${m.pagina_atual ?? '—'}`), trecho(m.trecho),\n      esc([m.veredito || 'sem veredito', m.motivo_conferente].filter(Boolean).join(': ')))))\n    : '<p>Nenhuma mudança nos itens.</p>';\n\n  const status = tabela(r.cabecalho, r.remontada.map(l => `<tr${l.nova ? ' class=\"nova\"' : ''}>`\n    + l.cels.map((x, i) => `<td${l.mudou.has(i) ? ' class=\"mudou\"' : ''}>${esc(x)}</td>`).join('') + '</tr>'));\n  const semLista = r.semLista.length\n    ? '<p>Linhas inteiras, com o andamento da equipe e a origem em OBSERVAÇÕES. O botão copia só as linhas, sem o '\n      + 'cabeçalho.</p>' + copiar('tsv-sem-lista', 'Copiar as linhas', tsv(r.semLista))\n      + `<div class=\"rola\">${tabela(r.cabecalhoSemLista, r.semLista.map(l => linha(...l.map(esc))))}</div>`\n    : '<p>Nenhuma linha sai da planilha.</p>';\n  const observacoes = r.observacoes.length\n    ? `<section><h2>Observações dos agentes</h2><ul>${r.observacoes.map(([quem, o]) => `<li><b>${esc(quem)}:</b> ${esc(o)}</li>`).join('')}</ul></section>`\n    : '';\n  const rejeitadas = grupo('rejeitada');\n  const dados = {\n    versao_workflow: meta.versao, execucao: meta.execucao, lista: L, contagem: c, linha_de_revisao: r.linhaDeRevisao,\n    mudancas: r.mudancas,\n    decisoes: r.decisoes.map(d => ({ id: d.id, origem: d.origem, situacao: d.situacao, veredito: d.veredito,\n      motivo_conferente: d.motivo_conferente, notas: d.notas, acao: d.acao.acao, linha: d.acao.linha,\n      inserir_apos: d.acao.inserir_apos, valores: d.acao.valores, pagina: d.acao.pagina, trecho: d.acao.trecho,\n      motivo: d.acao.motivo, mudanca: d.acao.mudanca })),\n  };\n  const dadosJson = JSON.stringify(dados).replace(/</g, '\\\\u003c').replace(/>/g, '\\\\u003e').replace(/&/g, '\\\\u0026');\n\n  return `<!DOCTYPE html>\n<html lang=\"pt-BR\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>${esc(`Revisão ${L.codigo || ''} ${L.revisao_em_uso || '—'} → ${L.revisao_atual || ''}`)}</title>\n<style>${CSS}</style>\n</head>\n<body>\n<header>\n<h1>Revisão da lista ${esc(L.codigo || '')}</h1>\n<p class=\"sub\">${esc(L.revisao_em_uso || 'sem revisão em uso')} → ${esc(L.revisao_atual || '')} · STATUS REAL: ${esc(L.status_real || '—')} · ${esc(L.data_de_hoje || '')}</p>\n<p class=\"meta\">Feito pelo workflow do n8n (versão ${esc(meta.versao)}, execução ${esc(meta.execucao)}) com os agentes Revisor de Listas e Conferente de Listas do AMP. Confira antes de colar.</p>\n</header>\n${avisos.join('\\n')}\n<section><h2>Resumo</h2>\n<p>${esc(r.resumo || '(o Revisor não escreveu resumo)')}</p>\n<table class=\"numeros\"><tbody>\n<tr><th>Mudanças entre as revisões</th><td>${c.mudancas}</td></tr>\n<tr><th>Ações aplicadas na tabela</th><td>${c.aplicadas}</td></tr>\n<tr><th>A conferir (fora da tabela)</th><td>${c.a_conferir}</td></tr>\n<tr><th>Rejeitadas pelo Conferente</th><td>${c.rejeitadas}</td></tr>\n<tr><th>Linhas para a SEM_LISTA_STATUS_PMIB</th><td>${c.sem_lista}</td></tr>\n<tr><th>Linhas da _STATUS_PMIB (antes → depois)</th><td>${c.linhas_antes} → ${c.linhas_depois}</td></tr>\n<tr><th>Materiais na revisão em uso / atual (Revisor)</th><td>${esc(c.itens_revisao_em_uso ?? '—')} / ${esc(c.itens_revisao_atual ?? '—')}</td></tr>\n</tbody></table>\n</section>\n<section><h2>O que mudou entre as revisões</h2>\n${mudancas}\n</section>\n<section><h2>A conferir (fora da tabela)</h2>\n${grupo('a_conferir').length ? tabelaDecisoes(grupo('a_conferir')) : '<p>Nada a conferir.</p>'}\n</section>\n<section><h2>Aplicado na tabela</h2>\n${grupo('aplicada').length ? tabelaDecisoes(grupo('aplicada')) : '<p>Nenhuma ação aplicada.</p>'}\n</section>\n${rejeitadas.length ? `<section><h2>Rejeitadas pelo Conferente</h2>\\n${tabelaDecisoes(rejeitadas)}\\n</section>` : ''}\n<section><h2>_STATUS_PMIB remontado</h2>\n<p>As mesmas colunas, na mesma ordem. Só estão aplicadas as ações que o Conferente confirmou e cuja prova está no PDF, e as colunas da equipe não mudam. Linhas novas em verde, células mudadas em amarelo. O botão copia a tabela com o cabeçalho: cole na célula ITEM do cabeçalho de uma cópia do _STATUS_PMIB.</p>\n${copiar('tsv-status', 'Copiar a tabela', tsv([r.cabecalho, ...r.remontada.map(l => l.cels)]))}\n<div class=\"rola\">${status}</div>\n</section>\n<section><h2>Para a SEM_LISTA_STATUS_PMIB</h2>\n${semLista}\n</section>\n<section><h2>Linha de revisão nova</h2>\n<p><code>${esc(r.linhaDeRevisao)}</code></p>\n${copiar('linha-revisao', 'Copiar a linha', r.linhaDeRevisao)}\n<p class=\"meta\">Troque a linha de revisão só depois de resolver o que está a conferir.</p>\n</section>\n${observacoes}\n<script type=\"application/json\" id=\"sigft-revisao\">${dadosJson}</script>\n<script>${COPIA}</script>\n</body>\n</html>\n`;\n}\n\nconst corpo = $('Monta o pedido').first().json.corpo || {};\nconst revisor = $('Prepara a conferência').first().json.revisor;\nconst execucao = String($execution.id);\nconst item = { json: {} };\ntry {\n  const saida = saidaDoAgente($input.first().json);\n  let conferente = null, aviso = '';\n  if (saida.erro) aviso = `o Conferente de Listas falhou: ${saida.erro}`;\n  else {\n    conferente = extrairJson(saida.texto);\n    if (!conferente) aviso = `o Conferente de Listas não devolveu o JSON combinado (${saida.texto.length} caracteres)`;\n  }\n  const r = revisarResultado(corpo, revisor, conferente, aviso);\n  const html = paginaHtml(r, { versao: VERSAO_WORKFLOW, execucao });\n  const resposta = { ok: true, modo: 'revisar', html, versao_workflow: VERSAO_WORKFLOW, execucao, contagem: r.contagem };\n  if (aviso) resposta.aviso = aviso;\n  item.json = { rota: 'ok', resposta };\n  try {\n    // O HTML também sai como arquivo, no campo binário `data`: a página final do formulário o entrega, e na\n    // execução ele fica na aba Binary → Download.\n    const lista = corpo.lista || {};\n    const nome = `${lista.codigo || 'lista'}[${lista.revisao_em_uso || ''}-${lista.revisao_atual || ''}] revisao AMP`\n      .replace(/[<>:\"/\\\\|?*]/g, '_') + '.html';\n    item.binary = { data: { data: Buffer.from(html, 'utf8').toString('base64'), mimeType: 'text/html',\n      fileName: nome, fileExtension: 'html' } };\n  } catch (e) { /* sem Buffer: fica só o JSON */ }\n} catch (erro) {\n  item.json = { rota: 'erro', resposta: { ok: false, modo: 'revisar', etapa: 'montar',\n    erro: `falha ao montar o resultado: ${String((erro && erro.message) || erro).slice(0, 300)}`,\n    versao_workflow: VERSAO_WORKFLOW, execucao } };\n}\nreturn [item];\n"
+      },
+      "id": "18d0f2a4-7c9e-40d8-9bad-2f4a6c8e0a19",
+      "name": "Monta o resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "3af2b4c6-9e1a-42fa-9dcf-4b6c8e0a2c21",
+              "leftValue": "={{ $json.rota }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "29e1a3b5-8d0f-41e9-8cbe-3a5b7d9f1b20",
+      "name": "Deu certo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        420
       ]
     },
     {
@@ -122,14 +260,14 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        1120,
+        2420,
         340
       ]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ ok: false, modo: $('Monta o pedido').first().json.modo, etapa: 'agente', erro: String(($json.error && ($json.error.message || $json.error)) || 'erro sem mensagem'), execucao: $execution.id }) }}",
+        "responseBody": "={{ JSON.stringify($json.resposta) }}",
         "options": {
           "responseCode": 502
         }
@@ -139,15 +277,15 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        900,
+        2420,
         520
       ]
     },
     {
       "parameters": {
-        "content": "## Para ligar (uma vez)\n1. **Credencial:** no nó **Webhook do SIG-FT**, crie uma *Header Auth* com o nome `X-SIGFT-Chave` e um valor longo e aleatório. O mesmo valor vai no SIG-FT: Configuração → Chaves de API → \"AMP Webhook (chave)\".\n2. **Modelo:** no nó **Agente da revisão**, clique em **Model** e ligue um **GEV LLM Model** (sugestão: Claude Sonnet 5.5).\n3. **Salve e publique** o workflow.\n4. Copie a **Production URL** do webhook para o SIG-FT: \"AMP Webhook (URL)\".\n5. No SIG-FT, PMIB Manager, aba Revisão no AMP: **Testar conexão com o AMP**. O ping e o eco devem passar.\n\nVer `amp/revisao_de_listas/LEIA-ME.md` no repositório do SIG-FT.",
-        "height": 340,
-        "width": 520
+        "content": "## Para ligar (uma vez)\n1. **Agentes:** crie no AMP o **Revisor de Listas** e o **Conferente de Listas**, com os system prompts de `amp/revisao_de_listas/agentes/` (o LEIA-ME tem o modelo de cada um).\n2. **Credencial do webhook:** no nó **Webhook do SIG-FT**, crie uma *Header Auth* com o nome `X-SIGFT-Chave` e um valor longo e aleatório. O mesmo valor vai no SIG-FT: Configuração → Chaves de API → \"AMP Webhook (chave)\".\n3. **Nós dos agentes:** abra **Revisor de Listas** e **Conferente de Listas**; em cada um, escolha a credencial do AMP e o agente de mesmo nome na lista.\n4. **Salve e publique** o workflow. Copie a **Production URL** do webhook para o SIG-FT: \"AMP Webhook (URL)\".\n5. No SIG-FT, PMIB Manager, aba Revisão no AMP: **Testar conexão com o AMP**. O ping e o eco devem passar.\n\nVer `amp/revisao_de_listas/LEIA-ME.md` no repositório do SIG-FT.",
+        "height": 380,
+        "width": 620
       },
       "id": "9f51d2ce-a2eb-4062-9bed-e25f6a7b8c11",
       "name": "Como ligar",
@@ -155,7 +293,7 @@
       "typeVersion": 1,
       "position": [
         0,
-        -120
+        -160
       ]
     }
   ],
@@ -193,18 +331,102 @@
       "main": [
         [
           {
-            "node": "Agente da revisão",
+            "node": "Revisor de Listas",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Agente da revisão": {
+    "Revisor de Listas": {
       "main": [
         [
           {
-            "node": "Prepara a resposta",
+            "node": "Lê o Revisor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lê o Revisor": {
+      "main": [
+        [
+          {
+            "node": "Vai à conferência?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vai à conferência?": {
+      "main": [
+        [
+          {
+            "node": "Espera 10 s",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Deu certo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Espera 10 s": {
+      "main": [
+        [
+          {
+            "node": "Prepara a conferência",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepara a conferência": {
+      "main": [
+        [
+          {
+            "node": "Conferente de Listas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conferente de Listas": {
+      "main": [
+        [
+          {
+            "node": "Monta o resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Monta o resultado": {
+      "main": [
+        [
+          {
+            "node": "Deu certo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deu certo?": {
+      "main": [
+        [
+          {
+            "node": "Responde",
             "type": "main",
             "index": 0
           }
@@ -217,20 +439,12 @@
           }
         ]
       ]
-    },
-    "Prepara a resposta": {
-      "main": [
-        [
-          {
-            "node": "Responde",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
   }
 }

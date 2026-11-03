@@ -59,7 +59,7 @@ aprovada com divergência, 42 em dia e 48 sem `_STATUS_PMIB`.
 
 | Tarefa | Entregou |
 |---|---|
-| 1 | o workflow do n8n (`amp/revisao_de_listas/`): o pedido ao agente, o gerador do `.json` e o LEIA-ME |
+| 1 | o workflow do n8n (`amp/revisao_de_listas/`): o pedido ao agente, o gerador do `.json` e o LEIA-ME (em 02/11 o pedido virou os system prompts de dois agentes, em `agentes/`) |
 | 2 | o pedido de cada lista: o texto dos PDFs por página e o `_STATUS_PMIB` em tabulação |
 | 3 | o cliente do webhook (`core/amp/cliente.py`): ping, eco e revisar |
 | 4 | a rodada, o HTML sem sobrescrever e o diagnóstico copiável |
@@ -69,20 +69,32 @@ aprovada com divergência, 42 em dia e 48 sem `_STATUS_PMIB`.
 **Nunca rodou de verdade:** o AMP só existe na rede da GE. Nada aqui provou que o nó de
 modelo responde ao pedido inteiro, nem o tamanho de PDF que ele aguenta.
 
+**2026-11-02: dois agentes do AMP no lugar do nó de modelo** (desenho
+`docs/superpowers/specs/2026-11-02-amp-agentes-revisao-design.md`). O workflow passou a chamar dois
+agentes criados no AMP, pelo nó AMP Agent: o Revisor de Listas (Claude Sonnet 5.5) e o Conferente
+de Listas (Gemini 3.5 Flash-Lite). Eles respondem em JSON, e o nó "Monta o resultado" confere a
+prova no texto do PDF, remonta a `_STATUS_PMIB` sem tocar nas colunas da equipe e gera o HTML. O
+`pedido.md` saiu: o pedido agora é o system prompt de cada agente, em `amp/revisao_de_listas/agentes/`.
+O SIG-FT não mudou (só a lista de arquivos do diagnóstico). Medido no Box em 02/11 (só números): os
+73 PDFs de lista têm de 3 a 12 páginas, todos com texto, e o pedido de uma lista tem mediana de 16
+mil caracteres e máximo de 82 mil. Cabe numa chamada só.
+
 **Como continuar a peça 2:**
 
-1. **Etapa 5c do roteiro, na GE**, com a rc.2: importar e publicar o workflow (LEIA-ME),
-   pôr o endereço e a chave, "Testar conexão com o AMP" (o eco é o teste de
-   mascaramento), uma lista e a conferência do HTML.
+1. **Etapa 5c do roteiro, na GE**, com o SIG-FT 1.3.1 ou mais novo: criar os dois agentes no AMP,
+   importar e publicar o workflow (LEIA-ME), pôr o endereço e a chave, "Testar conexão com o AMP"
+   (o eco é o teste de mascaramento), uma lista e a conferência do HTML.
 2. **Se falhar,** o Luan cola o "Copiar diagnóstico" numa conversa nova: o texto já diz o
    que ler no repositório, e as causas prováveis estão na tabela de sintomas do LEIA-ME.
-3. **Se o agente errar** (item inventado, página errada, andamento da equipe apagado):
-   melhore `amp/revisao_de_listas/pedido.md`, rode o gerador e reimporte. O pedido diz o
-   que se quer, não como montar o HTML: os agentes do AMP já têm o formato deles.
-4. **PDF grande:** o pedido vai num prompt só. Se o modelo recusar pelo tamanho (o
+3. **Se um agente errar** (item inventado, página errada, item que faltou): melhore o system prompt
+   dele no AMP e leve a mesma mudança para `amp/revisao_de_listas/agentes/`. Não precisa reimportar
+   o workflow. O andamento da equipe não depende do prompt: o código nunca muda as colunas dela.
+4. **PDF grande:** o pedido vai numa chamada só. Se o agente recusar pelo tamanho (o
    diagnóstico mostra os caracteres), a saída é dividir por páginas no workflow: desenho
    novo.
-5. **A peça 3** (aplicar sozinho no Excel) fica para quando o Luan confiar no HTML.
+5. **A peça 3** (aplicar sozinho no Excel) fica para quando o Luan confiar no HTML. O HTML já traz o
+   resultado em JSON (`<script id="sigft-revisao">`), com cada ação e a situação dela, que é o ponto
+   de partida da peça 3.
 
 ## Como continuar
 

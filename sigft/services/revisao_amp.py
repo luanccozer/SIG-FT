@@ -43,9 +43,11 @@ CAMPOS_DO_WORKFLOW = ("ok", "modo", "etapa", "erro", "execucao", "versao_workflo
 ARQUIVOS_DO_REPOSITORIO = (
     ("sigft/services/revisao_amp.py", "a rodada, o pedido e este diagnóstico"),
     ("sigft/core/amp/cliente.py", "a chamada ao webhook"),
-    ("amp/revisao_de_listas/pedido.md", "o pedido ao agente"),
+    ("amp/revisao_de_listas/agentes/", "os system prompts do Revisor de Listas e do Conferente de Listas (AMP)"),
+    ("amp/revisao_de_listas/js/", "o código dos nós do n8n: o pedido, a leitura dos agentes e o HTML"),
     ("amp/revisao_de_listas/workflow_revisao_de_listas.json", "o workflow do n8n (gerado por gerar_workflow.py)"),
-    ("docs/superpowers/specs/2026-10-27-amp-revisao-de-listas-design.md", "o desenho"),
+    ("docs/superpowers/specs/2026-10-27-amp-revisao-de-listas-design.md", "o desenho do lado do SIG-FT"),
+    ("docs/superpowers/specs/2026-11-02-amp-agentes-revisao-design.md", "o desenho dos agentes e do workflow"),
 )
 _RESERVADOS = re.compile(r'[<>:"/\\|?*]')   # os mesmos de conferencia_revisoes.nome_do_pdf
 

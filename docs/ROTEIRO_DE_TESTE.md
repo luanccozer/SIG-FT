@@ -680,8 +680,10 @@ o resultado é um HTML novo na pasta de cada lista.
 **Antes de começar:**
 
 - o SIG-FT 1.3.1-rc.2 instalado;
-- o workflow `amp/revisao_de_listas/workflow_revisao_de_listas.json` importado e
-  **publicado** no n8n do AMP, com a credencial e o modelo ligados (passo a passo em
+- os dois agentes criados no AMP (Revisor de Listas e Conferente de Listas, com os system
+  prompts de `amp/revisao_de_listas/agentes/`) e o workflow
+  `amp/revisao_de_listas/workflow_revisao_de_listas.json` importado e **publicado** no n8n do
+  AMP, com a credencial do webhook e os dois agentes ligados (passo a passo em
   `amp/revisao_de_listas/LEIA-ME.md`);
 - em Configuração → Chaves de API: **AMP Webhook (URL)** com a *Production URL* do
   webhook e **AMP Webhook (chave)** com o mesmo valor da credencial `X-SIGFT-Chave`;
@@ -706,13 +708,14 @@ conferência uma por vez (até 15 minutos cada); para o primeiro teste, clique e
 1. A coluna **AMP** da lista vira "HTML pronto: ...", e o arquivo
    `<código>[<em uso>-<atual>] revisao AMP.html` aparece na pasta do `_STATUS_PMIB`.
    Dois cliques na linha abrem o HTML.
-2. O HTML traz o resumo, o que mudou (com a página e o item de origem), as
-   divergências e o `_STATUS_PMIB` inteiro remontado.
+2. O HTML traz o resumo, o que mudou (com a página e o trecho do PDF), o que ficou
+   "A conferir" (fora da tabela), o que foi aplicado e o `_STATUS_PMIB` inteiro remontado.
 3. Anote o tempo: o console diz os segundos da lista.
 
 **5c.3 — Conferir o HTML.** Com os dois PDFs e o `_STATUS_PMIB` abertos, confira 5
-itens do "que mudou" contra as páginas citadas. Copie a tabela remontada e cole numa
-**cópia** do `_STATUS_PMIB` (nunca no original nesta fase): as colunas caem no lugar?
+itens do "que mudou" contra as páginas citadas, e todos os "A conferir": eles não estão
+na tabela. Copie a tabela remontada e cole numa **cópia** do `_STATUS_PMIB` (nunca no
+original nesta fase): as colunas caem no lugar, e as colunas da equipe ficaram iguais?
 
 **5c.4 — Se falhar.** A coluna AMP diz "falhou: ..." e o botão **"Copiar
 diagnóstico"** liga. Copie, abra uma conversa nova com o Claude (com o repositório

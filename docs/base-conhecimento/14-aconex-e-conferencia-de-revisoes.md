@@ -175,15 +175,22 @@ hyperlink relativo), `test_qt_tela_conferencia_revisoes.py`,
 > plano: `docs/superpowers/plans/2026-10-27-amp-revisao-de-listas.md`. O AMP (a IA da GE) só
 > existe dentro da rede da GE: nenhum teste daqui chama a rede.
 
-Para cada lista com divergência da última conferência, o agente do AMP lê o PDF da revisão em uso,
-o da revisão atual e o `_STATUS_PMIB`, e devolve um HTML com o que mudou e o `_STATUS_PMIB`
-remontado. Ele roda num workflow do n8n do AMP; o SIG-FT manda **texto**: os arquivos não vão (o nó
-de modelo trabalha com texto, e o n8n não precisa ler o Box). Nada é aplicado no Excel: o Luan
-confere o HTML e cola.
+Para cada lista com divergência da última conferência, o workflow do n8n do AMP lê o PDF da revisão
+em uso, o da revisão atual e o `_STATUS_PMIB`, e devolve um HTML com o que mudou e o `_STATUS_PMIB`
+remontado. O SIG-FT manda **texto**: os arquivos não vão (o nó do agente recebe o PDF mal, e o n8n
+não precisa ler o Box). Nada é aplicado no Excel: o Luan confere o HTML e cola.
+
+Desde 2026-11-02 (desenho `docs/superpowers/specs/2026-11-02-amp-agentes-revisao-design.md`), dois
+agentes criados no AMP fazem a leitura, chamados pelo nó AMP Agent: o **Revisor de Listas** (Claude
+Sonnet 5.5) compara e propõe as ações, cada uma com página e trecho; o **Conferente de Listas**
+(Gemini 3.5 Flash-Lite, temperatura 0) dá um veredito para cada uma e procura o que faltou. O nó
+"Monta o resultado" só aplica o que o Conferente confirmou e cuja prova está no texto do PDF; as
+colunas da equipe (CÓDIGO PMIB e as à direita) nunca mudam. O resto vai para "A conferir", fora da
+tabela. O contrato com o SIG-FT não mudou.
 
 | Camada | Arquivo | O quê |
 |---|---|---|
-| n8n | `amp/revisao_de_listas/` | o pedido ao agente (`pedido.md`, onde se melhora o agente), o gerador do `.json` e o `LEIA-ME.md` (ligar no n8n, sintomas de falha, o texto para a conversa nova) |
+| n8n | `amp/revisao_de_listas/` | os system prompts dos dois agentes (`agentes/`, onde se melhora o agente), o código dos nós (`js/`), o gerador do `.json` e o `LEIA-ME.md` (criar os agentes, ligar no n8n, sintomas de falha, o texto para a conversa nova) |
 | core | `sigft/core/amp/cliente.py` | `ClienteAmp` (`ping`, `eco`, `revisar`) e `RespostaAmp`; a chave vai no cabeçalho `X-SIGFT-Chave`, e nenhuma falha levanta |
 | serviço | `sigft/services/revisao_amp.py` | as listas e os arquivos (`listas_para_amp`), o texto do PDF e o `_STATUS_PMIB` em tabulação, o pedido, a rodada, o diagnóstico e o teste de conexão |
 | tela | `sigft/app_qt/views/revisao_amp.py` | `ModuloRevisaoAmp`, a aba Revisão no AMP |
@@ -196,7 +203,9 @@ confere o HTML e cola.
 - `{"modo": "revisar", "lista", "revisao_em_uso" (ou `null`), "revisao_atual", "status_pmib",
   "origem"}` → `{ok, modo, html, versao_workflow, execucao}`. Cada revisão é `{arquivo, paginas,
   texto}`; o `_STATUS_PMIB` é `{arquivo, aba, linha_de_revisao, linhas, tsv}`.
-- Falha do agente: HTTP 502 com `{ok: false, modo, etapa, erro, execucao}`.
+- Falha do agente: HTTP 502 com `{ok: false, modo, etapa, erro, execucao}`. A `etapa` é `revisor`
+  (o Revisor falhou ou não devolveu o JSON) ou `montar`. Se só o Conferente falhar, a resposta
+  continua `ok`, com um `aviso`, e o HTML traz tudo em "A conferir".
 
 A revisão vai **uma vez só**, pela rota que o `ping` achou (`ClienteAmp.revisar`; o ping vai antes
 na primeira lista). A cascata do `rede.abrir` manda de novo pela rota seguinte quando o tempo esgota
