@@ -22,6 +22,7 @@ const MOTOR = fs.readFileSync(path.join(RAIZ, 'lmr.js'), 'utf8');
 const PLANILHA_JS = fs.readFileSync(path.join(RAIZ, 'planilha.js'), 'utf8');
 const INDICE_JS = fs.readFileSync(path.join(RAIZ, 'indice', 'indice.js'), 'utf8');
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const CAMPO_SISTEMA = 'Sistema';
 const pos = (col, lin = 0) => [col * 260, lin * 200];
 
 const { BIN_STATUS, BIN_BASE, LE_STATUS, SEPARA, INDEXA } = require('./pecas_a.js');
@@ -36,18 +37,17 @@ const indexados = $input.all().map(i => i.json).filter(j => j && j.doc);
 // nome do Status: do formulário (versão upload) ou da lista da pasta (versão Box)
 const nomes = Object.values($('Formulário').first().binary || {}).map(b => b.fileName);
 try { nomes.push(...$('Lista arquivos').all().map(i => i.json.arquivo)); } catch (e) { /* versão upload */ }
-const sistema = String(nomes.find(n => /STATUS/i.test(n || '')) || '').replace(/\\.xlsx$/i, '').split(/\\s+-\\s+/).slice(1).join(' - ').trim() || 'Sistema';
+// nome do sistema: campo do formulário; sem ele (versão Box), o fim do nome do Status ("… - {sistema}.xlsx")
+const doCampo = String(($('Formulário').first().json || {})['${CAMPO_SISTEMA}'] || '').trim();
+const sistema = doCampo || String(nomes.find(n => /STATUS/i.test(n || '')) || '').replace(/\\.xlsx$/i, '').split(/\\s+-\\s+/).slice(1).join(' - ').trim() || 'Sistema';
 const { abas, resumo } = INDICE.montaIndice({ indexados, catalogo, base: ler('Lê BASE (gabarito)'), sistema, hash: LMR.hashLinha });
 const bytes = PLANILHA.planilhaSimples(abas);
 const nome = 'ÍNDICE LMR - ' + sistema + '.xlsx';
-return [{ json: { ...resumo, arquivo: nome, kb: Math.round(bytes.length / 1024) },
+const kb = Math.round(bytes.length / 1024);
+return [{ json: { ...resumo, arquivo: nome, kb, mensagem: resumo.mensagem + ' · ' + kb + ' KB' },
   binary: { data: { data: PLANILHA.base64(bytes), mimeType: '${XLSX_MIME}', fileName: nome, fileExtension: 'xlsx' } } }];`;
 
-const MENSAGEM = "={{ $json.documentos + ' documentos, ' + $json.paginas + ' páginas (' + $json.semTexto + ' sem texto) · '"
-  + " + $json.tags + ' TAGs candidatas (assinatura ' + $json.assinatura + ') · ' + $json.materiaisAchados + ' de ' + $json.materiais + ' materiais do Status achados nos documentos'"
-  + " + ($json.conferencia ? ' · CONFERÊNCIA: ' + ($json.conferencia.candidatas + $json.conferencia.soTexto) + ' de ' + $json.conferencia.tags + ' TAGs da BASE achadas ('"
-  + " + $json.conferencia.candidatas + ' candidatas; ' + $json.conferencia.curtas + ' curtas para conferir à mão), ' + $json.conferencia.iguais + ' de ' + $json.conferencia.pmibs + ' PMIBs com TAGs iguais' : '')"
-  + " + ($json.avisos ? ' · ' + $json.avisos + ' documentos com aviso (aba DOCUMENTOS)' : '') }}";
+const MENSAGEM = '={{ $json.mensagem }}';
 
 // ── nós ──
 const nodes = [];
@@ -59,6 +59,7 @@ add({
     formFields: { values: [
       { fieldLabel: 'Documentos (PDF)', fieldType: 'file', multipleFiles: true, acceptFileTypes: '.pdf', requiredField: true },
       { fieldLabel: 'Status PMIB (.xlsx)', fieldType: 'file', multipleFiles: false, acceptFileTypes: '.xlsx', requiredField: true },
+      { fieldLabel: CAMPO_SISTEMA, requiredField: true, placeholder: 'Água Pura' },
       { fieldLabel: 'BASE para conferência (.xlsx, opcional)', fieldType: 'file', multipleFiles: false, acceptFileTypes: '.xlsx', requiredField: false },
     ] },
     options: {},
@@ -82,7 +83,7 @@ add({
   name: 'Entrega o índice', type: 'n8n-nodes-base.form', typeVersion: 1, position: pos(4, 2), webhookId: crypto.randomUUID(),
 });
 add({
-  parameters: { content: '## LMR — A1 Índice dos documentos (sem IA)\n1. **Execute workflow** → envie **todos os PDFs** do sistema (pode selecionar vários), o **Status PMIB** e, se for teste, a **BASE LMR** do mesmo sistema (gabarito).\n2. **Deixe a aba do formulário aberta**: no fim ela mostra o resumo e baixa **ÍNDICE LMR - {sistema}.xlsx**.\n3. Me devolva só a **mensagem final** (números e assinatura). A planilha fica com você.\n4. ⋯ → *Settings* → *Save manual executions* = **Save**.\n\nO Loop lê **1 PDF por volta**. Se um PDF falhar, ele aparece com aviso na aba DOCUMENTOS e os outros seguem.', height: 340, width: 560 },
+  parameters: { content: '## LMR — A1 Índice dos documentos (sem IA)\n1. **Execute workflow** → envie **todos os PDFs** do sistema (pode selecionar vários), o **Status PMIB**, o **nome do sistema** e, se for teste, a **BASE LMR** do mesmo sistema (gabarito).\n2. **Deixe a aba do formulário aberta**: no fim ela mostra o resumo e baixa **ÍNDICE LMR - {sistema}.xlsx**.\n3. Me devolva só a **mensagem final** (números e assinatura). A planilha fica com você.\n4. ⋯ → *Settings* → *Save manual executions* = **Save**.\n\nO Loop lê **1 PDF por volta**. Se um PDF falhar, ele aparece com aviso na aba DOCUMENTOS e os outros seguem.', height: 340, width: 560 },
   name: 'Leia-me', type: 'n8n-nodes-base.stickyNote', typeVersion: 1, position: pos(0, -1.8),
 });
 
@@ -234,12 +235,12 @@ const BASE_FICT = [
 ];
 
 // imita o n8n: Separa → Loop (1 por volta) → Extract (joinPages=false, keepSource=json) → Indexa → done → Monta
-async function rodaA1(docs, statusRows, base, nomeStatus) {
+async function rodaA1(docs, statusRows, base, nomeStatus, sistema) {
   const lidosStatus = statusRows.map(row => ({ json: { row } }));
   const lidosBase = base ? base.map(json => ({ json })) : [{ json: { error: 'sem binário' } }];
   const $ = no => ({
     all: () => (no === 'Lê Status PMIB' ? lidosStatus : no === 'Lê BASE (gabarito)' ? lidosBase : []),
-    first: () => ({ binary: { a: { fileName: 'x.pdf' }, b: { fileName: nomeStatus } } }),
+    first: () => ({ json: sistema ? { [CAMPO_SISTEMA]: sistema } : {}, binary: { a: { fileName: 'x.pdf' }, b: { fileName: nomeStatus } } }),
     itemMatching: () => { throw new Error('sem pareamento no teste'); },
   });
   const voltas = [];
@@ -283,7 +284,37 @@ const leXlsx = arq => JSON.parse(require('child_process').execFileSync('python',
   assert.deepStrictEqual(x['SEM TEXTO'].slice(1).map(l => l[2]), ['1-3']);
   assert.deepStrictEqual(x['ELEVAÇÕES'].slice(1).map(l => l[0]), ['98,50']);
   assert.strictEqual(x['PÁGINAS'].length - 1, 6);
+  assert.deepStrictEqual(x['PÁGINAS'][0], ['ARQUIVO', 'CÓDIGO', 'PÁGINA', 'CARACTERES', 'TEXTO1']);
+  assert.match(j.mensagem, new RegExp('^' + ['4 documentos, 6 páginas \\(3 sem texto\\)', '3 de 3 materiais do Status achados',
+    '9 TAGs candidatas \\(assinatura 9-D585C099\\)', 'Gabarito: 5 de 6 TAGs da BASE achadas \\(5 candidatas, 0 só no texto; 1 curtas para conferir à mão\\)',
+    '2 de 3 PMIBs com TAGs sugeridas iguais às da BASE', 'Documentos com aviso \\(2\\): Diagrama escaneado\\.pdf, #ST00=X00ABC10&MLU010\\[0\\]\\.pdf',
+    '\\d+ KB$'].join(' · ')));
   console.log('T3 ok  ponta a ponta (fictício):', JSON.stringify({ tags: j.tags, assinatura: j.assinatura, conferencia: j.conferencia }));
+
+  // T5 — campo Sistema; página longa em TEXTO1..n (lida de volta pelo agente.js); TAG da BASE não achada; sem gabarito
+  const AGENTE = require('../agente/agente.js');
+  const LMR = require('../lmr.js');
+  const longa = Array.from({ length: 7000 }, (_, i) => `linha ${String(i).padStart(4, '0')}`).join('\n'); // ~70 mil caracteres
+  const DOCS5 = [...DOCS_FICT.slice(0, 2), { arquivo: '#ST00=X00ABC10&ACC010[0].pdf', paginas: [longa, 'GP101 fim do workstatement'] }];
+  const r5 = await rodaA1(DOCS5, STATUS_FICT, [...BASE_FICT, { FICHA_PMIB: '1111111111.0003', TAG: 'ZZ999X' }], 'qualquer.xlsx', 'Água Teste');
+  assert.strictEqual(r5.binary.data.fileName, 'ÍNDICE LMR - Água Teste.xlsx');
+  const arq5 = path.join(SAIDA, r5.binary.data.fileName);
+  fs.writeFileSync(arq5, Buffer.from(r5.binary.data.data, 'base64'));
+  const pags = leXlsx(arq5)['PÁGINAS'];
+  assert.deepStrictEqual(pags[0], ['ARQUIVO', 'CÓDIGO', 'PÁGINA', 'CARACTERES', 'TEXTO1', 'TEXTO2', 'TEXTO3']);
+  const linhaLonga = pags.find(l => l[0] === '#ST00=X00ABC10&ACC010[0].pdf' && l[2] === 1);
+  assert.strictEqual(linhaLonga[3], longa.length);
+  assert.strictEqual(linhaLonga.slice(4).join(''), longa, 'TEXTO1..3 juntos = a página inteira');
+  const objs = pags.slice(1).map(l => Object.fromEntries(pags[0].map((c, i) => [c, l[i]])));
+  const relidos = AGENTE.indexadosDoRoteiro(objs, LMR.lerStatusPmib(STATUS_FICT).catalogo);
+  const relida = relidos.find(d => d.doc.arquivo === '#ST00=X00ABC10&ACC010[0].pdf');
+  assert.deepStrictEqual(relida.paginas.map(p => p.texto), [longa, 'GP101 fim do workstatement'], 'indexadosDoRoteiro remonta o texto');
+  assert.match(r5.json.mensagem, / · TAGs da BASE não achadas \(1\): ZZ999X · /);
+  assert.match(r5.json.mensagem, / · 1 páginas em mais de uma coluna de texto · /);
+  const r6 = await rodaA1(DOCS_FICT.slice(0, 2), STATUS_FICT, null, '#ST00=X00ABC10&MPB020_STATUS_PMIB - Sistema X.xlsx');
+  assert.strictEqual(r6.binary.data.fileName, 'ÍNDICE LMR - Sistema X.xlsx', 'sem o campo, o nome sai do arquivo do Status');
+  assert.ok(!/Gabarito/.test(r6.json.mensagem));
+  console.log('T5 ok  campo Sistema, página longa em TEXTO1..3 (relida pelo agente.js), TAG não achada, sem gabarito');
 
   // T4 (só local) — PDFs reais: texto extraído como o n8n (indice/extrai_como_n8n.mjs → dados/textos_{sistema}.json),
   // conferido contra o Status e a BASE do mesmo sistema. Os dados reais ficam fora do repositório.

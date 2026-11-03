@@ -208,7 +208,8 @@ const INDICE = (() => {
   };
   const LIMITE_ONDE = 8;
   const onde = lista => (lista.length > LIMITE_ONDE ? lista.slice(0, LIMITE_ONDE).join('; ') + `; … (+${lista.length - LIMITE_ONDE})` : lista.join('; '));
-  const MAX_CELULA = 32000;
+  const CELULA = 30000; // texto por célula da aba PÁGINAS (o Excel aceita até 32.767)
+  const lista = (xs, max = 20) => xs.slice(0, max).join(', ') + (xs.length > max ? ` (+ ${xs.length - max})` : '');
 
   /**
    * e = { indexados: [saída de indexaDocumento], catalogo, base?: linhas da aba BASE (gabarito), sistema?, hash? }
@@ -267,12 +268,15 @@ const INDICE = (() => {
     });
     const abaSemTexto = docs.filter(d => d.doc.semTexto.length)
       .map(d => ({ ARQUIVO: d.doc.arquivo, 'CÓDIGO': d.doc.codigo, 'PÁGINAS SEM TEXTO': intervalos(d.doc.semTexto), TOTAL: d.doc.semTexto.length, 'DE': d.doc.paginas }));
-    let cortadas = 0;
+    // Texto sem corte: TEXTO1, TEXTO2… de CELULA caracteres (a convenção da aba ÍNDICE do agente.js, que indexadosDoRoteiro remonta)
+    let partidas = 0;
+    const nTextos = docs.reduce((m, d) => d.paginas.reduce((n, p) => Math.max(n, Math.ceil(p.texto.length / CELULA)), m), 1);
+    const colTextos = Array.from({ length: nTextos }, (_, i) => `TEXTO${i + 1}`);
     const abaPaginas = [];
     for (const d of docs) for (const p of d.paginas) {
-      let texto = p.texto;
-      if (texto.length > MAX_CELULA) { texto = texto.slice(0, MAX_CELULA); cortadas++; }
-      abaPaginas.push({ ARQUIVO: d.doc.arquivo, 'CÓDIGO': d.doc.codigo, 'PÁGINA': p.pagina, CARACTERES: p.texto.length, TEXTO: texto });
+      if (p.texto.length > CELULA) partidas++;
+      abaPaginas.push({ ARQUIVO: d.doc.arquivo, 'CÓDIGO': d.doc.codigo, 'PÁGINA': p.pagina, CARACTERES: p.texto.length,
+        ...Object.fromEntries(colTextos.map((c, i) => [c, p.texto.slice(i * CELULA, (i + 1) * CELULA)])) });
     }
 
     // ── conferência com uma BASE já aplicada (gabarito) ──
@@ -317,15 +321,28 @@ const INDICE = (() => {
     const resumo = {
       sistema: e.sistema || '', documentos: docs.length, paginas: nPag, semTexto: nSem, tags: tags.size, rds: rds.size,
       elevacoes: elev.size, materiais: e.catalogo.length, materiaisAchados: achados, comSugestao: sug.size, assinatura,
-      paginasCortadas: cortadas, conferencia: base.length ? conf : null,
+      paginasPartidas: partidas, conferencia: base.length ? conf : null,
       avisos: docs.filter(d => d.doc.avisos.length).length,
     };
+    // Mensagem da página final. Os avisos "lista de sobressalentes: …" são informação, não problema: ficam só na aba.
+    const comAviso = docs.filter(d => d.doc.avisos.some(a => !/^lista de sobressalentes:/.test(a))).map(d => d.doc.arquivo);
+    const naoAchadas = abaConfTags.filter(l => l.RESULTADO === 'NÃO ACHADA').map(l => l.TAG);
+    const msg = [`${docs.length} documentos, ${nPag} páginas (${nSem} sem texto)`, `${achados} de ${e.catalogo.length} materiais do Status achados`,
+      `${tags.size} TAGs candidatas${assinatura ? ` (assinatura ${assinatura})` : ''}`];
+    if (base.length) {
+      msg.push(`Gabarito: ${conf.candidatas + conf.soTexto} de ${conf.tags} TAGs da BASE achadas (${conf.candidatas} candidatas, ${conf.soTexto} só no texto; ${conf.curtas} curtas para conferir à mão)`);
+      if (naoAchadas.length) msg.push(`TAGs da BASE não achadas (${naoAchadas.length}): ${lista(naoAchadas)}`);
+      msg.push(`${conf.iguais} de ${conf.pmibs} PMIBs com TAGs sugeridas iguais às da BASE`);
+    }
+    if (comAviso.length) msg.push(`Documentos com aviso (${comAviso.length}): ${lista(comAviso)}`);
+    if (partidas) msg.push(`${partidas} páginas em mais de uma coluna de texto`);
+    resumo.mensagem = msg.join(' · ');
     const R = [
       ['Sistema', resumo.sistema], ['Documentos', docs.length], ['Páginas', nPag], ['Páginas sem texto (leitura visual)', nSem],
       ['TAGs candidatas (padrão KKS)', tags.size], ['Assinatura das TAGs', assinatura], ['RDS-PP distintos', rds.size], ['Elevações distintas', elev.size],
       ['Materiais no Status (válidos)', e.catalogo.length], ['Materiais achados nos documentos', achados],
       ['Materiais com TAGs sugeridas pela lista de sobressalentes', sug.size], ['Documentos com aviso', resumo.avisos],
-      ['Páginas com texto cortado em 32.000 caracteres (aba PÁGINAS)', cortadas],
+      ['Páginas em mais de uma coluna de texto (aba PÁGINAS)', partidas],
     ];
     if (base.length) R.push(['— Conferência com a BASE enviada —', ''],
       ['TAGs da BASE', conf.tags], ['… achadas como candidatas', conf.candidatas], ['… achadas só no texto (fora do padrão KKS ou quebradas)', conf.soTexto],
@@ -343,7 +360,7 @@ const INDICE = (() => {
     if (base.length) abas.push(
       { nome: 'CONFERÊNCIA TAGS', colunas: ['TAG', 'PMIB', 'RESULTADO', 'ONDE'], linhas: abaConfTags, larguras: { PMIB: 40, ONDE: 100 } },
       { nome: 'CONFERÊNCIA MATERIAIS', colunas: ['PMIB', 'TAGS NA BASE', 'TAGS SUGERIDAS', 'RESULTADO', 'FALTAM', 'SOBRAM', 'ACHADO'], linhas: abaConfMats, larguras: { 'TAGS NA BASE': 50, 'TAGS SUGERIDAS': 50, FALTAM: 40, SOBRAM: 40 } });
-    abas.push({ nome: 'PÁGINAS', colunas: ['ARQUIVO', 'CÓDIGO', 'PÁGINA', 'CARACTERES', 'TEXTO'], linhas: abaPaginas, larguras: { ARQUIVO: 40, 'CÓDIGO': 36, TEXTO: 120 }, numeros: ['PÁGINA', 'CARACTERES'] });
+    abas.push({ nome: 'PÁGINAS', colunas: ['ARQUIVO', 'CÓDIGO', 'PÁGINA', 'CARACTERES', ...colTextos], linhas: abaPaginas, larguras: { ARQUIVO: 40, 'CÓDIGO': 36, TEXTO1: 120 }, numeros: ['PÁGINA', 'CARACTERES'] });
     return { abas, resumo };
   }
 
