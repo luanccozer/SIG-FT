@@ -59,9 +59,11 @@ Todo `.json` de `motor/workflows/` é **gerado** por um `gerar_*.js`: mude o ger
 - **S9**: com PDF em Files, o agente (Sonnet 5.5) viu só o **nome** do arquivo.
 - **S10**: PDF em Files + pedido para abrir → **erro 424 / 500 from runtime**; **texto da página no Prompt funciona**
   (Sonnet 5.5 devolveu 15 TAGs certas de um P&ID). O Session ID do export tinha uma crase sobrando: conferir.
-- **Não testado ainda:** Files com um agente **Gemini**. O Luan viu o Gemini 3.5 Flash-Lite, no chat, ler um PDF de
-  100+ páginas da SFC (grande parte escaneada) e extrair TAGs, quantidades e aplicações corretas, com o Status PMIB
-  e a aplicação LMR anexados. Se o Files funcionar com Gemini, o Leitor passa a ver desenhos e páginas escaneadas.
+- **S10 de 03/11** (`contexto/amp/resultado_sonda_S10_03-11.txt`): Files **não dá mais 424**, mas Sonnet 5.5 e
+  Gemini 3.5 Flash-Lite só **buscam trechos** do PDF (as "30 primeiras palavras" não são o começo da página) e, no HF-01
+  escaneado (119 p.), os dois dizem ter lido "imagem" de **1 página**; o Gemini ainda inventou título e código (do nome
+  do arquivo) e **buscou na internet**. Decisão: o Leitor segue **Sonnet 5.5 com texto no Prompt**; páginas escaneadas
+  viram PENDÊNCIA. (No chat, o Luan viu o Gemini ler a SFC escaneada: o chat processa anexo diferente do nó.)
 
 **Agentes do AMP** (configurados na interface: descrição, modelo, system prompt, Knowledge base, acesso ao Box)
 - Modelos: Claude Sonnet 5.5, Sonnet 5, Sonnet 4.6 (com temperatura); GPT-6 Luna, GPT-5.4; Gemini 3.5 Flash-Lite
