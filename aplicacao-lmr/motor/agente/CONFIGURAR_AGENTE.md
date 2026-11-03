@@ -11,6 +11,10 @@
 | Knowledge base | anexar `motor/agente/regras_lmr.md` e `motor/agente/formatos_json.md`. Se o AMP não aceitar `.md`, salve os dois como PDF ou Word com o mesmo nome. |
 | Box | **não** conceder agora |
 
+**Variante Gemini** (`Leitor LMR Gemini`: Gemini 3.5 Flash-Lite, temperatura 0): mesma Knowledge base, system prompt
+de `motor/agente/system_prompt_leitor_gemini.md`. Só no workflow (texto no Prompt, Files vazio): a sonda S10 de 03/11
+mostrou que, pelo Files, ele só busca trechos, não lê página escaneada e informa página e imagem que não viu.
+
 ## 2. Importar os workflows no n8n do AMP (uma vez)
 
 1. Importe `motor/workflows/LMR_AG1_preparar_etapas.json` e `motor/workflows/LMR_AG2_montar_base.json`.
