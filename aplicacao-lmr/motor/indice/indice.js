@@ -100,8 +100,9 @@ const INDICE = (() => {
   function chavesDoMaterial(c) {
     const ch = [];
     const add = (v, de) => { v = t(v).toUpperCase(); if (v.length >= 5 && /\d/.test(v) && !ch.some(x => x.valor === v)) ch.push({ valor: v, de }); };
-    add(c.codigoMaterial, 'código do material');
-    add(c.codigoCmi, 'código CMI/GE');
+    // uma célula do Status pode ter vários códigos ("1000111 / 1000222; 1000333"): cada um é uma chave
+    for (const v of t(c.codigoMaterial).split(/[\s,;/|]+/)) add(v, 'código do material');
+    for (const v of t(c.codigoCmi).split(/[\s,;/|]+/)) add(v, 'código CMI/GE');
     for (const parte of t(c.marcaModelo).split('/').slice(1)) for (const tok of parte.split(/\s+/)) add(tok, 'modelo');
     return ch;
   }
@@ -346,6 +347,6 @@ const INDICE = (() => {
     return { abas, resumo };
   }
 
-  return { TIPOS, inventarioDoNome, codigoDoCarimbo, segmenta, tagsDoTexto, elevacoesDoTexto, chavesDoMaterial, indexaDocumento, montaIndice };
+  return { TIPOS, inventarioDoNome, codigoDoCarimbo, segmenta, tagsDoTexto, elevacoesDoTexto, chavesDoMaterial, indexaDocumento, montaIndice, intervalos };
 })();
 if (typeof module !== 'undefined') module.exports = INDICE;
