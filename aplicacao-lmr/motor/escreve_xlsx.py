@@ -151,7 +151,7 @@ def main():
     for ws in list(wb.worksheets):
         wb.remove(ws)
     linhas = []
-    for nome, n, bloq, nval in resumo:
+    for nome, n, bloq, _nval in resumo:
         a = res["auditoria"][nome]
         regras = "; ".join(f"{k}: {v}" for k, v in sorted(a["porRegra"].items(), key=lambda x: -x[1]))
         linhas.append([NOMES[nome], n, bloq, res["catalogo"][nome]["pmibs"], res["catalogo"][nome]["relacoes"], regras])

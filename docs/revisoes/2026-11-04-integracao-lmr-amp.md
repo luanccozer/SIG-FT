@@ -54,4 +54,6 @@ o passo a passo à mão), com um LEIA-ME que diz que não é o workflow em uso. 
 
 ## Verificação
 
-Ver a mensagem do commit de verificação nesta branch.
+Python 3.12 (PySide 6.12): 8855 passed, 28 skipped. `ruff` (depois de `nval` -> `_nval` em
+`aplicacao-lmr/motor/escreve_xlsx.py`, a única quebra da integração), `pyflakes frontend.py` e
+`--smoke` limpos. Nada contra o AMP, o n8n ou o portal.
