@@ -2,7 +2,7 @@
  * Gera o workflow "LMR - A1 Índice dos documentos" para importar no n8n do AMP (Workflow A, etapa 1, sem IA).
  * Entrada (formulário): os PDFs do sistema, o Status PMIB (.xlsx) e, opcionalmente, a BASE de um sistema já aplicado
  *                       (gabarito: o índice é conferido contra ela dentro do AMP; nada sai de lá).
- * Saída: ÍNDICE LMR - {sistema}.xlsx (RESUMO, DOCUMENTOS, MATERIAIS, TAGS, RDS-PP, ELEVAÇÕES, SEM TEXTO,
+ * Saída: ÍNDICE LMR - {sistema}.xlsx (RESUMO, DOCUMENTOS, MATERIAIS, RDS-PP, ELEVAÇÕES, SEM TEXTO,
  *        CONFERÊNCIA TAGS e CONFERÊNCIA MATERIAIS se houver gabarito, PÁGINAS com o texto de cada página).
  *
  * Mesmo desenho do B: um Loop entrega 1 PDF por volta; o Code indexa só esse documento. No fim um Code monta o .xlsx.
@@ -204,7 +204,11 @@ assert.deepStrictEqual(inv('ST00=X00ABC10&MPB020[0].pdf'), ['#ST00=X00ABC10&MPB0
 assert.deepStrictEqual(inv('#ST60=X01ABC10TB030-TB001&EMA010.[0C].pdf'), ['#ST60=X01ABC10TB030-TB001&EMA010', 'EMA', '0C', 0]);
 assert.deepStrictEqual(inv('#ST00=X00ABC10UZ010-UZ901&MPA010[0]_lista_material_skid.pdf'), ['#ST00=X00ABC10UZ010-UZ901&MPA010', 'MPA', '0', 0]);
 assert.deepStrictEqual(inv('Lista de materiais.pdf'), ['', '', '', 1]);
-console.log('T2 ok  inventário pelo nome do arquivo');
+// o código do nome (válido) prevalece sobre o do carimbo; a diferença fica como aviso
+const dNome = INDICE.indexaDocumento('#ST50=X00ABC10TB030&EFF010[0] - menor.pdf', ['CÓDIGO DE ITAIPU\n#ST00=X00ABC10&EDC090\nREVISÃO\n0 ref. #ST00=X00ABC10&EDC090'], []);
+assert.strictEqual(dNome.doc.codigo, '#ST50=X00ABC10TB030&EFF010');
+assert.match(dNome.doc.avisos.join('|'), /diferente do carimbo/);
+console.log('T2 ok  inventário pelo nome do arquivo; o código do nome prevalece sobre o carimbo');
 
 // T3 — workflow de ponta a ponta com documentos fictícios (texto no formato do pdfjs: mesma altura = colado)
 const carimbo = c => `CÓDIGO DE ITAIPU\n${c}\nREVISÃO\n0`;
@@ -266,8 +270,8 @@ const leXlsx = arq => JSON.parse(require('child_process').execFileSync('python',
   assert.strictEqual(j.semTexto, 3);
   assert.strictEqual(j.materiais, 3); // o DUPLICADO sai
   assert.strictEqual(j.materiaisAchados, 3);
-  const tags = x.TAGS.slice(1).map(l => l[0]);
-  assert.deepStrictEqual(tags, ['BL315', 'BL317T', 'BP316T', 'BS141T', 'BS143T', 'BS160T', 'FL314S', 'GP101', 'GP102']);
+  assert.ok(!x['CÓDIGOS PADRÃO KKS'] && !x.TAGS, 'sem a aba de códigos KKS: as TAGs variam de formato por sistema');
+  assert.ok(!x.DOCUMENTOS[0].includes('TAGS'), 'DOCUMENTOS sem a contagem de códigos KKS');
   const mats = Object.fromEntries(x.MATERIAIS.slice(1).map(l => [l[2], l]));
   const colSug = x.MATERIAIS[0].indexOf('TAGS DA LISTA (SUGESTÃO)');
   assert.strictEqual(mats['1111111111.0001'][colSug], 'GP101, GP102');
@@ -286,7 +290,7 @@ const leXlsx = arq => JSON.parse(require('child_process').execFileSync('python',
   assert.strictEqual(x['PÁGINAS'].length - 1, 6);
   assert.deepStrictEqual(x['PÁGINAS'][0], ['ARQUIVO', 'CÓDIGO', 'PÁGINA', 'CARACTERES', 'TEXTO1']);
   assert.match(j.mensagem, new RegExp('^' + ['4 documentos, 6 páginas \\(3 sem texto\\)', '3 de 3 materiais do Status achados',
-    '9 TAGs candidatas \\(assinatura 9-D585C099\\)', 'Gabarito: 5 de 6 TAGs da BASE achadas \\(5 candidatas, 0 só no texto; 1 curtas para conferir à mão\\)',
+'Gabarito: 5 de 6 TAGs da BASE achadas \\(5 candidatas, 0 só no texto; 1 curtas para conferir à mão\\)',
     '2 de 3 PMIBs com TAGs sugeridas iguais às da BASE', 'Documentos com aviso \\(2\\): Diagrama escaneado\\.pdf, #ST00=X00ABC10&MLU010\\[0\\]\\.pdf',
     '\\d+ KB$'].join(' · ')));
   console.log('T3 ok  ponta a ponta (fictício):', JSON.stringify({ tags: j.tags, assinatura: j.assinatura, conferencia: j.conferencia }));

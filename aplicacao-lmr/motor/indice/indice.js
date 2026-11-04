@@ -3,7 +3,7 @@
  *
  * Entrada: o texto de cada página dos PDFs (como o Extract from File do n8n entrega, com joinPages = false)
  *          + o catálogo do Status PMIB (LMR.lerStatusPmib) + opcionalmente a BASE de um sistema já aplicado (gabarito).
- * Saída:   as abas do ÍNDICE (DOCUMENTOS, TAGS, MATERIAIS, RDS-PP, ELEVAÇÕES, SEM TEXTO, PÁGINAS e, com gabarito, CONFERÊNCIA).
+ * Saída:   as abas do ÍNDICE (DOCUMENTOS, MATERIAIS, RDS-PP, ELEVAÇÕES, SEM TEXTO, PÁGINAS e, com gabarito, CONFERÊNCIA).
  *
  * O texto do n8n (pdfjs) junta sem espaço os trechos que estão na mesma altura da página: duas TAGs lado a lado
  * num P&ID viram "BL315FL314S", e o rótulo do instrumento cola na TAG ("PITBP316T"). tagsDoTexto separa isso.
@@ -131,7 +131,7 @@ const INDICE = (() => {
     else if (!carimbo.codigo) avisos.push('nenhum código de documento no texto');
     else if (inv.codigo && carimbo.codigo !== inv.codigo) avisos.push(`código do nome (${inv.codigo}) diferente do carimbo (${carimbo.codigo})`);
     const tipo = inv.tipo || ((carimbo.codigo.match(/&([A-Z]{3})/) || [])[1] || '');
-    const codigo = carimbo.codigo || inv.codigo;
+    const codigo = inv.codigo || carimbo.codigo; // o nome do arquivo traz o código válido; o carimbo pode citar outro documento
     const ehLista = tipo === 'MPB';
     const tagDepois = ehLista && ladoDaTag(paginas) === 'depois';
     if (ehLista) avisos.push(`lista de sobressalentes: TAG ${tagDepois ? 'depois' : 'antes'} do código do material`);
@@ -247,13 +247,11 @@ const INDICE = (() => {
     const abaDocs = docs.map(d => ({
       ARQUIVO: d.doc.arquivo, 'CÓDIGO': d.doc.codigo, 'CÓDIGO NO NOME': d.doc.codigoNome, 'CÓDIGO NO CARIMBO': d.doc.codigoCarimbo,
       'REVISÃO': d.doc.revisao, TIPO: d.doc.tipo, 'TIPO (DESCRIÇÃO)': d.doc.tipoDescricao, COMPLEMENTO: d.doc.complemento,
-      'PÁGINAS': d.doc.paginas, 'SEM TEXTO': intervalos(d.doc.semTexto), 'TAGS': new Set(d.tags.map(x => x.valor)).size,
+      'PÁGINAS': d.doc.paginas, 'SEM TEXTO': intervalos(d.doc.semTexto),
       'RDS-PP': new Set(d.rds.map(x => x.valor)).size, 'ELEVAÇÕES': [...new Set(d.elev.map(x => x.valor))].join(', '),
       'MENÇÕES 50 HZ': d.doc.hz50, 'MENÇÕES 60 HZ': d.doc.hz60, 'MATERIAIS DO STATUS': new Set(d.materiais.map(x => x.pmib)).size,
       AVISOS: d.doc.avisos.join(' | '),
     }));
-    const abaTags = [...tags].sort(([a], [b]) => a.localeCompare(b))
-      .map(([TAG, r]) => ({ TAG, DOCUMENTOS: r.docs.size, 'PÁGINAS': r.onde.length, ONDE: onde(r.onde) }));
     const abaRds = [...rds].sort(([a], [b]) => a.localeCompare(b))
       .map(([v, r]) => ({ 'RDS-PP': v, 'É DOCUMENTO': /&/.test(v) ? 'SIM' : '', DOCUMENTOS: r.docs.size, ONDE: onde(r.onde) }));
     const abaElev = [...elev].sort(([a], [b]) => parseFloat(a.replace(',', '.')) - parseFloat(b.replace(',', '.')))
@@ -327,8 +325,7 @@ const INDICE = (() => {
     // Mensagem da página final. Os avisos "lista de sobressalentes: …" são informação, não problema: ficam só na aba.
     const comAviso = docs.filter(d => d.doc.avisos.some(a => !/^lista de sobressalentes:/.test(a))).map(d => d.doc.arquivo);
     const naoAchadas = abaConfTags.filter(l => l.RESULTADO === 'NÃO ACHADA').map(l => l.TAG);
-    const msg = [`${docs.length} documentos, ${nPag} páginas (${nSem} sem texto)`, `${achados} de ${e.catalogo.length} materiais do Status achados`,
-      `${tags.size} TAGs candidatas${assinatura ? ` (assinatura ${assinatura})` : ''}`];
+    const msg = [`${docs.length} documentos, ${nPag} páginas (${nSem} sem texto)`, `${achados} de ${e.catalogo.length} materiais do Status achados`];
     if (base.length) {
       msg.push(`Gabarito: ${conf.candidatas + conf.soTexto} de ${conf.tags} TAGs da BASE achadas (${conf.candidatas} candidatas, ${conf.soTexto} só no texto; ${conf.curtas} curtas para conferir à mão)`);
       if (naoAchadas.length) msg.push(`TAGs da BASE não achadas (${naoAchadas.length}): ${lista(naoAchadas)}`);
@@ -339,7 +336,7 @@ const INDICE = (() => {
     resumo.mensagem = msg.join(' · ');
     const R = [
       ['Sistema', resumo.sistema], ['Documentos', docs.length], ['Páginas', nPag], ['Páginas sem texto (leitura visual)', nSem],
-      ['TAGs candidatas (padrão KKS)', tags.size], ['Assinatura das TAGs', assinatura], ['RDS-PP distintos', rds.size], ['Elevações distintas', elev.size],
+      ['RDS-PP distintos', rds.size], ['Elevações distintas', elev.size],
       ['Materiais no Status (válidos)', e.catalogo.length], ['Materiais achados nos documentos', achados],
       ['Materiais com TAGs sugeridas pela lista de sobressalentes', sug.size], ['Documentos com aviso', resumo.avisos],
       ['Páginas em mais de uma coluna de texto (aba PÁGINAS)', partidas],
@@ -350,9 +347,8 @@ const INDICE = (() => {
 
     const abas = [
       { nome: 'RESUMO', colunas: ['CAMPO', 'VALOR'], linhas: R.map(([CAMPO, VALOR]) => ({ CAMPO, VALOR })), larguras: { CAMPO: 60, VALOR: 40 }, numeros: ['VALOR'] },
-      { nome: 'DOCUMENTOS', colunas: Object.keys(abaDocs[0] || { ARQUIVO: '' }), linhas: abaDocs, larguras: { ARQUIVO: 50, 'CÓDIGO': 36, 'CÓDIGO NO NOME': 36, 'CÓDIGO NO CARIMBO': 36, AVISOS: 60 }, numeros: ['PÁGINAS', 'TAGS', 'RDS-PP', 'MENÇÕES 50 HZ', 'MENÇÕES 60 HZ', 'MATERIAIS DO STATUS'] },
+      { nome: 'DOCUMENTOS', colunas: Object.keys(abaDocs[0] || { ARQUIVO: '' }), linhas: abaDocs, larguras: { ARQUIVO: 50, 'CÓDIGO': 36, 'CÓDIGO NO NOME': 36, 'CÓDIGO NO CARIMBO': 36, AVISOS: 60 }, numeros: ['PÁGINAS', 'RDS-PP', 'MENÇÕES 50 HZ', 'MENÇÕES 60 HZ', 'MATERIAIS DO STATUS'] },
       { nome: 'MATERIAIS', colunas: Object.keys(abaMats[0] || { PMIB: '' }), linhas: abaMats, larguras: { 'DESCRIÇÃO': 45, ONDE: 60, 'TAGS DA LISTA (SUGESTÃO)': 40, 'ONDE (SUGESTÃO)': 40, 'ACHADO POR': 30 } },
-      { nome: 'TAGS', colunas: ['TAG', 'DOCUMENTOS', 'PÁGINAS', 'ONDE'], linhas: abaTags, larguras: { ONDE: 100 }, numeros: ['DOCUMENTOS', 'PÁGINAS'] },
       { nome: 'RDS-PP', colunas: ['RDS-PP', 'É DOCUMENTO', 'DOCUMENTOS', 'ONDE'], linhas: abaRds, larguras: { 'RDS-PP': 40, ONDE: 100 }, numeros: ['DOCUMENTOS'] },
       { nome: 'ELEVAÇÕES', colunas: ['ELEVAÇÃO', 'DOCUMENTOS', 'ONDE'], linhas: abaElev, larguras: { ONDE: 100 }, numeros: ['DOCUMENTOS'] },
       { nome: 'SEM TEXTO', colunas: ['ARQUIVO', 'CÓDIGO', 'PÁGINAS SEM TEXTO', 'TOTAL', 'DE'], linhas: abaSemTexto, larguras: { ARQUIVO: 50, 'CÓDIGO': 36, 'PÁGINAS SEM TEXTO': 30 }, numeros: ['TOTAL', 'DE'] },
