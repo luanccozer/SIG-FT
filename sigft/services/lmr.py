@@ -149,12 +149,27 @@ def salvar_relatorio_de_erros(erros, callbacks):
     (o motivo vai ao console; nunca levanta: o lote já terminou)."""
     destino = caminho_do_relatorio_de_erros()
     callbacks.log(f"Salvando relatório de erros em {destino}...")
+    tabela = pd.DataFrame(erros)
     try:
-        pd.DataFrame(erros).to_csv(destino, index=False)
+        tabela.to_csv(destino, index=False)
+        return destino
+    except PermissionError as erro:
+        # [2026-11-04] O csv do lote anterior aberto no Excel (é onde ele é
+        # lido) prende o arquivo no Windows. Sem isto, os erros do lote novo
+        # se perdiam: vai um arquivo ao lado, com data e hora.
+        preso = erro
     except Exception as erro:  # noqa: BLE001 -- o lote já terminou
         callbacks.log(f"[!] Não foi possível gravar o relatório de erros ({destino}): {erro}")
         return None
-    return destino
+    alternativo = destino.with_name(f"{destino.stem}_{time.strftime('%Y%m%d_%H%M%S')}{destino.suffix}")
+    callbacks.log(f"[!] {destino.name} está aberto em outro programa ({preso}); "
+                  f"o relatório vai para {alternativo}")
+    try:
+        tabela.to_csv(alternativo, index=False)
+    except Exception as erro:  # noqa: BLE001 -- o lote já terminou
+        callbacks.log(f"[!] Não foi possível gravar o relatório de erros ({alternativo}): {erro}")
+        return None
+    return alternativo
 
 
 class CodigoNaoConfirmado(RuntimeError):

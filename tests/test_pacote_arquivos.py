@@ -261,6 +261,30 @@ def test_desfazer_que_nao_renomeia_de_volta_copia_o_original(cenario, monkeypatc
     assert depois == antes
 
 
+def test_desfazer_com_o_arquivo_novo_preso_devolve_o_conteudo_original(cenario, monkeypatch):
+    """[2026-11-04, revisao] O antivírus abre o arquivo que acabou de ser
+    escrito para examinar, e o `unlink` dele falha. O desfazer pulava a volta
+    do original, e o `.sigft-old` (a única cópia) era apagado pelo
+    `limpar_restos` da abertura seguinte. Agora o original é copiado POR CIMA
+    do novo, e a pasta volta ao que era."""
+    instalada, nova, novo, zipado = cenario
+    antes = _retrato(instalada)
+    (nova / "SIG-FT.exe").write_bytes(b"estragado")  # nao confere -> desfaz
+    apagar = Path.unlink
+
+    def unlink_preso(self, *args, **kwargs):
+        if self.name == "SIG-FT.exe":
+            raise PermissionError(32, "em uso pelo antivirus")
+        return apagar(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", unlink_preso)
+    monkeypatch.setattr(pa, "_ESPERA_PRESO_S", 0)
+    with pytest.raises(pa.ErroPacote):
+        pa.aplicar(zipado, instalada, _manifesto(nova, "1.1"))
+    depois = {k: v for k, v in _retrato(instalada).items() if not k.endswith(pa.SUFIXO_ANTIGO)}
+    assert depois == antes
+
+
 def _zip_com(tmp_path, alterados, removidos, conteudo):
     nova = tmp_path / "nova_sobreposta"
     for rel, dados in conteudo.items():
@@ -316,7 +340,7 @@ def test_o_modulo_nao_importa_qt_nem_fora_da_stdlib():
     importados = {n.module.split(".")[0] if isinstance(n, ast.ImportFrom) else a.name.split(".")[0]
                   for n in ast.walk(arvore) if isinstance(n, (ast.Import, ast.ImportFrom))
                   for a in (n.names if isinstance(n, ast.Import) else [None])}
-    assert importados <= {"__future__", "hashlib", "json", "shutil", "zipfile", "collections", "pathlib"}
+    assert importados <= {"__future__", "hashlib", "json", "shutil", "time", "zipfile", "collections", "pathlib"}
 
 
 # -- conferir: SHA256 no que o pacote escreveu, tamanho no resto -------------

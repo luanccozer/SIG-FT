@@ -61,6 +61,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import time
 import zipfile
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path, PurePath
@@ -73,6 +74,10 @@ PREFIXO = "SIG-FT_Itaipu_Arquivos_"
 MANIFESTO = "manifesto.json"
 PASTA_NO_ZIP = "arquivos/"
 _BLOCO = 1024 * 1024
+# [2026-11-04] Quanto o desfazer espera o antivírus soltar o arquivo novo
+# antes de copiar o original por cima (ver `_tirar_o_novo`).
+_ESPERA_PRESO_S = 0.2
+_TENTATIVAS_PRESO = 3
 
 
 class ErroPacote(RuntimeError):
@@ -287,11 +292,30 @@ def _devolver(antigo: Path, destino: Path) -> None:
         shutil.copy2(antigo, destino)
 
 
+def _tirar_o_novo(destino: Path) -> bool:
+    """Apaga o arquivo que esta rodada escreveu. `False` se ele continuar
+    preso: o antivírus abre o arquivo recém-escrito para examinar, e o
+    Windows recusa o `unlink` enquanto isso. [2026-11-04, revisao]"""
+    for tentativa in range(_TENTATIVAS_PRESO):
+        try:
+            destino.unlink(missing_ok=True)
+            return True
+        except OSError:
+            if tentativa + 1 < _TENTATIVAS_PRESO:
+                time.sleep(_ESPERA_PRESO_S)
+    return False
+
+
 def _desfazer(feitos: list[tuple[Path, Path | None]], pastas_criadas: list[Path]) -> None:
     for destino, antigo in reversed(feitos):
         try:
-            if destino.exists():
-                destino.unlink()
+            if not _tirar_o_novo(destino):
+                # [2026-11-04, revisao] O novo não sai: o original vai POR CIMA
+                # dele. Sem isto o `.sigft-old` ficava como a única cópia, e o
+                # `limpar_restos` da abertura seguinte o apagava.
+                if antigo is not None:
+                    shutil.copyfile(antigo, destino)
+                continue
             if antigo is not None:
                 _devolver(antigo, destino)
         except OSError:

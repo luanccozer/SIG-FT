@@ -38,8 +38,13 @@ ARQUIVO_LOG = "sigft.log"
 OL_MAIL_ITEM = 0
 # O `mailto:` passa por linha de comando e pelo registro do Windows: o Outlook
 # corta o que passar de uns 2 mil caracteres. O texto que não couber fica com
-# a pessoa (ela ainda o tem na caixa da Configuração).
-LIMITE_CORPO_MAILTO = 1800
+# a pessoa (ela ainda o tem na caixa da janela). [2026-11-04] O limite é do
+# ENDEREÇO já codificado: cada "ç" ou "ã" vira 6 caracteres, e cortar o texto
+# em 1800 deixava o endereço com mais de 5 mil -- e o corte do Outlook levava
+# o rodapé com a versão.
+LIMITE_MAILTO = 2000
+RODAPE = "\n\n--\n"
+CORTE = "\n(...)"
 
 
 class SemOutlook(RuntimeError):
@@ -94,12 +99,30 @@ def montar(texto: str, *, versao: str, idioma: str, sistema: str | None = None,
     return Rascunho(assunto=f"SIG-FT v{versao} - sugestão", corpo=corpo, anexo=anexo)
 
 
+def _link(assunto: str, corpo: str) -> str:
+    return f"mailto:?subject={quote(assunto)}&body={quote(corpo)}"
+
+
 def link_mailto(rascunho: Rascunho) -> str:
-    """O `mailto:` sem destinatário, com assunto e corpo codificados."""
-    corpo = rascunho.corpo
-    if len(corpo) > LIMITE_CORPO_MAILTO:
-        corpo = corpo[:LIMITE_CORPO_MAILTO].rstrip() + "\n(...)"
-    return f"mailto:?subject={quote(rascunho.assunto)}&body={quote(corpo)}"
+    """O `mailto:` sem destinatário, com assunto e corpo codificados, em até
+    `LIMITE_MAILTO` caracteres. O que é cortado é o texto, nunca o rodapé
+    (versão, idioma, sistema)."""
+    link = _link(rascunho.assunto, rascunho.corpo)
+    if len(link) <= LIMITE_MAILTO:
+        return link
+    texto, separador, rodape = rascunho.corpo.rpartition(RODAPE)
+    if not separador:
+        texto, rodape = rascunho.corpo, ""
+    fim = (CORTE + separador + rodape) if separador else CORTE
+    # Busca binária no tamanho do texto: o endereço cresce com ele.
+    baixo, alto = 0, len(texto)
+    while baixo < alto:
+        meio = (baixo + alto + 1) // 2
+        if len(_link(rascunho.assunto, texto[:meio].rstrip() + fim)) <= LIMITE_MAILTO:
+            baixo = meio
+        else:
+            alto = meio - 1
+    return _link(rascunho.assunto, texto[:baixo].rstrip() + fim)
 
 
 def _com_padrao():

@@ -147,8 +147,9 @@ def test_mailto_corta_corpo_longo():
     r = sugestoes.montar("x" * 5000, versao="1", idioma="pt", sistema="s")
     url = sugestoes.link_mailto(r)
     corpo = parse_qs(urlparse(url).query)["body"][0]
-    assert len(corpo) <= sugestoes.LIMITE_CORPO_MAILTO + len("\n(...)")
-    assert corpo.endswith("(...)")
+    assert len(url) <= sugestoes.LIMITE_MAILTO
+    assert "(...)" in corpo
+    assert corpo.endswith("SIG-FT v1 | idioma: pt | s")
 
 
 def test_nem_o_mailto_abre_levanta(tmp_path):
@@ -162,3 +163,17 @@ def test_nem_o_mailto_abre_levanta(tmp_path):
 def test_o_caminho_do_log_e_o_da_pasta_de_logs(tmp_path, monkeypatch):
     monkeypatch.setattr(sugestoes, "pasta_logs", lambda: tmp_path)
     assert sugestoes.caminho_do_log() == tmp_path / "sigft.log"
+
+
+def test_mailto_com_acento_cabe_no_limite_e_guarda_a_versao():
+    """[2026-11-04] O limite é do ENDEREÇO (linha de comando/registro do
+    Windows), e não do texto: cada "ç", "ã" e quebra de linha vira 6 ou 3
+    caracteres no `mailto:`. 1800 caracteres de português passavam de 5 mil
+    no endereço, e o corte do Outlook levava junto o rodapé com a versão."""
+    texto = ("A tela de condições não mostra a ação.\n" * 200)
+    r = sugestoes.montar(texto, versao="1.3.3", idioma="pt", sistema="Windows 11")
+    url = sugestoes.link_mailto(r)
+    assert len(url) <= sugestoes.LIMITE_MAILTO
+    corpo = parse_qs(urlparse(url).query)["body"][0]
+    assert "(...)" in corpo
+    assert corpo.rstrip().endswith("SIG-FT v1.3.3 | idioma: pt | Windows 11")

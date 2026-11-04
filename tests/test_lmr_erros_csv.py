@@ -59,3 +59,31 @@ def test_falha_ao_gravar_e_dita_no_console_e_nao_levanta(monkeypatch):
 
     assert lmr.salvar_relatorio_de_erros([{"PMIB": "X"}], cb) is None
     assert any("sem permissao" in linha for linha in cb.linhas)
+
+
+def test_csv_aberto_no_excel_grava_ao_lado_com_carimbo(monkeypatch):
+    """[2026-11-04] O `erros_lmr.csv` do lote anterior aberto no Excel (é
+    onde a pessoa o lê) prende o arquivo: o Windows recusa a escrita com
+    PermissionError, e os erros do lote novo se perdiam. Vai um arquivo ao
+    lado, com data e hora, e o console diz qual."""
+    tentativas = []
+
+    class _Tabela:
+        def __init__(self, linhas):
+            pass
+
+        def to_csv(self, destino, index):
+            tentativas.append(Path(destino))
+            if len(tentativas) == 1:
+                raise PermissionError("[Errno 13] Permission denied")
+
+    monkeypatch.setattr(lmr.pd, "DataFrame", _Tabela)
+    cb = _Callbacks()
+
+    destino = lmr.salvar_relatorio_de_erros([{"PMIB": "X"}], cb)
+
+    assert tentativas[0] == dados_usuario.pasta_logs() / "erros_lmr.csv"
+    assert destino == tentativas[1]
+    assert destino.parent == dados_usuario.pasta_logs()
+    assert destino.name.startswith("erros_lmr_") and destino.suffix == ".csv"
+    assert any(str(destino) in linha for linha in cb.linhas)
