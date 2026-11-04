@@ -40,7 +40,7 @@ pelo AMP.
   - o batimento da espera;
   - a gravação sem sobrescrever;
   - o teste de conexão.
-- **A lista com preço** é a única parte nova. O agente não a conhece, então os materiais lidos da tabela do HTML vão para ela pelos nomes das colunas dela.
+- **A lista com preço** é a única parte nova. O agente não a conhece, então os materiais lidos da tabela do HTML vão para ela pelos nomes das colunas dela. O CÓDIGO CMI do `_STATUS_PMIB` vai para a coluna **CÓDIGO GE** dela: é o mesmo código, com outro nome.
 
 ## Regras
 

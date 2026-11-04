@@ -201,8 +201,9 @@ def test_grava_no_status_e_na_lista_com_preco_sem_preco(tmp_path):
     assert ws.cell(7, 2).value == 1.5 and ws.cell(7, 4).value == "CABO 4MM"
     assert ws.cell(6, 8).value is None   # CÓDIGO PMIB: da pessoa
     wp = load_workbook(dossie.lista_precos, keep_vba=True)["Lista de Materiais"]
+    # CÓDIGO GE (G) é o CÓDIGO CMI do _STATUS_PMIB: o mesmo código, com outro nome (Luan, 04/11).
     assert [wp.cell(5, c).value for c in (4, 5, 6, 7, 10)] == [
-        "ROLAMENTO 6205", "SKF / 6205-2RS", "123", None, "FÍSICA E DOCUMENTAL"]
+        "ROLAMENTO 6205", "SKF / 6205-2RS", "123", "CMI-1", "FÍSICA E DOCUMENTAL"]
     assert wp.cell(5, 9).value is None and wp.cell(6, 9).value is None   # VALOR UNITÁRIO nunca
 
 

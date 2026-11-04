@@ -65,7 +65,8 @@ COLUNAS_STATUS = {"ITEM": "item", "QTD.": "qtd", "UNID.": "unid", "DESCRICAO": "
                   "MARCA/MODELO": "fabricante_modelo", "TIPO DE ENTREGA": "tipo_entrega"}
 COLUNAS_PRECOS = {"ITEM": "item", "QTD.": "qtd", "UNID.": "unid", "DESCRICAO": "descricao",
                   "FABRICANTE / MODELO": "fabricante_modelo", "CODIGO DE MATERIAL": "codigo_material",
-                  "CODIGO GE": "codigo_ge", "TIPO DE ENTREGA": "tipo_entrega"}
+                  # CÓDIGO GE é o CÓDIGO CMI do _STATUS_PMIB, com outro nome (Luan, 2026-11-04).
+                  "CODIGO GE": "codigo_cmi", "TIPO DE ENTREGA": "tipo_entrega"}
 # As colunas que dizem "esta planilha já tem material": as escritas, menos ITEM (o template já
 # vem numerado) e TIPO DE ENTREGA (o da lista com preço traz exemplos), mais as que só a pessoa
 # preenche.
@@ -233,7 +234,6 @@ class Material:
     descricao: str = ""
     fabricante_modelo: str = ""
     codigo_material: str = ""
-    codigo_ge: str = ""
     tipo_entrega: str = ""
     codigo_cmi: str = ""
 
