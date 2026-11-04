@@ -779,6 +779,12 @@ Aplicativos o SIG-FT Itaipu com a versão nova.
 
 ---
 
+## Etapa 5e — A 1.3.3 inteira
+
+O roteiro do que mudou desde a v1.3.2 (Sugestões, telas em 1366×768, estabilidade, `erros_lmr.csv`, DocPack, Upload de Fotos, Revisão no AMP v2, atualização e migração) está num arquivo próprio: [`docs/ROTEIRO_1.3.3.md`](ROTEIRO_1.3.3.md).
+
+---
+
 ## Etapa 6 — Me mandar o resultado
 
 Copie e preencha:
