@@ -20,6 +20,7 @@ Nota do cofre: `gestao-sobressalentes/07 - Diagnostico/Plano - Automacao da Apli
 | C — alterações (C1 comparar, C2 aplicar) | pronto e testado localmente; falta rodar no AMP (não urgente) |
 | A — documentos → Base | **caminho atual: `LMR_A_agente_amp.json`** (agente do AMP dentro do workflow, texto das páginas na mensagem, 4 etapas com perguntas de controle e página "Confira as áreas"); testado localmente, **ainda não rodou no AMP**. Alternativas: A v3 com a IA do n8n (`LMR_A_gerar_base.json`) e AG1/AG2 (agente no chat) |
 | A enxuto (`LMR_A_enxuto.json`) | Leitor, Ligador, Recuperador + Validador; testado só com sistema fictício; **não rodou no AMP nem na regressão com dados reais** |
+| **Montador da BASE LMR** (`agente-base/`) | caminho alternativo, sem fluxograma: um agente no chat do AMP monta a BASE em 6 etapas fixas e o engenheiro cola as tabelas no modelo e roda o B. Guia em [`agente-base/FLUXO_DE_TRABALHO.md`](agente-base/FLUXO_DE_TRABALHO.md); **não rodou no AMP** |
 | Próximo passo | sonda S10 com Gemini e linha de base: [`docs/planos/roteiro-testes-amp-2026-11-03.md`](docs/planos/roteiro-testes-amp-2026-11-03.md) |
 | Testes de plataforma | S9/S10 (nó AMP Agent) rodaram; S4 (Box), S7, S8 pendentes |
 
