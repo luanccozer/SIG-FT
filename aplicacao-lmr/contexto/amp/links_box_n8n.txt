@@ -1,0 +1,15 @@
+Box - n8n
+https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.box?utm_source=n8n_app&utm_medium=node_settings_modal-credential_link&utm_campaign=CUSTOM.GEVBox
+
+Box Credentials - n8n
+https://docs.n8n.io/integrations/builtin/credentials/box
+
+Setup with OAuth 2.0
+https://developer.box.com/guides/authentication/oauth2/oauth2-setup
+
+API Reference
+https://developer.box.com/reference
+
+Box Trigger
+https://docs.n8n.io/integrations/builtin/trigger-nodes/n8n-nodes-base.boxtrigger
+

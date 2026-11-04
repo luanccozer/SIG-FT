@@ -1,0 +1,44 @@
+Sonda S10 (LMR_S10_sonda2_amp_agent.json), 03/11/2026 — duas rodadas por modelo
+Agentes: "Leitor LMR" (bedrock-claude-sonnet-5.5) e "Leitor LMR Gemini" (gemini-3.5-flash-lite), os dois com
+motor/agente/system_prompt.md e a mesma Knowledge base. A = PDF no Files; B = mesma sessão, sem arquivo;
+C = texto da página 1 (Extract from File) no Prompt.
+
+=== Rodada 1: P&ID Água Pura #ST00=M00MKF10&MFB030[0]_P&ID.pdf (1 página, com texto) ===
+Começo real da página 1 (texto extraído): "o o o ... oooo HP212 Q(m3/h) P(Bar) 165.6 (50Hz) 9.5 140.4 (60Hz) 8.5"
+
+Sonnet 5.5
+  A: sem erro (em 28/10 era 424). Listou arquivos, criou índice de busca da sessão, rodou Python.
+     paginas=1; palavras_pagina_1="AUXILIARES ASSOCIADOS À UNIDADE GERADORA / SISTEMA DE ÁGUA PURA - 50 HZ E 60 HZ -
+     DESCRITIVO FUNCIONAL #ST00=M00MKF10&MDB030 4. TUBOS E ACESSÓRIOS..." (NÃO é o começo da página);
+     códigos GP101 GP211 GS215G HP201 HP212 CN401 CN402 EP101 EP102 CM301 BL315 FL314S BS143T BS146T BS141T;
+     como_leu="ferramenta de busca". Narração em inglês antes da resposta.
+  B: cópia exata do A (memória da sessão).
+  C: palavras certas; códigos HP212 WP114 HZ201 CN401 GP101 HP201 CN402 EP101 EP102 XK002 BP316T BL317T CM301
+     BL315 FL314S; paginas=1 (o texto não informa: inventado).
+
+Gemini 3.5 Flash-Lite
+  A: sem erro. Mesmas palavras erradas do Sonnet (vêm do índice da plataforma);
+     códigos GP101 GP102 GP211 HP201 HP212 EP101 EP102 BS141T BS143T BS144T BS146T BS160T BS161T BP316T BL317T;
+     como_leu="ferramenta de busca e extração de texto".
+  B: cópia exata do A.
+  C: palavras certas; códigos HP212 WP114 HZ201 CN401 GP101 HP201 EP101 EP102 XK002 BP316T BL317T CM301 BL315
+     FL314S QM306V; paginas=1 (inventado).
+
+=== Rodada 2: Diagrama funcional HF-01.pdf da SFC (119 páginas, todas escaneadas) ===
+Sonnet 5.5
+  A: paginas=1, sem palavras, sem códigos, ve_desenho=true, como_leu="imagem" (FALSO: não leu).
+  B: igual ao A.
+  C: paginas=0, "sem texto" (correto).
+Gemini 3.5 Flash-Lite
+  A: paginas=1; palavras_pagina_1="DIAGRAMA FUNCIONAL HF-01 SISTEMA DE FREQUENCIA USINA HIDRELETICA" e código "HF-01"
+     (INVENTADOS a partir do nome do arquivo); como_leu="imagem"; a resposta traz "Sources" da INTERNET
+     (manuais Rockwell, Yaesu, Genie, relatório da Itaipu...): o agente fez busca na web.
+  B: igual (palavras inventadas diferentes).
+  C: palavras vazias, mas paginas=1 e "páginas que não conseguiu ler: nenhuma" (errado).
+
+=== Conclusão ===
+- Files no nó AMP Agent: o PDF vira índice de busca de texto. Nenhum dos dois modelos lê a página em ordem nem
+  página escaneada; os dois dizem ter lido "imagem" sem ter lido.
+- Gemini 3.5 Flash-Lite inventa conteúdo e busca na internet: não serve de Leitor.
+- Leitor continua Sonnet 5.5 com o texto das páginas no Prompt (o fluxo atual). Página sem texto = PENDÊNCIA.
+- Desligar a busca na web em todos os agentes LMR, se o AMP tiver a opção.

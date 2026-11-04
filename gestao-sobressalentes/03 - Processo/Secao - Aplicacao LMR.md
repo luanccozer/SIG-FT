@@ -5,6 +5,11 @@ status: criterio-aceito
 
 # Seção — Aplicação LMR
 
+> [!info] Padrão v1.4 e automação (23/10/2026)
+> O formato do CÓDIGO e da TAG LMR foi unificado para todas as aplicações — regras em
+> [[Aplicacao LMR - Regras de Montagem]]. Os exemplos do RTA abaixo são do formato antigo.
+> A planilha passou a ser gerada por regra no n8n do AMP: [[Plano - Automacao da Aplicacao LMR no AMP]].
+
 > [!success] Critério fechado em 31/08/2026
 > **Itaipu aceitou o modelo do CMI.** A discussão de template acabou; o que resta e
 > executar. Ver [[Revisao da Aplicacao LMR - Agosto 2026]].
@@ -153,9 +158,14 @@ Dois módulos:
 > Ele nasceu como remendo para um critério instável. Com o critério fechado, passa a ser
 > ferramenta de correção pontual — e o volume de uso dele deveria cair.
 
+### Geração da planilha no AMP (desde 23/10/2026)
+A planilha de Aplicação LMR (as 3 abas do template) é gerada no n8n do AMP a partir da
+**Base da Aplicação** — uma linha por material numa posição. O SIG-FT continua sendo quem sobe
+ao portal. Ver [[Plano - Automacao da Aplicacao LMR no AMP]].
+
 ## Colunas de controle
 - `_STATUS_PMIB`: coluna **`APLICACAO - LMR`**
 - Mapeadora: coluna **`FICHAS COM APLICACAO - LMR FINALIZADA`**
 
 ## Relacionados
-[[Revisao da Aplicacao LMR - Agosto 2026]] · [[RDS-PP e KKS]] · [[Diagnostico - Deficiencias]] · [[SIG-FT - Modulos]]
+[[Revisao da Aplicacao LMR - Agosto 2026]] · [[Aplicacao LMR - Regras de Montagem]] · [[Plano - Automacao da Aplicacao LMR no AMP]] · [[RDS-PP e KKS]] · [[Diagnostico - Deficiencias]] · [[SIG-FT - Modulos]]

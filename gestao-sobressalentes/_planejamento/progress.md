@@ -138,3 +138,25 @@ procurement, atraso de Itaipu em 15 d.u.) e um Power BI com visão interna e vis
 2. **Montar o Power BI** a partir de `_gestao_v2/powerbi/`.
 3. **Plano de ação — fichas emitidas sem Aplicação LMR** (269 fora do compromisso em 01/10).
 4. **Gargalo das Listas de Preços**: campo "revisão da lista de sobressalentes a que se refere".
+
+## 2026-10-21 a 23 — automação da Aplicação LMR no AMP (n8n)
+- Projeto em `aplicacao-lmr/` (raiz do repositório), branch `claude/automacao-lmr-amp`. Sem dados reais.
+- Padrão único do CÓDIGO/TAG LMR aprovado (decisões 14–31) → [[Aplicacao LMR - Regras de Montagem]].
+- Motor de regras `lmr.js` reproduz as 5 aplicações de exemplo; erros reais das aplicações emitidas
+  levantados (eixo XXXX, descrição no RDS-PP, M trocado, pai QG001×GQ001…).
+- No AMP, após 5 travamentos (Merge, compression, .zip, isolate, Motor), arquitetura v1.6: a migração
+  (R) sai do AMP; o B lê só a Base, em lotes de 20 (Loop Over Items). **B rodou nos 5 sistemas** e
+  entrega no formato do template (DOCS DE REFERÊNCIA, DESCRIÇÃO DOCUMENTOS, APLICAÇÃO - LMR).
+- Workflow C (C1 comparar Status × Base, C2 aplicar) pronto localmente; caso real Reg. Vel. (0795→1641,
+  sai 1137/1141) testado.
+- Próximo: workflow A (documentos → Base). Pendentes: pasta de PDFs de exemplo, testes S4–S8.
+- Por ordem do Luan (23/10): projeto enviado ao GitHub e cofre atualizado aqui e na cópia
+  `15 - PDM/SECOND BRAIN/` do Box. Ver [[Plano - Automacao da Aplicacao LMR no AMP]].
+
+## 2026-10-27 a 11-02 — Aplicação LMR: workflow A e agentes do AMP
+- A1 (índice dos PDFs, sem IA) e A (leitura com a IA do n8n, v1→v3) feitos; no AMP a IA do n8n leu mal
+  (até 1.240/3.580 linhas na Água Pura). Página "Confira as áreas" e workflow "Revisar áreas" criados.
+- Leitura passou para o **agente do AMP**: primeiro no chat (AG1/AG2), depois **dentro do workflow** (nó
+  `CUSTOM.amp`, sondas S9/S10). Workflow atual `LMR_A_agente_amp.json`, testado localmente nos 4 sistemas.
+- Por pedido do Luan (02/11): passagem para outra pessoa — código, workflows, plano e `HANDOFF.md` enviados ao
+  GitHub (`aplicacao-lmr/`, branch `claude/automacao-lmr-amp`). Ver [[Plano - Automacao da Aplicacao LMR no AMP]].

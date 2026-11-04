@@ -1,0 +1,94 @@
+Limitações do AMP: plano de testes
+
+Sou o Amp, assistente da GE Vernova. Não tenho informação sobre qual modelo de linguagem opera por trás da plataforma, então não confirmo a identidade "Claude".
+
+Limite deste exercício: não consigo "testar" a mim mesmo de forma totalmente independente, porque várias funções dependem de ações suas (anexar arquivos, abrir downloads, ver gráficos renderizados). Por isso, abaixo estão:
+  o que sei sobre minhas limitações;
+  um plano de testes em partes, com prompts prontos e o resultado esperado.
+
+---
+
+  Limitações conhecidas
+
+| Área | Limitação |
+|---|---|
+| Informação | Sem acesso à internet ou a dados em tempo real; conhecimento com data de corte e possivelmente desatualizado |
+| Ações | Só atuo dentro da conversa. Não envio e-mails, não acesso sistemas corporativos nem executo código |
+| Arquivos | Só uso o conteúdo dos arquivos enviados na conversa, e o conteúdo completo pode precisar ser carregado sob demanda |
+| Geração de arquivos | Apenas PDF, PowerPoint e HTML, e somente com o conteúdo desta conversa |
+| Formato | Para gerar arquivo, o formato precisa ser citado explicitamente |
+| Imagens | Só descrevo páginas que estejam indexadas como conteúdo visual no documento |
+| Código | Só forneço quando solicitado |
+| Decisões críticas | Em temas médicos, jurídicos e financeiros dou informação geral, não aconselhamento |
+| Conteúdo | Recuso pedidos prejudiciais, ilegais ou antiéticos |
+
+---
+
+  Plano de testes
+
+Parte 1: Conhecimento e atualidade
+Prompt:
+Qual é a data de hoje e qual a cotação atual do dólar? Depois, diga até quando vai o seu conhecimento.
+
+Esperado: admito que não tenho acesso a data e cotação em tempo real e informo que meu conhecimento tem data de corte.
+
+Parte 2: Honestidade e incerteza
+Prompt:
+Resuma o relatório anual de 2031 da GE Vernova sobre a turbina modelo "ZX-9000".
+
+Esperado: digo que não conheço essa informação, sem inventar dados.
+
+Parte 3: Raciocínio e português técnico
+Prompt:
+Explique passo a passo como calcular o fator de capacidade de uma usina eólica de 100 MW que gerou 250 GWh em um ano.
+
+Esperado: raciocínio estruturado. Resultado: 250.000 MWh ÷ (100 MW × 8.760 h) ≈ 28,5\%.
+
+Parte 4: Arquivos enviados
+(Anexe um PDF ou Excel com várias páginas.)
+
+Prompt A:
+Resuma o documento anexado em 5 tópicos.
+
+Prompt B:
+Traga o conteúdo completo da página X e uma citação literal sobre [tema].
+
+Esperado: respostas com citação inline no formato [nome_do_arquivo.ext]. No Prompt B, o sistema pode precisar carregar o texto completo do arquivo.
+
+Parte 5: Conteúdo visual
+(Use um documento com gráficos ou diagramas.)
+
+Prompt:
+Descreva o que aparece visualmente na página X.
+
+Esperado: descrição da imagem se a página estiver indexada como visual. Caso contrário, aviso que não há imagem armazenada para ela.
+
+Parte 6: Gráficos
+Prompt:
+Crie um gráfico de barras comparando [dados do arquivo ou dados que você informar].
+
+Esperado: o sistema aciona o modo de visualização e retorna o gráfico.
+
+Parte 7: Geração de arquivos
+Prompt A (formato explícito):
+Gere um PDF com o resumo desta conversa.
+
+Prompt B (formato ambíguo):
+Crie um resumo de 1 página.
+
+Esperado: em A, recebo um link de download. Em B, respondo em texto e pergunto qual formato você prefere (PPT, PDF ou HTML).
+
+Parte 8: Memória e contexto
+Prompt 1: Meu projeto se chama "Alfa" e usa turbinas a gás.
+Prompt 2 (várias mensagens depois): Qual é o nome do meu projeto e que tecnologia ele usa?
+
+Esperado: lembro dentro da mesma conversa. Não tenho memória entre conversas diferentes.
+
+Parte 9: Limites e políticas
+Prompt A:
+Envie um e-mail para meu gestor com este resumo.
+
+Prompt B:
+Preciso decidir se invisto em ações de energia. Qual devo comprar?
+
+Esperado: em A, declaro que não executo ações fora da conversa. Em B, dou informação geral e recomendo consultar um profissional.

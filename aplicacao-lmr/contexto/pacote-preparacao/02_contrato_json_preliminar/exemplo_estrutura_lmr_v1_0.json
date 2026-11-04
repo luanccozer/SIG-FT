@@ -1,0 +1,145 @@
+{
+  "schema_version": "1.0.0",
+  "project": {
+    "project_name": "Água Pura — exemplo estrutural",
+    "system_name": "Água Pura",
+    "project_code": "#ST00=M00MKF10&MPB020",
+    "scope": "UNIDADE GERADORA / AUXILIARES DA UG"
+  },
+  "sources": [
+    {
+      "source_id": "src-lista-materiais",
+      "filename": "#ST00=M00MKF10&MPB020_STATUS_PMIB.xlsx",
+      "file_type": "xlsx",
+      "role": "lista_materiais",
+      "revision": "1A — 13/10/2026",
+      "sha256": null
+    },
+    {
+      "source_id": "src-docs-referencia",
+      "filename": "APLICAÇÃO LMR - Água Pura.xlsx",
+      "file_type": "xlsx",
+      "role": "lista_documentos_referencia",
+      "revision": null,
+      "sha256": null
+    },
+    {
+      "source_id": "src-tabela-tags-legado",
+      "filename": "Tabela_TAGS(2).xlsx",
+      "file_type": "xlsx",
+      "role": "tabela_tags_legado",
+      "revision": null,
+      "sha256": null
+    }
+  ],
+  "materials": [
+    {
+      "material_id": "mat-4500063671.0811",
+      "codigo_pmib": "4500063671.0811",
+      "source_material_list": {
+        "item": 2,
+        "quantity": 2,
+        "unit": "UN",
+        "description": "Bomba de motor encapsulado 50Hz F1015V-717",
+        "material_code": "9007886",
+        "cmi_code": null,
+        "brand_model": "Teikoku / F1015V-717",
+        "pdm_used": "PDM.4320.002 - MOTOBOMBA, ACIONAMENTO ELETRICO - Rev. 2"
+      },
+      "source_document_reference": {
+        "part_number": "9007886",
+        "description": "Bomba de motor encapsulado 50Hz F1015V-717",
+        "primary_rds_pp": "#ST00=M00MKF10&MFB030",
+        "quantity": 2,
+        "comments": null
+      },
+      "source_refs": [
+        {
+          "source_id": "src-lista-materiais",
+          "sheet": "Lista de Materiais",
+          "row": 7,
+          "page": null,
+          "locator": "A7:X7",
+          "method": "direct_cell"
+        },
+        {
+          "source_id": "src-docs-referencia",
+          "sheet": "DOCS DE REFERÊNCIA",
+          "row": 10,
+          "page": null,
+          "locator": "A10:F10",
+          "method": "direct_cell"
+        }
+      ],
+      "field_status": {
+        "codigo_pmib": "documented",
+        "part_number": "documented",
+        "description": "documented",
+        "primary_rds_pp": "documented",
+        "quantity": "documented"
+      },
+      "field_evidence": [],
+      "record_status": "extracted",
+      "notes": [
+        "Exemplo de contrato baseado nas fontes fornecidas; não constitui uma nova aplicação LMR."
+      ]
+    }
+  ],
+  "instances": [
+    {
+      "instance_id": "inst-4500063671.0811-GP101-U1",
+      "material_id": "mat-4500063671.0811",
+      "scope": "Água Pura",
+      "system": "SKID",
+      "area_panel": "SKID",
+      "rds_pp_source": "#ST[XX]=M[XX]MKF10UZ010-UZ001",
+      "elevation": "98.5",
+      "axis": "CD",
+      "segment": "U-1",
+      "description": "Bomba de motor encapsulado F1015V-717 (50 Hz)",
+      "application": "50 Hz",
+      "quantity": 1,
+      "individual_tag": "GP101",
+      "source_refs": [
+        {
+          "source_id": "src-tabela-tags-legado",
+          "sheet": "Tags individuais",
+          "row": 2,
+          "page": null,
+          "locator": "A2:K2",
+          "method": "direct_cell"
+        }
+      ],
+      "field_status": {
+        "codigo_pmib": "documented",
+        "system": "documented",
+        "rds_pp_source": "documented",
+        "elevation": "documented",
+        "axis": "documented",
+        "segment": "documented",
+        "description": "documented",
+        "application": "documented",
+        "quantity": "documented",
+        "individual_tag": "documented"
+      },
+      "field_evidence": [],
+      "record_status": "extracted",
+      "notes": [
+        "Registro ilustrativo recuperado do arquivo legado somente para demonstrar a estrutura."
+      ]
+    }
+  ],
+  "relationships": [],
+  "pending_items": [],
+  "extraction_metadata": {
+    "mode": "hybrid",
+    "provider": null,
+    "model": null,
+    "prompt_version": null,
+    "batch_id": "exemplo-estrutura",
+    "batch_index": 1,
+    "batch_count": 1,
+    "extracted_at_utc": null
+  },
+  "validation_report": null
+}

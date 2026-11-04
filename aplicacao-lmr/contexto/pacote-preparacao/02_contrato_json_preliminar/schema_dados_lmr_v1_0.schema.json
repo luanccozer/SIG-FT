@@ -1,0 +1,927 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/lmr/contrato-dados-lmr-v1.0.schema.json",
+  "title": "Contrato de Dados LMR v1.0.0",
+  "description": "Estrutura canônica para substituir a Tabela_TAGS como base de dados do processo de aplicação LMR.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "project",
+    "sources",
+    "materials",
+    "instances",
+    "relationships",
+    "pending_items",
+    "extraction_metadata",
+    "validation_report"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "project": {
+      "$ref": "#/$defs/project"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source"
+      },
+      "minItems": 1
+    },
+    "materials": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/material"
+      }
+    },
+    "instances": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/instance"
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/relationship"
+      }
+    },
+    "pending_items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/pending_item"
+      }
+    },
+    "extraction_metadata": {
+      "$ref": "#/$defs/extraction_metadata"
+    },
+    "validation_report": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/validation_report"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "project_name",
+        "system_name",
+        "project_code",
+        "scope"
+      ],
+      "properties": {
+        "project_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "system_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "project_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "filename",
+        "file_type",
+        "role",
+        "revision",
+        "sha256"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "pattern": "^src-[A-Za-z0-9_-]+$"
+        },
+        "filename": {
+          "type": "string",
+          "minLength": 1
+        },
+        "file_type": {
+          "enum": [
+            "xlsx",
+            "xls",
+            "csv",
+            "pdf",
+            "docx",
+            "doc",
+            "pptx",
+            "image",
+            "other"
+          ]
+        },
+        "role": {
+          "enum": [
+            "lista_materiais",
+            "lista_documentos_referencia",
+            "desenho",
+            "pid",
+            "documento_tecnico",
+            "modelo_aplicacao_lmr",
+            "tabela_tags_legado",
+            "outro"
+          ]
+        },
+        "revision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Fa-f0-9]{64}$"
+        }
+      }
+    },
+    "source_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_id",
+        "sheet",
+        "row",
+        "page",
+        "locator",
+        "method"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string"
+        },
+        "sheet": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "row": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "page": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "locator": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "method": {
+          "enum": [
+            "direct_cell",
+            "document_text",
+            "visual_reading",
+            "ocr_assisted",
+            "manual_entry",
+            "other"
+          ]
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field",
+        "source_id",
+        "location",
+        "observed_value",
+        "note"
+      ],
+      "properties": {
+        "field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "location": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observed_value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "field_status": {
+      "type": "object",
+      "additionalProperties": {
+        "enum": [
+          "documented",
+          "not_found",
+          "conflicting",
+          "illegible",
+          "not_applicable",
+          "pending_review"
+        ]
+      }
+    },
+    "record_status": {
+      "enum": [
+        "extracted",
+        "requires_review",
+        "blocked",
+        "rejected"
+      ]
+    },
+    "material": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "material_id",
+        "codigo_pmib",
+        "source_material_list",
+        "source_document_reference",
+        "source_refs",
+        "field_status",
+        "field_evidence",
+        "record_status"
+      ],
+      "properties": {
+        "material_id": {
+          "type": "string",
+          "pattern": "^mat-[A-Za-z0-9_.-]+$"
+        },
+        "codigo_pmib": {
+          "type": "string",
+          "minLength": 1,
+          "description": "PMIB sem apóstrofo de formatação do Excel; manter como texto."
+        },
+        "source_material_list": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "item",
+            "quantity",
+            "unit",
+            "description",
+            "material_code",
+            "cmi_code",
+            "brand_model",
+            "pdm_used"
+          ],
+          "properties": {
+            "item": {
+              "type": [
+                "integer",
+                "string",
+                "null"
+              ]
+            },
+            "quantity": {
+              "type": [
+                "number",
+                "string",
+                "null"
+              ]
+            },
+            "unit": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "material_code": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cmi_code": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "brand_model": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pdm_used": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "source_document_reference": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "required": [
+            "part_number",
+            "description",
+            "primary_rds_pp",
+            "quantity",
+            "comments"
+          ],
+          "properties": {
+            "part_number": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Preservar um campo PN combinado como string, sem separá-lo automaticamente."
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "primary_rds_pp": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "quantity": {
+              "type": [
+                "number",
+                "string",
+                "null"
+              ]
+            },
+            "comments": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source_ref"
+          },
+          "minItems": 1
+        },
+        "field_status": {
+          "$ref": "#/$defs/field_status"
+        },
+        "field_evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "record_status": {
+          "$ref": "#/$defs/record_status"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "instance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "instance_id",
+        "material_id",
+        "scope",
+        "system",
+        "area_panel",
+        "rds_pp_source",
+        "elevation",
+        "axis",
+        "segment",
+        "description",
+        "application",
+        "quantity",
+        "individual_tag",
+        "source_refs",
+        "field_status",
+        "field_evidence",
+        "record_status"
+      ],
+      "properties": {
+        "instance_id": {
+          "type": "string",
+          "pattern": "^inst-[A-Za-z0-9_.-]+$"
+        },
+        "material_id": {
+          "type": "string",
+          "pattern": "^mat-[A-Za-z0-9_.-]+$"
+        },
+        "scope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "system": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "area_panel": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Preencher quando estiver documentado ou tiver regra de mapeamento aprovada."
+        },
+        "rds_pp_source": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Valor de origem; conservar literalmente, inclusive placeholders como ST[XX] e M[XX]."
+        },
+        "elevation": {
+          "type": [
+            "string",
+            "number",
+            "null"
+          ],
+          "description": "Preferir string quando for necessário preservar a representação original."
+        },
+        "axis": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "segment": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Descrição da instância como documentada; pode diferir da descrição da lista de materiais."
+        },
+        "application": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "quantity": {
+          "type": [
+            "number",
+            "string",
+            "null"
+          ]
+        },
+        "individual_tag": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source_ref"
+          },
+          "minItems": 1
+        },
+        "field_status": {
+          "$ref": "#/$defs/field_status"
+        },
+        "field_evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "record_status": {
+          "$ref": "#/$defs/record_status"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relationship_id",
+        "subject_type",
+        "subject_id",
+        "related_type",
+        "related_id",
+        "relationship_type",
+        "status",
+        "source_refs",
+        "evidence",
+        "decision_note"
+      ],
+      "properties": {
+        "relationship_id": {
+          "type": "string",
+          "pattern": "^rel-[A-Za-z0-9_.-]+$"
+        },
+        "subject_type": {
+          "enum": [
+            "material",
+            "instance"
+          ]
+        },
+        "subject_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "related_type": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "material",
+            "instance",
+            null
+          ]
+        },
+        "related_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "relationship_type": {
+          "enum": [
+            "PAI",
+            "FILHO",
+            "MATERIAL_APLICADO_DIRETAMENTE_AO_PAI",
+            "ITEM_INDEPENDENTE"
+          ]
+        },
+        "status": {
+          "enum": [
+            "documented",
+            "pending_review",
+            "human_approved",
+            "rejected"
+          ]
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source_ref"
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "decision_note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "pending_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pending_id",
+        "record_type",
+        "record_id",
+        "field",
+        "issue_type",
+        "description",
+        "source_ids",
+        "blocking_scope",
+        "status",
+        "resolution"
+      ],
+      "properties": {
+        "pending_id": {
+          "type": "string",
+          "pattern": "^pend-[A-Za-z0-9_.-]+$"
+        },
+        "record_type": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "material",
+            "instance",
+            "relationship",
+            null
+          ]
+        },
+        "record_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "field": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "issue_type": {
+          "enum": [
+            "missing_field",
+            "conflict",
+            "ambiguous",
+            "illegible_source",
+            "unmapped_value",
+            "count_mismatch",
+            "unsupported_relationship",
+            "other"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blocking_scope": {
+          "enum": [
+            "none",
+            "record",
+            "batch"
+          ]
+        },
+        "status": {
+          "enum": [
+            "open",
+            "resolved",
+            "deferred"
+          ]
+        },
+        "resolution": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "extraction_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "provider",
+        "model",
+        "prompt_version",
+        "batch_id",
+        "batch_index",
+        "batch_count",
+        "extracted_at_utc"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "ai_extraction",
+            "deterministic_conversion",
+            "hybrid"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "prompt_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "batch_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "batch_index": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "batch_count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "extracted_at_utc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "validation_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "check_id",
+        "status",
+        "message",
+        "record_id"
+      ],
+      "properties": {
+        "check_id": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "warning",
+            "failed",
+            "not_run"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "record_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "validation_report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "validator_version",
+        "validated_at_utc",
+        "counts",
+        "checks"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "not_run",
+            "passed",
+            "warnings",
+            "failed"
+          ]
+        },
+        "validator_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "validated_at_utc": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "materials",
+            "instances",
+            "relationships",
+            "pending_items"
+          ],
+          "properties": {
+            "materials": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "instances": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "relationships": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "pending_items": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            }
+          }
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/validation_check"
+          }
+        }
+      }
+    }
+  }
+}

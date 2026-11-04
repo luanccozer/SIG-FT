@@ -1,0 +1,159 @@
+{
+  "name": "LMR - Sonda do nó AMP Agent",
+  "nodes": [
+    {
+      "webhookId": "7fecf835-9cc2-47f9-ad04-e3276284c0f0",
+      "parameters": {
+        "formTitle": "LMR — Sonda do nó AMP Agent",
+        "formDescription": "Envie 1 PDF pequeno (2–5 páginas, com desenho). A página final mostra o que o agente recebeu e devolveu.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "PDF de teste",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Formulário",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const f = $input.first();\nconst pdf = Object.values(f.binary || {}).find(b => /\\.pdf$/i.test(b.fileName || ''));\nconst pedido = (campo, item) => 'SONDA DO WORKFLOW. Você recebeu este pedido pelo campo \"' + campo + '\" (item ' + item + '). '\n  + 'Responda SOMENTE com este JSON, sem texto antes ou depois: '\n  + '{\"campo\":\"' + campo + '\",\"item\":' + item + ',\"anexos\":[\"nome de cada arquivo que você consegue ver nesta mensagem\"],'\n  + '\"paginas\":<número de páginas do primeiro anexo ou null>,\"inicio_pagina_1\":\"<as 15 primeiras palavras da página 1 do anexo ou null>\",'\n  + '\"ve_imagem\":<true se você consegue ver o desenho da página 1 como imagem, false se não, null se não há anexo>}';\nconst item = (n, comPdf) => ({ json: Object.fromEntries([\"chatInput\",\"prompt\",\"message\",\"text\",\"input\",\"query\"].map(c => [c, pedido(c, n)])), ...(comPdf && pdf ? { binary: { data: pdf } } : {}) });\nreturn [item(1, true), item(2, false)];"
+      },
+      "name": "Prepara sonda",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "agentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "options": {}
+      },
+      "name": "AMP Agent",
+      "type": "CUSTOM.amp",
+      "typeVersion": 1,
+      "position": [
+        520,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const corta = v => { const s = typeof v === 'string' ? v : JSON.stringify(v); return s && s.length > 1500 ? s.slice(0, 1500) + '…' : s; };\nconst linhas = $input.all().map((i, k) => {\n  const j = i.json || {};\n  const campos = Object.keys(j).filter(c => ![\"chatInput\",\"prompt\",\"message\",\"text\",\"input\",\"query\"].includes(c));\n  return 'SAÍDA ' + (k + 1) + ' — campos devolvidos: ' + (campos.join(', ') || '(nenhum além dos de entrada)')\n    + (i.binary ? ' — binário: ' + Object.keys(i.binary).join(', ') : '')\n    + '\\n' + campos.map(c => '  ' + c + ' = ' + corta(j[c])).join('\\n');\n});\nreturn [{ json: { relatorio: linhas.join('\\n\\n') || '(o nó não devolveu nada)' } }];"
+      },
+      "name": "Mostra resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "webhookId": "7b2a2e06-7d78-4d3b-966f-99bc2044e2de",
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "Resultado da sonda",
+        "completionMessage": "={{ $json.relatorio }}"
+      },
+      "name": "Resultado",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Sonda do nó AMP Agent (S9)\n1. Abra o nó **AMP Agent**: escolha a credencial **AMP account** e o agente **Leitor LMR**. Anote TODOS os campos e opções que o nó mostra (clique em *Add option*).\n2. ⋯ → *Settings* → *Save manual executions* = **Save**.\n3. **Execute workflow** → envie um PDF pequeno com desenho.\n4. Me devolva: o texto da página final + a lista de campos/opções do nó.\n\nSe a saída mostrar que o agente não recebeu o pedido, abra o nó, ponha no campo de mensagem a expressão `{{ $json.chatInput }}` e rode de novo.",
+        "height": 330,
+        "width": 560
+      },
+      "name": "Leia-me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -400
+      ]
+    }
+  ],
+  "connections": {
+    "Formulário": {
+      "main": [
+        [
+          {
+            "node": "Prepara sonda",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepara sonda": {
+      "main": [
+        [
+          {
+            "node": "AMP Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AMP Agent": {
+      "main": [
+        [
+          {
+            "node": "Mostra resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mostra resposta": {
+      "main": [
+        [
+          {
+            "node": "Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

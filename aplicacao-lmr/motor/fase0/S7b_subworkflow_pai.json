@@ -1,0 +1,81 @@
+{
+  "name": "LMR Fase 0 - S7 PAI",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "LMR Fase 0 - S7",
+        "formDescription": "Clique em enviar. Este formulário chama o workflow FILHO.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Observação",
+              "fieldType": "text",
+              "requiredField": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Formulário (gatilho)",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "46ef89b1-7a16-4166-a454-e983936b4026"
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "options": {}
+      },
+      "name": "Chama o FILHO",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## S7 — sub-workflow conta 1 ou 2 execuções?\n1. Importe **S7a FILHO** antes e salve.\n2. Neste PAI, abra **Chama o FILHO** e escolha o workflow `LMR Fase 0 - S7 FILHO`.\n3. Anote o contador em *Settings → Usage and plan*.\n4. **Publish** o PAI, abra a URL de produção do formulário e envie 1 vez.\n5. Veja o contador de novo: subiu 1 ou 2? Depois **despublique** o PAI.\n\nGasta até 2 das 50 execuções do mês.",
+        "height": 300,
+        "width": 520
+      },
+      "name": "Leia-me S7",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        260,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Formulário (gatilho)": {
+      "main": [
+        [
+          {
+            "node": "Chama o FILHO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

@@ -1,0 +1,9 @@
+Resultado da sonda
+SAÍDA 1 — campos devolvidos: sessionId, output, files
+sessionId = n8n-amp-agent-QFwkvOM917hCYitp-352365
+output = {"campo":"chatInput","item":1,"anexos":["#ST00=M00MKF10&MFB030[0]_P&ID.pdf"],"paginas":null,"inicio_pagina_1":null,"ve_imagem":false}
+files = []
+
+SAÍDA 2 — campos devolvidos: sessionId, output, files
+sessionId = n8n-amp-agent-QFwkvOM917hCYitp-352365
+output = {"campo":"chatInput","item":2,"anexos":[],"paginas":null,"inicio_pagina_1":null,"ve_imagem":null}

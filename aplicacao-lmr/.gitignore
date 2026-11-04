@@ -1,0 +1,9 @@
+# Dados reais (Status PMIB, aplicações, REF-0013 extraídos) e saídas geradas: ficam no Box.
+motor/dados/*
+!motor/dados/template_partes.json
+motor/saida/
+# Documentos de projeto e planilhas reais nunca entram aqui
+Exemplos/
+Exemplo - PMIB/
+Codificação - RDS-PP/
+Exemplo de Documentos Aplicação LMR/

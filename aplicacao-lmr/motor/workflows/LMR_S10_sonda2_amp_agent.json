@@ -1,0 +1,338 @@
+{
+  "name": "LMR - Sonda 2 do nó AMP Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "LMR — Sonda 2 do nó AMP Agent",
+        "formDescription": "Envie o mesmo PDF da sonda 1 (P&ID de 1 página). Leva uns 3 minutos.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "PDF de teste",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Formulário",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "d6496394-bfde-4c2a-8d54-89a48e85c2b4"
+    },
+    {
+      "parameters": {
+        "jsCode": "const f = $('Formulário').first();\nconst pdf = Object.values(f.binary || {}).find(b => /\\.pdf$/i.test(b.fileName || ''));\nconst sessao = 'lmr-sonda2-' + $execution.id;\nreturn [{ json: { sessionId: sessao + '-a', chatInput: 'SONDA 2 (A). Anexei o arquivo ' + (pdf ? pdf.fileName : '?') + '. Abra o arquivo e leia o conteúdo antes de responder. Se precisar carregar o conteúdo completo, carregue. Responda em JSON no fim: {\"paginas\":<n>,\"palavras_pagina_1\":\"<as 30 primeiras palavras da página 1>\",\"codigos_pagina_1\":[\"até 15 códigos como GP101, QM104G, BS141T que estão na página 1\"],\"ve_desenho\":<true|false>,\"como_leu\":\"<texto, imagem, ferramenta de busca…>\"}' }, binary: pdf ? { data: pdf } : {} }];"
+      },
+      "name": "Prepara A",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "agentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "options": {}
+      },
+      "name": "AMP Agent A",
+      "type": "CUSTOM.amp",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 90,
+        "unit": "seconds"
+      },
+      "name": "Espera 90 s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        0
+      ],
+      "webhookId": "7e9622b9-faf0-4d77-ba86-bfaf8b1a4bde"
+    },
+    {
+      "parameters": {
+        "jsCode": "const a = $('Prepara A').first().json;\nreturn [{ json: { sessionId: a.sessionId, chatInput: 'SONDA 2 (B). Mesma conversa: leia agora o arquivo que enviei na mensagem anterior. Responda em JSON no fim: {\"paginas\":<n>,\"palavras_pagina_1\":\"<as 30 primeiras palavras da página 1>\",\"codigos_pagina_1\":[\"até 15 códigos como GP101, QM104G, BS141T que estão na página 1\"],\"ve_desenho\":<true|false>,\"como_leu\":\"<texto, imagem, ferramenta de busca…>\"}' } }];"
+      },
+      "name": "Prepara B",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "agentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "options": {}
+      },
+      "name": "AMP Agent B",
+      "type": "CUSTOM.amp",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: {}, binary: { data: Object.values($('Formulário').first().binary || {})[0] } }];"
+      },
+      "name": "Pega o PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data",
+        "options": {
+          "joinPages": false
+        }
+      },
+      "name": "Lê PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const a = $('Prepara A').first().json;\nconst pags = $('Lê PDF').first().json.text;\nconst p1 = String(Array.isArray(pags) ? pags[0] : pags || '').slice(0, 6000);\nreturn [{ json: { sessionId: a.sessionId.replace(/-a$/, '-c'), chatInput: 'SONDA 2 (C). Sem anexo: abaixo está o texto da página 1, extraído do PDF. Responda em JSON no fim: {\"paginas\":<n>,\"palavras_pagina_1\":\"<as 30 primeiras palavras da página 1>\",\"codigos_pagina_1\":[\"até 15 códigos como GP101, QM104G, BS141T que estão na página 1\"],\"ve_desenho\":<true|false>,\"como_leu\":\"<texto, imagem, ferramenta de busca…>\"}\\n\\nTEXTO DA PÁGINA 1:\\n' + p1 } }];"
+      },
+      "name": "Prepara C",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "agentId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "options": {}
+      },
+      "name": "AMP Agent C",
+      "type": "CUSTOM.amp",
+      "typeVersion": 1,
+      "position": [
+        2160,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const corta = v => { const s = typeof v === 'string' ? v : JSON.stringify(v); return s && s.length > 2500 ? s.slice(0, 2500) + '…' : s; };\nconst de = no => { try { return $(no).first().json; } catch (e) { return { erro: 'não rodou' }; } };\nconst r = ['AMP Agent A', 'AMP Agent B', 'AMP Agent C'].map(n => { const j = de(n); return n + ' (' + Object.keys(j).join(', ') + ')\\n  output = ' + corta(j.output != null ? j.output : j.error || j.erro) + '\\n  files = ' + corta(j.files); });\nreturn [{ json: { relatorio: r.join('\\n\\n') } }];"
+      },
+      "name": "Mostra",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "completion",
+        "respondWith": "text",
+        "completionTitle": "Resultado da sonda 2",
+        "completionMessage": "={{ $json.relatorio }}"
+      },
+      "name": "Resultado",
+      "type": "n8n-nodes-base.form",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        0
+      ],
+      "webhookId": "7dbf1aa1-e5dc-447d-97bc-993ce57d5b18"
+    },
+    {
+      "parameters": {
+        "content": "## Sonda 2 do nó AMP Agent (S10)\nNos 3 nós **AMP Agent** (A, B, C), preencha igual:\n- **Credential**: AMP account · **Custom Agent**: Leitor LMR\n- **Prompt**: `{{ $json.chatInput }}`\n- **Session ID**: `{{ $json.sessionId }}`\n- **Files**: no **A**, o binário `data` (como na sonda 1); no **B** e no **C**, vazio\n- *Add option* → **timeout**: o maior valor aceito (ex.: 600 s)\n\nDepois de configurar o **A**, selecione-o, **Ctrl+C**, cole num txt e anexe (quero ver os nomes internos dos campos). Rode e me devolva a página final.",
+        "height": 380,
+        "width": 600
+      },
+      "name": "Leia-me",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -440
+      ]
+    }
+  ],
+  "connections": {
+    "Formulário": {
+      "main": [
+        [
+          {
+            "node": "Prepara A",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepara A": {
+      "main": [
+        [
+          {
+            "node": "AMP Agent A",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AMP Agent A": {
+      "main": [
+        [
+          {
+            "node": "Espera 90 s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Espera 90 s": {
+      "main": [
+        [
+          {
+            "node": "Prepara B",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepara B": {
+      "main": [
+        [
+          {
+            "node": "AMP Agent B",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AMP Agent B": {
+      "main": [
+        [
+          {
+            "node": "Pega o PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pega o PDF": {
+      "main": [
+        [
+          {
+            "node": "Lê PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lê PDF": {
+      "main": [
+        [
+          {
+            "node": "Prepara C",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepara C": {
+      "main": [
+        [
+          {
+            "node": "AMP Agent C",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AMP Agent C": {
+      "main": [
+        [
+          {
+            "node": "Mostra",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mostra": {
+      "main": [
+        [
+          {
+            "node": "Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

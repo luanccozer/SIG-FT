@@ -1,0 +1,39 @@
+Resultado da sonda 2
+AMP Agent A (error)
+output = 424 - {"message":"Received error (500) from runtime. Please check your CloudWatch logs for more information."}
+files = undefined
+
+AMP Agent B (sessionId, output, files)
+output = Vou verificar quais arquivos estão acessíveis nesta sessão.Não consigo ler o arquivo, porque ele não está acessível nesta sessão. Não há nenhum PDF anexado nem na lista de arquivos enviados nem nos artefatos. Só existem dois arquivos da base de conhecimento: `formatos_json.md` e `regras_lmr.md`. Também não vejo uma mensagem anterior com um anexo. Segundo as regras do inventário, paro aqui em vez de inventar conteúdo.
+
+```json
+{
+"paginas": null,
+"palavras_pagina_1": null,
+"codigos_pagina_1": [],
+"ve_desenho": null,
+"como_leu": "Não li. Nenhum PDF está acessível nesta sessão. A listagem de arquivos mostrou só formatos_json.md e regras_lmr.md, da base de conhecimento."
+}
+```
+
+Para continuar, anexe o PDF de novo nesta conversa. Se puder, diga também o nome do arquivo, o número de páginas esperado e a etapa (1 a 4). Assim que ele aparecer na lista, eu faço o inventário e respondo.
+files = []
+
+AMP Agent C (sessionId, output, files)
+output = Li só o texto que você colou da página 1. Não vi o PDF nem a imagem da página. O texto é de um P&ID (fluxograma) do Sistema de Água Pura, desenho 08934100PCC00-FS00FB-02, `#ST00=M00MKF10&MFB030` folha 1 R0.
+
+```json
+{
+"paginas": null,
+"palavras_pagina_1": "o o o o o o o o o o o o o o o o o o o oooooooooooooooooooooooooooooooooooooo HP212 Q(m3/h) P(Bar) 165.6 (50Hz) 9.5 140.4 (60Hz) 8.5 V(L)",
+"codigos_pagina_1": ["GP101", "GP102", "QM104G", "BS141T", "BS143T", "BS146T", "QM306V", "QM307G", "BP316T", "BL317T", "FL314S", "HP212", "HP201", "EP101", "EP102"],
+"ve_desenho": true,
+"como_leu": "Só pelo texto colado na mensagem (extração de texto do PDF). Não recebi o arquivo, não usei ferramenta de busca e não vi nenhuma imagem."
+}
+```
+
+- **paginas:** o texto colado não informa o total de páginas do PDF, então deixei `null`.
+- **palavras_pagina_1:** a extração começa com uma sequência de "o" soltos e um token longo de "o". Contei 19 "o" soltos, mas essa contagem pode estar errada em 1 ou 2. Como esses caracteres são resíduo da extração, o conteúdo útil da página começa em HP212.
+- **codigos_pagina_1:** todos os códigos listados estão escritos no texto da página 1. Escolhi 15 entre muitos outros, como QM1xx, WP1xx e XK001.
+- **ve_desenho:** `true` porque o texto descreve um desenho P&ID, com legenda, tubulações e instrumentos. Isso vem da leitura do texto, não deter visto a imagem.
+files = []

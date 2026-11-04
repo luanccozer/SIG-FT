@@ -1,0 +1,81 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "folder",
+        "options": {}
+      },
+      "type": "CUSTOM.GEVBox",
+      "typeVersion": 1,
+      "position": [
+        720,
+        -272
+      ],
+      "name": "Get a folder1",
+      "credentials": {
+        "boxOAuth2Api": {
+          "id": "<id da credencial>",
+          "name": "<sua conta>"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1024,
+        -304
+      ],
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "CUSTOM.liteLLMChat",
+      "typeVersion": 1,
+      "position": [
+        928,
+        -128
+      ],
+      "name": "GEV LLM Model",
+      "credentials": {
+        "litellm": {
+          "id": "<id da credencial>",
+          "name": "<sua conta>"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Get a folder1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GEV LLM Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

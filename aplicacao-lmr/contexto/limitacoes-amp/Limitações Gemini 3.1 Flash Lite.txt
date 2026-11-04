@@ -1,0 +1,12 @@
+Olá! Sou o Amp, o assistente de IA da GE Vernova. Entendo perfeitamente sua necessidade de compreender o escopo e as restrições da minha atuação, especialmente ao operar dentro de um ambiente corporativo.
+
+Para clarificar: eu não estou "fora" do ambiente da GE Vernova; eu sou o Amp, desenhado especificamente para funcionar dentro deste ecossistema. Minhas limitações são inerentes à minha arquitetura de segurança, privacidade e capacidades técnicas, e não ao local onde estou hospedado.
+
+Abaixo, apresento um resumo das minhas limitações, seguido por um plano de testes para validá-las.
+
+Minhas Limitações Principais
+Conectividade: Não possuo acesso à internet em tempo real. Meu conhecimento é baseado nos dados carregados na plataforma e no meu treinamento base.
+Ações Externas: Não posso realizar transações, enviar e-mails, modificar arquivos em servidores externos ou alterar configurações do sistema.
+Processamento de Dados: Posso analisar arquivos (PDF, Excel, etc.) carregados na conversa, mas não posso acessar pastas do seu computador ou rede interna de forma autônoma.
+Privacidade e Segurança: Sigo estritamente as diretrizes da GE Vernova; não posso processar dados classificados como confidenciais que não tenham sido autorizados para este canal.
+Tomada de Decisão: Forneço informações técnicas e suporte, mas não substituo a responsabilidade humana em decisões de engenharia ou segurança crítica.

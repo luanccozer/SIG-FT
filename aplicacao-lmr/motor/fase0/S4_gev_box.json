@@ -1,0 +1,73 @@
+{
+  "name": "LMR Fase 0 - S4 GEV BOX",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Executar (manual)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst texto = 'Teste LMR Fase 0 - ' + new Date().toISOString() + '\\nLinha fictícia: UG - TESTE - SKID';\nconst bin = await this.helpers.prepareBinaryData(Buffer.from(texto, 'utf8'), 'teste_lmr_fase0.txt', 'text/plain');\nreturn [{ json: { tamanho: texto.length }, binary: { data: bin } }];"
+      },
+      "name": "Cria arquivo de teste",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst i = $input.first();\nconst k = Object.keys(i.binary || {})[0];\nif (!k) return [{ json: { resultado: 'nenhum arquivo chegou do GEV BOX', chaves: Object.keys(i.json) } }];\nconst buf = await this.helpers.getBinaryDataBuffer(0, k);\nreturn [{ json: { arquivo: i.binary[k].fileName, bytes: buf.length, inicio: buf.toString('utf8', 0, 60) } }];"
+      },
+      "name": "Confere arquivo lido",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## S4 — GEV BOX (adicionar à mão)\n1. Entre **Cria arquivo de teste** e **Confere arquivo lido**, clique no **+** e procure **GEV BOX**.\n2. 1º GEV BOX: operação de **upload** do arquivo `data` para a sua pasta de teste.\n3. 2º GEV BOX: **download** do mesmo arquivo. Ligue a saída em **Confere arquivo lido**.\n4. Execute. Anote: gravou? leu? qual o campo de pasta/arquivo pedido (ID, caminho)?",
+        "height": 260,
+        "width": 520
+      },
+      "name": "Leia-me S4",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        520,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Executar (manual)": {
+      "main": [
+        [
+          {
+            "node": "Cria arquivo de teste",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
