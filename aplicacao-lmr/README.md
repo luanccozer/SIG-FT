@@ -78,6 +78,7 @@ node workflows/gerar_a.js                  # gera A v3 + Revisar áreas; T1–T1
 node agente/teste_agente.js                # agente no chat (AG1/AG2) nos 4 sistemas
 node agente/teste_workflow.js              # agente no workflow nos 4 sistemas
 node agente/gerar_kb.js                    # Knowledge base do Ligador e do Recuperador (agente/kb/)
+python -X utf8 indice/comprime_pdf.py "<pasta>"  # comprime PDFs grandes mantendo o texto (ou dois cliques em indice/comprime_pdf_janela.pyw)
 node conferencia/teste_conferencia.js      # A0: conferência dos materiais (fictício)
 node workflows/gerar_a0.js                 # gera A0 Conferir materiais; simulação nó a nó (+ regressão contra o A1 com dados reais)
 node agente/teste_enxuto.js                # A enxuto com sistema fictício; roda em qualquer máquina (depois de gerar_agente)
