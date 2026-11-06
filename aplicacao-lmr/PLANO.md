@@ -10,6 +10,7 @@
 - v1.3: **Status PMIB** como fonte do catálogo (§3.6) + padrão único aprovado (§3.3) + regra de RDS-PP+TAG em 3 casos (§3.2) + 5º exemplo (SFC). Status PMIB também passa a detectar alterações (§4.4) e entra na validação (V12–V14).
 - v1.4: formato final do CÓDIGO LMR e da TAG LMR, sem `(REF)` (§3.3). Trechos do projeto como parâmetro do formulário (todas, ímpares, pares, lista, AMD/AMC), com a frequência do material filtrando dentro deles (§3.2). QTD instalada define a repetição por trecho e granel gera 1 linha (§3.5). Local em lista fechada. Escopo e subsistema vêm do formulário. Coluna `Status` sai. Abas DOCS DE REFERÊNCIA e DESCRIÇÃO DOCUMENTOS definidas (§4.3). Pastas do Box por escopo. Fase 0 em workflows `.json`. Decisões 14–27 (§12).
 - v1.5: **roteiro de validação e construção (§9A)**, com o que entra no fluxo completo e as etapas. Cada etapa tem critério de aceite e assinatura de conferência AMP × local. A Base da Aplicação passa a ser o arquivo que liga os workflows R, A, B e C.
+- v1.6.1 (06/11/2026): o PART NUMBER volta ao fim da TAG LMR, entre parênteses (decisão 32, revoga a 14 nessa parte).
 - v1.6: **arquitetura simplificada (§9B)**. O AMP só expande a Base: a R sai do AMP e roda uma vez por sistema, fora dele; o B lê só a Base, em lotes de 20 linhas, e as linhas em massa ficam com nós nativos. A §9B manda sobre a §9A onde as duas divergem.
 
 ---
@@ -124,7 +125,7 @@ Conferido nos exemplos: caso 3 aparece na Reg. Vel (1.480 linhas, ex.: acoplamen
 
 **RDS-PP de documento (sua resposta 4):** códigos com sufixo `&XXX000` (ex.: `UH010-UH901&ELU010`) e códigos como `UZ020-UZ003` são **especificações de documento**, intencionais. Eles também aparecem no nome do arquivo, no título e no carimbo dos documentos, então dá para validar por código (§6, V3).
 
-**`{DESCRIÇÃO}`** é uma por PMIB e é **copiada da coluna `DESCRIÇÃO` do Status PMIB**, com limpeza mínima: `trim`, espaços duplos e quebras de linha. A IA não redige a descrição. O `(REF)` dos exemplos sai do padrão. O código do material continua no CATÁLOGO e na aba DOCS DE REFERÊNCIA (`PART NUMBER`).
+**`{DESCRIÇÃO}`** é uma por PMIB e é **copiada da coluna `DESCRIÇÃO` do Status PMIB**, com limpeza mínima: `trim`, espaços duplos e quebras de linha. A IA não redige a descrição. **`({PN})`** = `PART NUMBER` da aba DOCS DE REFERÊNCIA (= código do material do Status), entre parênteses no fim da TAG LMR; sem PN, a TAG sai sem parênteses (decisão 32).
 
 ### 3.3 Padrão único (sua resposta 2)
 
@@ -134,8 +135,8 @@ Todas as aplicações seguem o mesmo modelo. **Aprovado em 22/10/2026** (trecho,
 
 ```
 CÓDIGO_LMR = {ESCOPO} - {SUBSISTEMA} - {ÁREA/PAINEL} - RDS-PP: {RDS-PP} - {LOCAL} - ELEV. {xx,xx} - EIXO {..} - TRECHO {..}
-TAG_LMR    = {ESCOPO} - {TAG} - RDS-PP: {RDS-PP}{TAG} - {DESCRIÇÃO}     (material com TAG, casos 1–2 do §3.2)
-TAG_LMR    = {ESCOPO} - {DESCRIÇÃO}                                     (material sem TAG e filho do caso 3)
+TAG_LMR    = {ESCOPO} - {TAG} - RDS-PP: {RDS-PP}{TAG} - {DESCRIÇÃO} ({PN})     (material com TAG, casos 1–2 do §3.2)
+TAG_LMR    = {ESCOPO} - {DESCRIÇÃO} ({PN})                                     (material sem TAG e filho do caso 3)
 FICHA_PMIB = PMIB do Status
 ```
 
@@ -883,7 +884,7 @@ Etapas 2 e 3 podem começar enquanto a 1 termina S4–S8. Elas só precisam do B
 
 | # | Tema | Decisão |
 |---|---|---|
-| 14 | Formato | CÓDIGO e TAG LMR conforme §3.3; `(REF)` sai |
+| 14 | Formato | CÓDIGO e TAG LMR conforme §3.3; ~~`(REF)` sai~~ (revogado pela 32) |
 | 15 | Escopo e subsistema | entrada do formulário; área/painel vem dos documentos |
 | 16 | Local | lista fechada (Data Table); `CASA DE FORÇA - UNIDADE GERADORA` = `CASA DE FORÇA` |
 | 17 | Coluna `Status` | não é usada |
@@ -901,6 +902,7 @@ Etapas 2 e 3 podem começar enquanto a 1 termina S4–S8. Elas só precisam do B
 | 29 | Descrição | copiada do Status PMIB mesmo quando difere da redação feita à mão dos exemplos |
 | 30 | Code no AMP | aceita JavaScript e Python (informado pelo usuário). O motor fica em JS (`lmr.js`); Python entra se o S1/S3 mostrar bibliotecas úteis (ex.: openpyxl) |
 | 31 | Arquitetura (v1.6) | o AMP só expande a Base, em lotes; a R roda fora do AMP, uma vez por sistema; Base = `.xlsx` com a aba BASE (§9B.3); alterações manuais = editar a BASE e rodar o B |
+| 32 | PN na TAG LMR (06/11/2026) | `({PART NUMBER})` no fim da TAG LMR, tirado da aba DOCS DE REFERÊNCIA da Base; PN vazio = sem parênteses. Assinaturas de referência regravadas (SFC `452-1F47F031`, Água Pura `3580-062BA73E`) |
 | — | Revisão | no fim da aplicação, correções voltam pelo fluxo |
 | — | Acesso | exemplos, templates e REF-0013 podem ser analisados |
 

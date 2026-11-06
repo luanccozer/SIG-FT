@@ -318,9 +318,11 @@ function montaCodigo(l) {
  * (estilo dos exemplos, a confirmar); sem TAG → {ESC} - {DESC}.
  */
 function montaTag(l) {
-  if (l.tag && (l.casoRds === 1 || l.casoRds === 2)) return `${F(l.escopo)} - ${l.tag} - RDS-PP: ${F(l.rds)}${l.tag} - ${F(l.descricao)}`;
-  if (l.tag) return `${F(l.escopo)} - ${l.tag} - ${F(l.descricao)}`;
-  return `${F(l.escopo)} - ${F(l.descricao)}`;
+  // PN entre parênteses no fim (revoga a decisão 14 em 06/11/2026); sem PN, a TAG sai sem parênteses
+  const desc = `${F(l.descricao)}${txt(l.pn) ? ` (${txt(l.pn)})` : ''}`;
+  if (l.tag && (l.casoRds === 1 || l.casoRds === 2)) return `${F(l.escopo)} - ${l.tag} - RDS-PP: ${F(l.rds)}${l.tag} - ${desc}`;
+  if (l.tag) return `${F(l.escopo)} - ${l.tag} - ${desc}`;
+  return `${F(l.escopo)} - ${desc}`;
 }
 
 // ───────────────────────── 6. gera ─────────────────────────
@@ -358,7 +360,7 @@ function gera(base, ctx) {
       const l = {
         escopo: ctx.escopo, subsistema: ctx.subsistema, area: a.area, rds, pais,
         local: normalizaLocal(a.local) || a.local, elev: elev.valor, eixo: normalizaEixo(a.eixo) || a.eixo, trecho: t.trecho,
-        tag: a.tag, casoRds: a.casoRds, descricao: c ? c.descricao : a.descricao,
+        tag: a.tag, casoRds: a.casoRds, descricao: c ? c.descricao : a.descricao, pn: c ? c.codigoMaterial : a.pn,
       };
       const linha = { pmib: a.pmib, codigo: montaCodigo(l), tag: montaTag(l), origem: idx, campos: l };
       for (let k = 0; k < qtd; k++) linhas.push(linha);
@@ -662,6 +664,7 @@ function regeneraAplicacao(e) {
       escopo: e.escopo, subsistema: e.subsistema, area: c.area, rds: c.rds, pais: c.pais.map(p => ({ tag: p.tag, rds: p.rds })),
       local: c.local, elev: c.elev, eixo: c.eixo, trecho: c.trecho,
       tag: l.tag.tag, casoRds: l.tag.casoRds, descricao: cat.has(l.pmib) ? cat.get(l.pmib).descricao : null,
+      pn: cat.has(l.pmib) ? cat.get(l.pmib).codigoMaterial : null,
     };
     return { pmib: l.pmib, codigo: montaCodigo(campos), tag: montaTag(campos), campos, rec: l };
   });
@@ -789,7 +792,7 @@ function geraModelo(m) {
     const l = {
       escopo: m.escopo, subsistema: m.subsistema, area: m.area, rds: expandeRds(m.rds, t ? t.trecho : nome),
       pais: (m.pais || []).map(p => ({ tag: p.tag, rds: expandeRds(p.rds, t ? t.trecho : nome) })),
-      local: m.local, elev: m.elev, eixo: m.eixo, trecho: t ? t.trecho : null, tag: m.tag, casoRds: m.casoRds, descricao: m.descricao,
+      local: m.local, elev: m.elev, eixo: m.eixo, trecho: t ? t.trecho : null, tag: m.tag, casoRds: m.casoRds, descricao: m.descricao, pn: m.pn,
     };
     const linha = { pmib: m.pmib, codigo: montaCodigo(l), tag: montaTag(l), campos: l, origem: m.linha };
     for (let k = 0; k < m.qtd; k++) out.push(linha);
@@ -810,9 +813,11 @@ function assinaturaSoma(n, soma) { return `${n}-${(soma % 4294967296).toString(1
  * tagsDaBase: Set das TAGs de material da Base inteira (V6: TAG do pai tem de existir).
  * É o que o nó Code do Workflow B faz a cada volta do Loop.
  */
-function geraLote(linhasBase, tagsDaBase) {
+// pnPorPmib: Map PMIB → PART NUMBER (aba DOCS DE REFERÊNCIA da Base); opcional
+function geraLote(linhasBase, tagsDaBase, pnPorPmib) {
   return linhasBase.map(r => {
     const m = linhaParaModelo(r);
+    m.pn = pnPorPmib ? pnPorPmib.get(m.pmib) : null;
     const problemas = [];
     if (!(m.qtd >= 1)) problemas.push({ regra: 'V1', severidade: 'bloqueia', msg: 'QTD POR TRECHO vazia ou menor que 1' });
     if (!m.trechos.length) problemas.push({ regra: 'V1', severidade: 'bloqueia', msg: 'TRECHOS vazio' });

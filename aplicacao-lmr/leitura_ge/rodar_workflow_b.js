@@ -18,9 +18,10 @@ const t = v => (v == null ? '' : String(v).trim());
 // nó "Gera linhas do lote": TAGs da Base inteira (V6) + lotes de 20
 const tags = new Set();
 for (const r of d.base) for (const x of LMR.txt(r.TAG).split('/')) if (x) tags.add(x);
+const pns = new Map(d.docs.map(x => [t(x['CÓDIGO PMIB']), t(x['PART NUMBER'])]));
 const voltas = [];
 const base = d.base.filter(r => t(r.FICHA_PMIB));
-for (let i = 0; i < base.length; i += 20) voltas.push(...LMR.geraLote(base.slice(i, i + 20), tags));
+for (let i = 0; i < base.length; i += 20) voltas.push(...LMR.geraLote(base.slice(i, i + 20), tags, pns));
 
 // nó "Monta aplicação (template)"
 const tagsPorPmib = {};

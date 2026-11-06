@@ -27,8 +27,11 @@ const GERA = `${MOTOR}
 // TAGs da Base inteira (V6: a TAG do pai citada no CÓDIGO tem de existir como TAG de material).
 const tags = new Set();
 for (const i of $('Lê BASE').all()) for (const t of LMR.txt(i.json.TAG).split('/')) if (t) tags.add(t);
+// PART NUMBER da DOCS DE REFERÊNCIA vai entre parênteses no fim da TAG_LMR
+const pns = new Map();
+try { for (const i of $('Lê DOCS DE REFERÊNCIA').all()) if (!i.json.error) pns.set(LMR.txt(i.json['CÓDIGO PMIB']).replace(/^'/, ''), LMR.txt(i.json['PART NUMBER'])); } catch (e) { /* aba ausente: TAG sem PN */ }
 const lote = $input.all().map(i => i.json).filter(r => LMR.txt(r.FICHA_PMIB));
-return LMR.geraLote(lote, tags).map(json => ({ json }));`;
+return LMR.geraLote(lote, tags, pns).map(json => ({ json }));`;
 
 // Fim do Loop: junta as linhas, a DOCS e o CABEÇALHO da Base e monta a planilha no formato do template.
 const MONTA = `${PLANILHA_JS}
@@ -130,11 +133,12 @@ let falhas = 0;
 (async () => {
   for (const n of Object.keys(esperado)) {
     const lidos = JSON.parse(fs.readFileSync(path.join(D, `base_lida_${n}.json`), 'utf8')).map(json => ({ json }));
+    const docsLidos = JSON.parse(fs.readFileSync(path.join(D, `base_${n}.json`), 'utf8')).docs.map(json => ({ json }));
     const voltas = [];
     let maior = 0;
     for (let i = 0; i < lidos.length; i += LOTE) {
       const lote = lidos.slice(i, i + LOTE);
-      const $ = no => ({ all: () => (no === 'Lê BASE' ? lidos : []) });
+      const $ = no => ({ all: () => (no === 'Lê BASE' ? lidos : no === 'Lê DOCS DE REFERÊNCIA' ? docsLidos : []) });
       const out = await new AsyncFn('$', '$input', GERA)($, { all: () => lote });
       maior = Math.max(maior, JSON.stringify(out).length);
       voltas.push(...out);
