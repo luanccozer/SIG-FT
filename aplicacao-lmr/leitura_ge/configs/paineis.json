@@ -1,0 +1,222 @@
+{
+ "sistema": "Painéis",
+ "pasta": "PAINEIS",
+ "escopo": "CC",
+ "subsistema": "PAINÉIS",
+ "lista_status": "#ST00=B03BPA10UC012-UC903&EPB020_STATUS_PMIB.xlsx",
+ "lista_sobressalente": "#ST00=B03BPA10UC012-UC903&EPB020",
+ "capitulo": "CONTROLE CENTRALIZADO / SERVIÇOS AUXILIARES ESSENCIAIS",
+ "cab_subsistema": "PAINÉIS",
+ "saida_base": "LMR/BASE LMR - Painéis.xlsx",
+ "equipamentos": [
+  {
+   "sigla": "CBC-01",
+   "pdf": "LMR/#ST50=B03BPA10UC012-UC021&EFF010[1] - CBC-01.pdf",
+   "rds_doc": "#ST50=B03BPA10UC012-UC021&EFF010",
+   "instancias": [
+    {
+     "nome": "CBC-01"
+    }
+   ]
+  },
+  {
+   "sigla": "CBC-02",
+   "pdf": "LMR/#ST60=B03BPA10UC012-UC021&EFF010[0] - CBC-02.pdf",
+   "rds_doc": "#ST60=B03BPA10UC012-UC021&EFF010",
+   "instancias": [
+    {
+     "nome": "CBC-02"
+    }
+   ]
+  },
+  {
+   "sigla": "QBC-01",
+   "pdf": "LMR/#ST50=B03BPA10UC012-UC022&EFF010[0] - QBC-01.pdf",
+   "rds_doc": "#ST50=B03BPA10UC012-UC022&EFF010",
+   "instancias": [
+    {
+     "nome": "QBC-01"
+    }
+   ]
+  },
+  {
+   "sigla": "QBC-02",
+   "pdf": "LMR/#ST60=B03BPA10UC012-UC022&EFF010[0] - QBC-02.pdf",
+   "rds_doc": "#ST60=B03BPA10UC012-UC022&EFF010",
+   "instancias": [
+    {
+     "nome": "QBC-02"
+    }
+   ]
+  },
+  {
+   "sigla": "PPE-01",
+   "pdf": "LMR/#ST50=B04BMA10UC012-UC901&EFF010[0] - PPE-01 e PPE-03.pdf",
+   "rds_doc": "#ST50=B04BMA10UC012-UC901&EFF010",
+   "colunas": [
+    1,
+    2,
+    3
+   ],
+   "instancias": [
+    {
+     "nome": "PPE-01"
+    }
+   ]
+  },
+  {
+   "sigla": "PPE-03",
+   "pdf": "LMR/#ST50=B04BMA10UC012-UC901&EFF010[0] - PPE-01 e PPE-03.pdf",
+   "rds_doc": "#ST50=B04BMA10UC012-UC901&EFF010",
+   "colunas": [
+    4,
+    5,
+    6
+   ],
+   "instancias": [
+    {
+     "nome": "PPE-03"
+    }
+   ]
+  },
+  {
+   "sigla": "PPE-02",
+   "pdf": "LMR/#ST60=B04BMA10UC012-UC901&EFF010[0] - PPE-02 E PPE-04.pdf",
+   "rds_doc": "#ST60=B04BMA10UC012-UC901&EFF010",
+   "colunas": [
+    1,
+    2,
+    3
+   ],
+   "instancias": [
+    {
+     "nome": "PPE-02"
+    }
+   ]
+  },
+  {
+   "sigla": "PPE-04",
+   "pdf": "LMR/#ST60=B04BMA10UC012-UC901&EFF010[0] - PPE-02 E PPE-04.pdf",
+   "rds_doc": "#ST60=B04BMA10UC012-UC901&EFF010",
+   "colunas": [
+    4,
+    5,
+    6
+   ],
+   "instancias": [
+    {
+     "nome": "PPE-04"
+    }
+   ]
+  },
+  {
+   "sigla": "PLA-SD",
+   "pdf": "LMR/#ST50=B04BMA10UC013-UC018&EFF010[0] - PLA-SD.pdf",
+   "rds_doc": "#ST50=B04BMA10UC013-UC018&EFF010",
+   "instancias": [
+    {
+     "nome": "PLA-SD",
+     "local": "CASA DE FORÇA",
+     "elev": "135,80",
+     "eixo": "CD",
+     "fonte_local": "Sala de Despacho; base SCADA (APLICACAO_LMR_LUAN_SCADA): sala na ELEV. 135,8 EIXO C-D; trecho não informado"
+    }
+   ]
+  },
+  {
+   "sigla": "PLA-ST50",
+   "pdf": "LMR/#ST50=B04BMA10UC013-UC019&EFF010[0] - PLA-ST50.pdf",
+   "rds_doc": "#ST50=B04BMA10UC013-UC019&EFF010",
+   "instancias": [
+    {
+     "nome": "PLA-ST50",
+     "fonte_local": "Sala de Telecomunicações 50Hz (desenho do PPE)"
+    }
+   ]
+  },
+  {
+   "sigla": "PLA-STM",
+   "pdf": "LMR/#ST50=B04BMA10UC013-UC020&EFF010[0] - PLA-STM.pdf",
+   "rds_doc": "#ST50=B04BMA10UC013-UC020&EFF010",
+   "instancias": [
+    {
+     "nome": "PLA-STM",
+     "local": "CASA DE FORÇA",
+     "elev": "135,80",
+     "eixo": "CD",
+     "fonte_local": "Sala de Testes; base SCADA (APLICACAO_LMR_LUAN_SCADA): sala na ELEV. 135,8 EIXO C-D; trecho não informado"
+    }
+   ]
+  },
+  {
+   "sigla": "PLA-ENG",
+   "pdf": "LMR/#ST50=B04BMA10UC013-UC021&EFF010[0] - PLA-ENG.pdf",
+   "rds_doc": "#ST50=B04BMA10UC013-UC021&EFF010",
+   "instancias": [
+    {
+     "nome": "PLA-ENG",
+     "fonte_local": "Sala de Engenharia (desenho do PPE)"
+    }
+   ]
+  },
+  {
+   "sigla": "PLA-CCR",
+   "pdf": "LMR/#ST60=B04BMA10UC013-UC015&EFF010[0] - PLA-CCR.pdf",
+   "rds_doc": "#ST60=B04BMA10UC013-UC015&EFF010",
+   "instancias": [
+    {
+     "nome": "PLA-CCR",
+     "local": "CASA DE FORÇA",
+     "elev": "135,80",
+     "eixo": "CD",
+     "trecho": "U-09A",
+     "fonte_local": "REF-0013 Localização ++U10UME10.U09A_10135CDR01: CCR - Bloco U09A A 10 - EL. 135,8 - EIXO CD (trecho U-09A ou U-10: confirmar)"
+    }
+   ]
+  },
+  {
+   "sigla": "PLA-STR",
+   "pdf": "LMR/#ST60=B04BMA10UC013-UC016&EFF010[0] - PLA-STR.pdf",
+   "rds_doc": "#ST60=B04BMA10UC013-UC016&EFF010",
+   "instancias": [
+    {
+     "nome": "PLA-STR",
+     "fonte_local": "Sala de Treinamento (desenho do PPE)"
+    }
+   ]
+  },
+  {
+   "sigla": "PLA-ST60",
+   "pdf": "LMR/#ST60=B04BMA10UC013-UC017&EFF010[0] - PLA-ST60.pdf",
+   "rds_doc": "#ST60=B04BMA10UC013-UC017&EFF010",
+   "instancias": [
+    {
+     "nome": "PLA-ST60",
+     "fonte_local": "Sala de Telecomunicações 60Hz (desenho do PPE)"
+    }
+   ]
+  }
+ ],
+ "genericos": {
+  "5": [
+   "CBC-01",
+   "CBC-02",
+   "QBC-01",
+   "QBC-02",
+   "PPE-01",
+   "PPE-02",
+   "PPE-03",
+   "PPE-04",
+   "PLA-CCR",
+   "PLA-SD",
+   "PLA-STR",
+   "PLA-STM",
+   "PLA-ENG",
+   "PLA-ST50",
+   "PLA-ST60"
+  ]
+ },
+ "pendencias_fixas": [
+  "PPE: caderno único por par (PPE-01/03, PPE-02/04) separado por COLUNA: 1-3 = PPE-01/02, 4-6 = PPE-03/04 (confirmar)."
+ ]
+}

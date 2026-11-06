@@ -1,0 +1,272 @@
+{
+ "sistema": "Inversores e PDE",
+ "pasta": "INVERSORES E PDE",
+ "escopo": "CC",
+ "subsistema": "INVERSORES E PDE",
+ "lista_status": "#ST00=B04BMA10TB020&EPB020_STATUS_PMIB.xlsx",
+ "lista_sobressalente": "#ST00=B04BMA10TB020&EPB020",
+ "capitulo": "CONTROLE CENTRALIZADO / SERVIÇOS AUXILIARES ESSENCIAIS",
+ "cab_subsistema": "INVERSORES E PAINÉIS PDE",
+ "saida_base": "LMR/BASE LMR - Inversores e PDE.xlsx",
+ "equipamentos": [
+  {
+   "sigla": "INV50",
+   "pdf": "LMR/#ST50=B04BPA10TB020-TB901&EFF010[0].pdf",
+   "rds_doc": "#ST50=B04BPA10TB020-TB901&EFF010",
+   "instancias": [
+    {
+     "nome": "INV-01"
+    },
+    {
+     "nome": "INV-03"
+    }
+   ]
+  },
+  {
+   "sigla": "INV60",
+   "pdf": "LMR/#ST60=B04BPA10TB020-TB901&EFF010[0].pdf",
+   "rds_doc": "#ST60=B04BPA10TB020-TB901&EFF010",
+   "instancias": [
+    {
+     "nome": "INV-02"
+    },
+    {
+     "nome": "INV-04"
+    }
+   ]
+  },
+  {
+   "sigla": "PDE50",
+   "pdf": "LMR/#ST50=B04BMA10UC013-UC901&EFF010[0].pdf",
+   "rds_doc": "#ST50=B04BMA10UC013-UC901&EFF010",
+   "instancias": [
+    {
+     "nome": "PDE-F18021",
+     "rds": "#BA50=B04BMA10UC013-UC001"
+    },
+    {
+     "nome": "PDE-F17061",
+     "rds": "#BA50=B04BMA10UC013-UC002"
+    },
+    {
+     "nome": "PDE-E05051",
+     "rds": "#BA50=B04BMA10UC013-UC003"
+    },
+    {
+     "nome": "PDE-F18101",
+     "rds": "#BA50=B04BMA10UC013-UC004"
+    },
+    {
+     "nome": "PDE-F05021",
+     "rds": "#BA50=B04BMA10UC013-UC005"
+    },
+    {
+     "nome": "PDE-22021",
+     "rds": "#ST50=B04BMA10UC013-UC001"
+    },
+    {
+     "nome": "PDE-24011",
+     "rds": "#ST50=B04BMA10UC013-UC002"
+    },
+    {
+     "nome": "PDE-01051",
+     "rds": "#ST50=B04BMA10UC013-UC003"
+    },
+    {
+     "nome": "PDE-04051",
+     "rds": "#ST50=B04BMA10UC013-UC004"
+    },
+    {
+     "nome": "PDE-07051",
+     "rds": "#ST50=B04BMA10UC013-UC005"
+    },
+    {
+     "nome": "PDE-08181",
+     "rds": "#ST50=B04BMA10UC013-UC006"
+    },
+    {
+     "nome": "PDE-9A011",
+     "rds": "#ST50=B04BMA10UC013-UC007"
+    },
+    {
+     "nome": "PDE-02041",
+     "rds": "#ST50=B04BMA10UC013-UC008"
+    },
+    {
+     "nome": "PDE-06041",
+     "rds": "#ST50=B04BMA10UC013-UC009"
+    },
+    {
+     "nome": "PDE-02141",
+     "rds": "#ST50=B04BMA10UC013-UC010"
+    },
+    {
+     "nome": "PDE-01101",
+     "rds": "#ST50=B04BMA10UC013-UC011"
+    },
+    {
+     "nome": "PDE-07101",
+     "rds": "#ST50=B04BMA10UC013-UC012"
+    },
+    {
+     "nome": "PDE-08141",
+     "rds": "#ST50=B04BMA10UC013-UC013"
+    },
+    {
+     "nome": "PDE-22011",
+     "rds": "#ST50=B04BMA10UC013-UC014"
+    },
+    {
+     "nome": "PDE-9A021",
+     "rds": "#ST50=B04BMA10UC013-UC015"
+    },
+    {
+     "nome": "PDE-21121",
+     "rds": "#ST50=B04BMA10UC013-UC016"
+    },
+    {
+     "nome": "PDE-06201",
+     "rds": "#ST50=B04BMA10UC013-UC017"
+    },
+    {
+     "nome": "PDE-A15021",
+     "rds": "#VE00=B04BMA10UC013-UC001"
+    }
+   ]
+  },
+  {
+   "sigla": "PDE60",
+   "pdf": "LMR/#ST60=B04BMA10UC013-UC901&EFF010[0].pdf",
+   "rds_doc": "#ST60=B04BMA10UC013-UC901&EFF010",
+   "instancias": [
+    {
+     "nome": "PDE-H03131",
+     "rds": "#BA60=B04BMA10UC013-UC001"
+    },
+    {
+     "nome": "PDE-H03091",
+     "rds": "#BA60=B04BMA10UC013-UC002"
+    },
+    {
+     "nome": "PDE-F29031",
+     "rds": "#BA60=B04BMA10UC013-UC003"
+    },
+    {
+     "nome": "PDE-H03021",
+     "rds": "#BA60=B04BMA10UC013-UC004"
+    },
+    {
+     "nome": "PDE-H02061",
+     "rds": "#BA60=B04BMA10UC013-UC005"
+    },
+    {
+     "nome": "PDE-F16151",
+     "rds": "#BA60=B04BMA10UC013-UC006"
+    },
+    {
+     "nome": "PDE-H03081",
+     "rds": "#BA60=B04BMA10UC013-UC007"
+    },
+    {
+     "nome": "PDE-H01041",
+     "rds": "#BA60=B04BMA10UC013-UC008"
+    },
+    {
+     "nome": "PDE-F29021",
+     "rds": "#BA60=B04BMA10UC013-UC009"
+    },
+    {
+     "nome": "PDE-I02051",
+     "rds": "#BA60=B04BMA10UC013-UC010"
+    },
+    {
+     "nome": "PDE-I01021",
+     "rds": "#BA60=B04BMA10UC013-UC011"
+    },
+    {
+     "nome": "PDE-26011",
+     "rds": "#ST60=B04BMA10UC013-UC001"
+    },
+    {
+     "nome": "PDE-10051",
+     "rds": "#ST60=B04BMA10UC013-UC002"
+    },
+    {
+     "nome": "PDE-15051",
+     "rds": "#ST60=B04BMA10UC013-UC003"
+    },
+    {
+     "nome": "PDE-17051",
+     "rds": "#ST60=B04BMA10UC013-UC004"
+    },
+    {
+     "nome": "PDE-17181",
+     "rds": "#ST60=B04BMA10UC013-UC005"
+    },
+    {
+     "nome": "PDE-10201",
+     "rds": "#ST60=B04BMA10UC013-UC006"
+    },
+    {
+     "nome": "PDE-17041",
+     "rds": "#ST60=B04BMA10UC013-UC007"
+    },
+    {
+     "nome": "PDE-12041",
+     "rds": "#ST60=B04BMA10UC013-UC008"
+    },
+    {
+     "nome": "PDE-12101",
+     "rds": "#ST60=B04BMA10UC013-UC009"
+    },
+    {
+     "nome": "PDE-12141",
+     "rds": "#ST60=B04BMA10UC013-UC010"
+    },
+    {
+     "nome": "PDE-16101",
+     "rds": "#ST60=B04BMA10UC013-UC011"
+    },
+    {
+     "nome": "PDE-17141",
+     "rds": "#ST60=B04BMA10UC013-UC012"
+    },
+    {
+     "nome": "PDE-25121",
+     "rds": "#ST60=B04BMA10UC013-UC013"
+    },
+    {
+     "nome": "PDE-12181",
+     "rds": "#ST60=B04BMA10UC013-UC014"
+    }
+   ]
+  }
+ ],
+ "grupos": {
+  "1": [
+   "INV50",
+   "INV60"
+  ],
+  "2": [
+   "PDE50",
+   "PDE60"
+  ],
+  "3": [
+   "PDE50",
+   "PDE60"
+  ]
+ },
+ "genericos": {
+  "4": [
+   "INV50",
+   "INV60",
+   "PDE50",
+   "PDE60"
+  ]
+ },
+ "pendencias_fixas": [
+  "Lista dos 48 PDE e RDS-PP tirados da REF-0013 (a capa dos cadernos típicos tem numeração UC diferente e repete PDE-F18021).",
+  "PDE-A15021 (#VE00, Vertedouro) foi incluído no típico 50 Hz: confirmar a frequência.",
+  "PDE da Barragem (trechos E, F, H, I) e do Vertedouro: TRECHO fora da lista fechada do motor (U-xx, AMD, AMC) - ampliar a lista ou definir a regra."
+ ]
+}

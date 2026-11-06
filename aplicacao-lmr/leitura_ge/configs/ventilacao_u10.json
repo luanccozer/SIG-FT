@@ -1,0 +1,176 @@
+{
+ "sistema": "Ventilação Sala de Baterias U10",
+ "pasta": "SISTEMA DE VENTILAÇÃO DAS SALAS DE BATERIAS U10",
+ "escopo": "CC",
+ "subsistema": "VENTILAÇÃO SALA DE BATERIAS U10",
+ "lista_status": "#ST60=X00XAC21GQ030-GQ905&MPB020_STATUS_PMIB.xlsx",
+ "lista_sobressalente": "#ST60=X00XAC21GQ030-GQ905&MPB020",
+ "capitulo": "CONTROLE CENTRALIZADO / SERVIÇOS AUXILIARES ESSENCIAIS",
+ "cab_subsistema": "SISTEMA DE VENTILAÇÃO DAS SALAS DE BATERIAS U10 - EL. 131,50",
+ "saida_base": "LMR/BASE LMR - Ventilação U10.xlsx",
+ "fallback_descricao": false,
+ "equipamentos": [
+  {
+   "sigla": "EXAUSTOR",
+   "pdf": "LMR/#ST60=X00XAC21GQ030-GQ905&MLD02.pdf",
+   "rds_doc": "#ST60=X00XAC21GQ030-GQ905&MLD020",
+   "instancias": [
+    {
+     "nome": "VVT-1030",
+     "rds": "#ST60=X00XAC21GQ030-GQ905&MLD020",
+     "local": "CASA DE FORÇA",
+     "elev": "131,50",
+     "eixo": "CD",
+     "trecho": "U-10",
+     "fonte_local": "Títulos \"SALAS DE BATERIAS ... U10 – EL.131,50\" e arranjo \"CASA DE FORÇA - TRECHO U - BLOCO U09 A 11 - EIXO CD\""
+    },
+    {
+     "nome": "VVT-1031",
+     "rds": "#ST60=X00XAC21GQ030-GQ905&MLD020",
+     "local": "CASA DE FORÇA",
+     "elev": "131,50",
+     "eixo": "CD",
+     "trecho": "U-10",
+     "fonte_local": "Títulos \"SALAS DE BATERIAS ... U10 – EL.131,50\" e arranjo \"CASA DE FORÇA - TRECHO U - BLOCO U09 A 11 - EIXO CD\""
+    }
+   ]
+  },
+  {
+   "sigla": "PAINEL",
+   "pdf": null,
+   "rds_doc": "#ST60=X00XAC21GQ030-GQ905UH001&EFF010",
+   "instancias": [
+    {
+     "nome": "GMV-1030",
+     "rds": "#ST60=X00XAC21GQ030-GQ905UH001&EFF010",
+     "local": "CASA DE FORÇA",
+     "elev": "131,50",
+     "eixo": "CD",
+     "trecho": "U-10",
+     "fonte_local": "Títulos \"SALAS DE BATERIAS ... U10 – EL.131,50\" e arranjo \"CASA DE FORÇA - TRECHO U - BLOCO U09 A 11 - EIXO CD\""
+    }
+   ]
+  },
+  {
+   "sigla": "DUTOS",
+   "pdf": "LMR/#ST60=X00XAC21GQ030-GQ905&MPA01.pdf",
+   "rds_doc": "#ST60=X00XAC21GQ030-GQ905&MPA010",
+   "instancias": [
+    {
+     "nome": "DUTOS DE VENTILAÇÃO U10",
+     "rds": "#ST60=X00XAC21GQ030-GQ905&MPA010",
+     "local": "CASA DE FORÇA",
+     "elev": "131,50",
+     "eixo": "CD",
+     "trecho": "U-10",
+     "fonte_local": "Títulos \"SALAS DE BATERIAS ... U10 – EL.131,50\" e arranjo \"CASA DE FORÇA - TRECHO U - BLOCO U09 A 11 - EIXO CD\""
+    }
+   ]
+  },
+  {
+   "sigla": "SALA",
+   "pdf": "LMR/#ST00=X00XAC21GQ030-GQ905&MFB03.pdf",
+   "rds_doc": "#ST00=X00XAC21GQ030-GQ905&MFB030",
+   "instancias": [
+    {
+     "nome": "SALA DE BATERIAS U10",
+     "rds": "#ST00=X00XAC21GQ030-GQ905&MFB030",
+     "local": "CASA DE FORÇA",
+     "elev": "131,50",
+     "eixo": "CD",
+     "trecho": "U-10",
+     "fonte_local": "Títulos \"SALAS DE BATERIAS ... U10 – EL.131,50\" e arranjo \"CASA DE FORÇA - TRECHO U - BLOCO U09 A 11 - EIXO CD\""
+    }
+   ]
+  }
+ ],
+ "manual": [
+  {
+   "ficha": "4500063671.0294",
+   "sigla": "EXAUSTOR",
+   "qtd": 1,
+   "obs": "Motor dos exaustores"
+  },
+  {
+   "ficha": "4500063671.0523",
+   "sigla": "EXAUSTOR",
+   "qtd": 1,
+   "obs": "Hélice dos exaustores"
+  },
+  {
+   "ficha": "4500063671.0557",
+   "sigla": "DUTOS",
+   "qtd": 1,
+   "obs": "Consumível de montagem dos dutos (#MPA010) - aplicação genérica, sem TAG"
+  },
+  {
+   "ficha": "4500063671.0558",
+   "sigla": "DUTOS",
+   "qtd": 1,
+   "obs": "Consumível de montagem dos dutos (#MPA010) - aplicação genérica, sem TAG"
+  },
+  {
+   "ficha": "4500063671.0559",
+   "sigla": "DUTOS",
+   "qtd": 1,
+   "obs": "Consumível de montagem dos dutos (#MPA010) - aplicação genérica, sem TAG"
+  },
+  {
+   "ficha": "4500063671.0560",
+   "sigla": "DUTOS",
+   "qtd": 1,
+   "obs": "Consumível de montagem dos dutos (#MPA010) - aplicação genérica, sem TAG"
+  },
+  {
+   "ficha": "4500063671.0561",
+   "sigla": "DUTOS",
+   "qtd": 1,
+   "obs": "Consumível de montagem dos dutos (#MPA010) - aplicação genérica, sem TAG"
+  },
+  {
+   "ficha": "4500063671.0562",
+   "sigla": "PAINEL",
+   "qtd": 1,
+   "obs": "TAG individual dentro do painel GMV-1030 depende do caderno #ST60=X00XAC21GQ030-GQ905UH001&EFF010 (não está na pasta LMR)"
+  },
+  {
+   "ficha": "4500063671.0563",
+   "sigla": "PAINEL",
+   "qtd": 1,
+   "obs": "TAG individual dentro do painel GMV-1030 depende do caderno #ST60=X00XAC21GQ030-GQ905UH001&EFF010 (não está na pasta LMR)"
+  },
+  {
+   "ficha": "4500063671.0564",
+   "sigla": "PAINEL",
+   "qtd": 1,
+   "obs": "TAG individual dentro do painel GMV-1030 depende do caderno #ST60=X00XAC21GQ030-GQ905UH001&EFF010 (não está na pasta LMR)"
+  },
+  {
+   "ficha": "4500063671.0565",
+   "sigla": "PAINEL",
+   "qtd": 1,
+   "obs": "TAG individual dentro do painel GMV-1030 depende do caderno #ST60=X00XAC21GQ030-GQ905UH001&EFF010 (não está na pasta LMR)"
+  },
+  {
+   "ficha": "4500063671.0566",
+   "sigla": "PAINEL",
+   "qtd": 1,
+   "obs": "TAG individual dentro do painel GMV-1030 depende do caderno #ST60=X00XAC21GQ030-GQ905UH001&EFF010 (não está na pasta LMR)"
+  },
+  {
+   "ficha": "4500063671.0567",
+   "sigla": "PAINEL",
+   "qtd": 1,
+   "obs": "TAG individual dentro do painel GMV-1030 depende do caderno #ST60=X00XAC21GQ030-GQ905UH001&EFF010 (não está na pasta LMR)"
+  },
+  {
+   "ficha": "4500063671.0568",
+   "sigla": "PAINEL",
+   "qtd": 1,
+   "obs": "TAG individual dentro do painel GMV-1030 depende do caderno #ST60=X00XAC21GQ030-GQ905UH001&EFF010 (não está na pasta LMR)"
+  }
+ ],
+ "pendencias_fixas": [
+  "TAG individual dentro do painel GMV-1030 depende do caderno #ST60=X00XAC21GQ030-GQ905UH001&EFF010 (não está na pasta LMR)"
+ ]
+}

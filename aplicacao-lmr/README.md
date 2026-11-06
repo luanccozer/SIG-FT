@@ -22,6 +22,7 @@ Nota do cofre: `gestao-sobressalentes/07 - Diagnostico/Plano - Automacao da Apli
 | A enxuto (`LMR_A_enxuto.json`) | Leitor, Ligador, Recuperador + Validador; testado só com sistema fictício; **não rodou no AMP nem na regressão com dados reais** |
 | Próximo passo | sonda S10 com Gemini e linha de base: [`docs/planos/roteiro-testes-amp-2026-11-03.md`](docs/planos/roteiro-testes-amp-2026-11-03.md) |
 | Testes de plataforma | S9/S10 (nó AMP Agent) rodaram; S4 (Box), S7, S8 pendentes |
+| **A-GE — leitor de cadernos GE (06/11)** | `leitura_ge/`: sem IA, lê a folha LISTA DE MATERIAIS dos cadernos GE e gera a Base no formato do B; rodou com dados reais nos 5 sistemas dos Serviços Auxiliares Essenciais. Auditoria do processo: [`docs/auditorias/2026-11-06-auditoria-processo-lmr.md`](docs/auditorias/2026-11-06-auditoria-processo-lmr.md) |
 
 ## Arquitetura (v1.6)
 
@@ -57,6 +58,8 @@ formulário.
 | `docs/planos/` | planos de implementação (agente LMR) |
 | `contexto/amp/` | exports dos nós AMP Agent, GEV Box e GEV LLM (sem credenciais) e resultados das sondas S9/S10 |
 | `motor/fase0/` | testes de plataforma S1–S8 (`.json`) e arquivos de apoio fictícios |
+| `leitura_ge/` | A-GE (sem IA): `gerar_base_lmr.py` (cadernos GE → Base), `reconstruir_base.py` (R para aplicação emitida), `rodar_workflow_b.py` (B local com o `motor/`), `configs/` por sistema |
+| `docs/auditorias/` | auditorias do processo |
 | `motor/dados/template_partes.json` | peças internas do template vazio (única coisa versionada de `dados/`) |
 | `templates/` | `Template_Aplicação_LMR.xlsx` (vazio) |
 | `contexto/` | histórico do projeto, pacote de preparação, limitações do AMP, cheat sheet do n8n da GE |
