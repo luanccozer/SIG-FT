@@ -2,6 +2,7 @@
 
 Automação da **Aplicação LMR** (CÓDIGO_LMR e TAG_LMR de cada material sobressalente) para rodar no
 n8n do AMP da GE Vernova. Plano completo e histórico de decisões em [`PLANO.md`](PLANO.md) (v1.6, §9B até 9B.9).
+**O que é e como fazer, passo a passo: [`docs/guia-aplicacao-lmr-passo-a-passo.md`](docs/guia-aplicacao-lmr-passo-a-passo.md).**
 **Quem vai continuar: comece por [`HANDOFF.md`](HANDOFF.md)** (estado, fatos do AMP, decisão em aberto).
 Guia de uso no AMP: [Guia AMP n8n — Aplicação LMR](https://claude.ai/artifact/14qjTyoFX7Qpd2NYMzZfJh).
 Nota do cofre: `gestao-sobressalentes/07 - Diagnostico/Plano - Automacao da Aplicacao LMR no AMP.md`.
