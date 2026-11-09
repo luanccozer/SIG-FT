@@ -103,8 +103,11 @@ def test_toda_conexao_aponta_para_no_que_existe():
 def test_o_pedido_saiu_e_o_agente_tem_copia():
     assert not (PASTA / "pedido.md").exists()
     agente = (PASTA / "agente.md").read_text(encoding="utf-8")
+    # [2026-11-09] O vocabulário do agente do AMP de hoje (o Luan colou o System Prompt): as ações são
+    # CRIAR, ALTERAR e MOVER PARA A SEM_LISTA, e não mais EXCLUIR e SUBSTITUIR, que eram da cópia de 03/11.
     for termo in ("Spare Parts Document Reviewer", "A fonte é o AMP", "SEM_LISTA_STATUS_PMIB", "DOCUMENTAL",
-                  "a conferir", "CRIAR", "EXCLUIR", "SUBSTITUIR", "<tr> e <td>"):
+                  "a conferir", "CRIAR", "ALTERAR", "MOVER PARA A SEM_LISTA", "Etapa 1", "Etapa 2",
+                  "As tabelas 4 e 5", "<tr> e <td>"):
         assert termo in agente, termo
 
 

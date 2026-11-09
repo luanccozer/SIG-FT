@@ -102,9 +102,9 @@ andamento da equipe apagado):
 Não precisa reimportar o workflow: ele só chama o agente.
 
 O que já mudou (o porquê está no topo do `agente.md`):
-- **2026-11-09, a cópia sem o cabeçalho:** cada botão de copiar leva só as linhas abaixo do
-  cabeçalho, que é o mesmo da planilha. No AMP, troque só a frase "Cada tabela tem um botão que
-  copia..." pela do `agente.md`.
+- **2026-11-09, a cópia sem o cabeçalho:** os botões das tabelas 4 e 5 levam só as linhas abaixo
+  do cabeçalho, que é o mesmo da planilha. No AMP, troque só a frase "As tabelas 4 e 5 têm um botão
+  que copia..." pela do `agente.md` (a cópia foi posta em dia com o AMP no mesmo dia).
 
 ## Resgatar um HTML que não chegou ao SIG-FT
 
