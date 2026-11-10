@@ -7,7 +7,7 @@
  "lista_sobressalente": "#ST00=B04BMA10TB020&EPB020",
  "capitulo": "CONTROLE CENTRALIZADO / SERVIÇOS AUXILIARES ESSENCIAIS",
  "cab_subsistema": "INVERSORES E PAINÉIS PDE",
- "saida_base": "LMR/BASE LMR - Inversores e PDE.xlsx",
+ "saida_base": "LMR/SAIDA ATUAL/BASE LMR - Inversores e PDE.xlsx",
  "equipamentos": [
   {
    "sigla": "INV50",

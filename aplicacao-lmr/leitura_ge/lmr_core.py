@@ -21,7 +21,7 @@ def _pdf(path):
 def ler_lista_sobressalentes(path):
     """Aba 'Lista de Materiais' do *_STATUS_PMIB.xlsx: itens (fichas) e grupos (linhas sem PMIB)."""
     ws = openpyxl.load_workbook(path, data_only=True)['Lista de Materiais']
-    idx, itens, grupo = None, [], None
+    idx, itens, grupo, grupos = None, [], None, []
     for r in ws.iter_rows(values_only=True):
         if 'ITEM' in r:
             idx = {h: r.index(h) for h in r if h}; continue
@@ -35,8 +35,9 @@ def ler_lista_sobressalentes(path):
             if it[k] in ('None', 'N/A', '-'): it[k] = ''
         it['eh_grupo'] = not it['ficha'] or it['ficha'] in ('N/A', '-', 'None')
         if it['eh_grupo']:
-            grupo = it['item']; it['grupo_titulo'] = ' | '.join(x for x in (it['desc'], it['pn']) if x)
-        it['grupo'] = grupo
+            grupo = it['item']; grupos.append(grupo); it['grupo_titulo'] = ' | '.join(x for x in (it['desc'], it['pn']) if x)
+        # subgrupo (2.14) vale só para os seus itens (2.14.x); o 2.15 volta ao grupo 2
+        it['grupo'] = it['item'] if it['eh_grupo'] else max((g for g in grupos if it['item'].startswith(g + '.')), key=len, default=grupo)
         itens.append(it)
     return itens
 
@@ -96,20 +97,30 @@ def info_documento(pdf):
     return cmi, tit
 
 
-COLS = ['TAG', 'Designação', 'Código', 'Quantidade', 'Local', 'Fabricante', 'Folha']
+COLS = ['TAG', 'Designação', 'Código', 'Quantidade', 'Local', 'Fabricante', 'Folha', 'Item', 'Modelo']
+# palavra do cabeçalho -> coluna. GE: TAG/Designação/Código/Quantidade/Local; Alpha-Enersys: ITEM/DESCRIÇÃO/TAG/QTDE/MODELO/COD. ALPHA
+ALIAS = {**{c: c for c in COLS}, 'DESCRIÇÃO': 'Designação', 'QTDE': 'Quantidade', 'ALPHA': 'Código', 'ITEM': 'Item',
+         'MODELO': 'Modelo', 'FABRICANTE': 'Fabricante'}
 
 
 def _parse_pagina(page):
-    """Tabela 'LISTA DE MATERIAIS' padrão GE por coordenadas: cada coluna é definida pelo cabeçalho."""
+    """Tabela 'LISTA DE MATERIAIS' por coordenadas (formatos GE e Alpha): cada coluna é definida pelo cabeçalho."""
     words = page.get_text('words')
+    # linha do cabeçalho = a da palavra TAG que tem a coluna de quantidade na mesma altura
+    ys = [w[1] for w in words if w[4] == 'TAG' and any(ALIAS.get(x[4]) == 'Quantidade' and abs(x[1] - w[1]) < 4 for x in words)]
+    if not ys: return []
     hdr = {}
     for w in words:
-        if w[4] in COLS and w[4] not in hdr: hdr[w[4]] = w
+        k = ALIAS.get(w[4])
+        if k and abs(w[1] - ys[0]) < 8 and k not in hdr: hdr[k] = w  # GE: 'Local' fica ~5 pt acima (cabeçalho em 2 linhas)
     if not {'TAG', 'Designação', 'Quantidade', 'Código'} <= hdr.keys(): return []
     hy = max(w[3] for w in hdr.values()) + 1
     cen = sorted(((w[0] + w[2]) / 2, k) for k, w in hdr.items())
     # dados centralizados sob o cabeçalho; 'Designação' é longa e alinhada à esquerda
     bounds = [(hdr[k1][2] + 6) if k2 == 'Designação' else (c1 + c2) / 2 for (c1, k1), (c2, k2) in zip(cen, cen[1:], strict=False)]
+    alpha = hdr['Quantidade'][4] == 'QTDE'  # formato Alpha-Enersys: TAGs separadas por vírgula e quebradas no meio da linha
+    if alpha:  # descrição longa invade a coluna seguinte: o limite fica colado no cabeçalho dela
+        bounds = [max(b, hdr[k2][0] - 30) if k1 == 'Designação' else b for b, (_, k1), (_, k2) in zip(bounds, cen, cen[1:], strict=False)]
 
     def col(w):
         x = (w[0] + w[2]) / 2
@@ -117,18 +128,23 @@ def _parse_pagina(page):
             if x < b: return k
         return cen[-1][1]
 
-    body = [w for w in words if w[1] > hy and w[3] < page.rect.height * 0.86]
+    lw = page.rect.width  # letras A–F da moldura ficam nas bordas da folha
+    moldura = lambda w: len(w[4]) == 1 and w[4] in 'ABCDEF' and (w[2] < lw * 0.07 or w[0] > lw * 0.93)
+    rodape = page.rect.height * (0.92 if alpha else 0.86)  # carimbo: GE a partir de ~86% da altura; Alpha a partir de ~93%
+    body = [w for w in words if w[1] > hy and w[3] < rodape and not moldura(w)]
     starts = []
     for w in sorted(body, key=lambda w: w[1]):
         if col(w) == 'Quantidade' and re.fullmatch(r'\d+([.,]\d+)?', w[4]) and (not starts or w[1] - starts[-1] > 4):
             starts.append(w[1])
     rows = [{c: [] for c in COLS} for _ in starts]
+    tol = 8 if alpha else 3  # Alpha: célula de TAG em 2 linhas começa ~6 pt acima da quantidade
     for w in sorted(body, key=lambda w: (round(w[1]), w[0])):
-        i = max([i for i, y in enumerate(starts) if w[1] >= y - 3], default=None)
+        i = max([i for i, y in enumerate(starts) if w[1] >= y - tol], default=None)
         if i is not None: rows[i][col(w)].append(w[4])
     out = []
     for r in rows:
         d = {c: ' '.join(v).strip() for c, v in r.items()}
+        if alpha: d['TAG'] = ''.join(r['TAG'])  # 'F17...F2' + '4' = 'F17...F24'
         m = re.search(r'COLUNA\s*\d+', d['Local']); d['Local'] = ' '.join(m.group(0).split()) if m else ''
         out.append(d)
     return out
@@ -167,18 +183,25 @@ def unidades_por_tag(r):
 
 # ---------------------------------------------------------------- casamento ficha x linha do desenho
 def casa_por_codigo(item, linha):
-    c = norm(item['pn'])
-    if len(c) < 5: return False
-    return c == norm(linha['Código']) or c in norm(linha['Designação']) or c in norm(linha['Código'])
+    """PN do Status no código ou na designação do desenho. PN composto ('1008-10 / 707-757-10') vale por qualquer parte."""
+    for c in [norm(item['pn'])] + [norm(p) for p in str(item['pn']).split('/')]:
+        if len(c) >= 5 and (c == norm(linha['Código']) or c in norm(linha['Designação']) or c in norm(linha['Código'])):
+            return True
+    return False
 
 
 def _numeros(s): return set(re.findall(r'\d+(?:[.,]\d+)?', s or ''))
 
 
+def _contatos(s): return set(re.findall(r'\b\d*N[AF]{1,2}\b', (s or '').upper()))
+
+
 def casa_por_descricao(item, linha, limite=0.88):
-    """Fallback: descrição quase idêntica e mesmos números (evita trocar 16A por 20A)."""
+    """Fallback: descrição quase idêntica e mesmos números (evita trocar 16A por 20A) e mesmo tipo de contato (1NA ≠ 1NF)."""
     a, b = norm(item['desc']), norm(linha['Designação'])
     if not a or not b: return False
+    ca, cb = _contatos(item['desc']), _contatos(linha['Designação'])
+    if ca and cb and ca != cb: return False
     return difflib.SequenceMatcher(None, a, b).ratio() >= limite and _numeros(item['desc']) <= _numeros(linha['Designação'])
 
 
@@ -203,6 +226,8 @@ if __name__ == '__main__':  # autoteste: py lmr_core.py
     assert formata_elev('131,5') == '131,50' and formata_elev(115) == '115,00'
     assert casa_por_codigo({'pn': '2TAZ110200R1204'}, {'Código': '2TAZ110200R1204', 'Designação': ''})
     assert not casa_por_descricao({'desc': 'Minidisjuntor bipolar 16A curva C'}, {'Designação': 'Minidisjuntor bipolar 20A curva C'})
+    assert not casa_por_descricao({'desc': 'Bloco de Contato 1NA'}, {'Designação': 'BLOCO DE CONTATO 1NF'})
+    assert casa_por_descricao({'desc': 'Bloco de Contato 1NF'}, {'Designação': 'BLOCO DE CONTATO 1NF'})
     ref = {'PLA-CCR': [('#ST50=B04BMA10UC013-UC018', ''), ('#ST60=B04BMA10UC013-UC015', '')]}
     assert rds_da_ref(ref, 'PLA-CCR', '#ST60') == ('#ST60=B04BMA10UC013-UC015', 2)
     print('lmr_core: autoteste OK')

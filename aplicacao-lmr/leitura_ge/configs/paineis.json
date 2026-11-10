@@ -7,7 +7,7 @@
  "lista_sobressalente": "#ST00=B03BPA10UC012-UC903&EPB020",
  "capitulo": "CONTROLE CENTRALIZADO / SERVIÇOS AUXILIARES ESSENCIAIS",
  "cab_subsistema": "PAINÉIS",
- "saida_base": "LMR/BASE LMR - Painéis.xlsx",
+ "saida_base": "LMR/SAIDA ATUAL/BASE LMR - Painéis.xlsx",
  "equipamentos": [
   {
    "sigla": "CBC-01",

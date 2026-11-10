@@ -28,7 +28,12 @@ const UGS = [
 ];
 const AMD = [1, 2, 3, 4].map(n => ({ trecho: `AMD-${pad2(n)}`, m: null, hz: null }));
 const AMC = [1, 2, 3].map(n => ({ trecho: `AMC-${pad2(n)}`, m: null, hz: null }));
-const TRECHOS = [...UGS, ...AMD, ...AMC];
+// Barragem (++U20LNC10: trechos D, E, F, H, I) e Vertedouro (++U20LND10: trecho A), blocos da REF-0013 (decisão 33).
+// Nome = letra do trecho + bloco: PDE-F18021 fica no bloco F18 → TRECHO 'F-18'. Sem UG: m e hz nulos (como AMD/AMC).
+const BLOCOS_BARRAGEM = { D: 58, E: 6, F: 36, H: 14, I: 27, A: 15 };
+const BARRAGEM = Object.entries(BLOCOS_BARRAGEM).flatMap(([letra, n]) =>
+  Array.from({ length: n }, (_, i) => ({ trecho: `${letra}-${pad2(i + 1)}`, m: null, hz: null })));
+const TRECHOS = [...UGS, ...AMD, ...AMC, ...BARRAGEM];
 const TRECHO_POR_NOME = Object.fromEntries(TRECHOS.map(t => [t.trecho, t]));
 const UG_POR_M = Object.fromEntries(UGS.map(t => [t.m, t]));
 
@@ -41,6 +46,8 @@ const LOCAIS = {
   'CASA DE FORÇA - UNIDADE GERADORA': 'CASA DE FORÇA',
   'CASA DE FORCA - UNIDADE GERADORA': 'CASA DE FORÇA',
   'SALA GERADORES DIESEL': 'SALA GERADORES DIESEL',
+  'BARRAGEM': 'BARRAGEM',
+  'VERTEDOURO': 'VERTEDOURO',
 };
 
 // Unidades de material a granel: 1 linha por trecho (§3.5).
@@ -83,6 +90,8 @@ function normalizaTrecho(v) {
     return TRECHO_POR_NOME[nome] ? nome : null;
   }
   m = s.match(/^(AMD|AMC)-?0*(\d)$/);
+  if (m) { const nome = `${m[1]}-${pad2(m[2])}`; return TRECHO_POR_NOME[nome] ? nome : null; }
+  m = s.match(/^([ADEFHI])-?0*(\d{1,2})$/); // bloco da Barragem/Vertedouro: F18, F-18
   if (m) { const nome = `${m[1]}-${pad2(m[2])}`; return TRECHO_POR_NOME[nome] ? nome : null; }
   return null;
 }
@@ -633,7 +642,7 @@ function mudancas(rec, l) {
   if (b.trecho && b.trecho !== f.trecho) out.push(`trecho ${b.trecho}→${f.trecho || '?'}`);
   if (b.eixo && b.eixo !== f.eixo) out.push(`eixo ${b.eixo}→${f.eixo || '?'}`);
   if (b.elev && b.elev !== f.elev) out.push(`elev. ${b.elev}→${f.elev || '?'}`);
-  if (!/ - (CASA DE FORÇA|SALA GERADORES DIESEL) - ELEV/.test(rec.codigoBruto) || /UNIDADE GERADORA - ELEV/i.test(rec.codigoBruto)) out.push(`local→${f.local || '?'}`);
+  if (!/ - (CASA DE FORÇA|SALA GERADORES DIESEL|BARRAGEM|VERTEDOURO) - ELEV/.test(rec.codigoBruto) || /UNIDADE GERADORA - ELEV/i.test(rec.codigoBruto)) out.push(`local→${f.local || '?'}`);
   if (!String(rec.codigoBruto).startsWith(`${f.escopo} - ${f.subsistema} - `)) out.push('escopo/subsistema do formulário');
   if (/RDS-PP:#|RDS-PP: {2,}/.test(rec.codigoBruto)) out.push('separador RDS-PP');
   if (/\)\s*$/.test(rec.tagBruta) && !/\)\s*$/.test(l.tag)) out.push('TAG sem (REF)');

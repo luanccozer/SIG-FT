@@ -7,7 +7,7 @@
  "lista_sobressalente": "#ST50=X00XAC21GQ030-GQ905&MPB020",
  "capitulo": "CONTROLE CENTRALIZADO / SERVIÇOS AUXILIARES ESSENCIAIS",
  "cab_subsistema": "SISTEMA DE VENTILAÇÃO DAS SALAS DE BATERIAS U9 - EL. 131,50",
- "saida_base": "LMR/BASE LMR - Ventilação U9.xlsx",
+ "saida_base": "LMR/SAIDA ATUAL/BASE LMR - Ventilação U9.xlsx",
  "fallback_descricao": false,
  "equipamentos": [
   {
