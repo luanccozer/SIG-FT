@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 PASTA = Path(__file__).resolve().parent.parent / "amp" / "revisao_de_listas"
@@ -100,12 +101,50 @@ def test_toda_conexao_aponta_para_no_que_existe():
             assert all(c["node"] in nomes for c in saida)
 
 
+def _system_prompt():
+    agente = (PASTA / "agente.md").read_text(encoding="utf-8")
+    return re.search(r"## System Prompt\s*```text\n(.*?)```", agente, re.DOTALL).group(1)
+
+
 def test_o_pedido_saiu_e_o_agente_tem_copia():
     assert not (PASTA / "pedido.md").exists()
     agente = (PASTA / "agente.md").read_text(encoding="utf-8")
     for termo in ("Spare Parts Document Reviewer", "A fonte é o AMP", "SEM_LISTA_STATUS_PMIB", "DOCUMENTAL",
-                  "a conferir", "CRIAR", "EXCLUIR", "SUBSTITUIR", "<tr> e <td>"):
+                  "a conferir", "CRIAR", "ALTERAR", "MOVER PARA A SEM_LISTA", "<tr> e <td>"):
         assert termo in agente, termo
+
+
+def test_o_agente_escreve_os_titulos_que_o_sigft_le():
+    """2026-11-11 (pedido do Luan): sem diferença, a resposta curta, que o SIG-FT não grava; com
+    diferença, o <title> diz se ela é significativa ou só de texto. O título é o contrato com
+    `services/revisao_amp.classificacao`."""
+    from sigft.services import revisao_amp as ra
+
+    prompt = _system_prompt()
+    for rotulo in (ra.SEM_DIFERENCAS, ra.SIGNIFICATIVA, ra.SO_TEXTO):
+        assert f"{rotulo} · <código da lista>" in prompt, rotulo
+    curta = re.search(r"## A resposta curta.*?(<!DOCTYPE html>.*?</html>)", prompt, re.DOTALL).group(1)
+    assert ra.classificacao(curta) == ra.SEM_DIFERENCAS
+    assert "<table" not in curta.lower()
+
+
+def test_o_agente_manda_so_as_linhas_que_mudam():
+    """2026-11-11 (pedido do Luan): com poucas mudanças, só as linhas, cada bloco com a instrução, de
+    baixo para cima; com muitas e espalhadas, a _STATUS_PMIB inteira."""
+    prompt = _system_prompt()
+    for trecho in ("Até 5 blocos", "de baixo para cima", "cole esta linha por cima dela",
+                   "Insira 2 linhas abaixo da linha 20", "Exclua a linha 30", "Mais de 5 blocos"):
+        assert trecho in prompt, trecho
+
+
+def test_maiuscula_nao_conta_e_texto_nao_e_significativo():
+    """2026-11-11 (pedido do Luan): maiúsculas e minúsculas não contam; a descrição reescrita e a marca
+    completada (PHOENIX para PHOENIX CONTACT) entram na resposta, mas como SÓ TEXTO."""
+    prompt = _system_prompt()
+    ignorada = prompt.index("IGNORADA:")
+    so_texto = prompt.index("SÓ TEXTO:")
+    assert prompt.index("maiúsculas e minúsculas (de PHOENIX para phoenix)") > ignorada
+    assert so_texto < prompt.index("(de PHOENIX para PHOENIX CONTACT)") < ignorada
 
 
 def test_a_copia_leva_so_as_linhas_abaixo_do_cabecalho():

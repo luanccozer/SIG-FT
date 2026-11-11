@@ -2,7 +2,8 @@
 
 > Escrito em 2026-10-26, na 1.3.1-rc.1; a peça 2 (Revisão no AMP) entrou em
 > 2026-10-27, na 1.3.1-rc.2, foi refeita em 2026-11-03 (v2: o agente do AMP recebe os
-> arquivos) e está na última seção. Desenho da peça 1:
+> arquivos) e está na última seção; desde 2026-11-11, a lista sem diferença não vira arquivo, e o
+> HTML diz se a mudança é significativa ou só de texto. Desenho da peça 1:
 > `docs/superpowers/specs/2026-10-26-aconex-ao-vivo-design.md`. Plano e o que
 > falta: `docs/superpowers/plans/2026-10-26-aconex-ao-vivo.md` e
 > `docs/ACONEX_AO_VIVO.md`.
@@ -186,9 +187,20 @@ lista:
 - o `_STATUS_PMIB.xlsx`.
 
 O agente é o *Spare Parts Document Reviewer*, criado no AMP: as instruções moram lá, e
-`amp/revisao_de_listas/agente.md` é a cópia. Ele devolve um HTML com o que mudou entre as revisões e
-as ações no controle: criar, excluir (mover para a `SEM_LISTA_STATUS_PMIB`) e substituir. O SIG-FT
-**não lê o conteúdo** dos arquivos e não aplica nada no Excel: o Luan confere o HTML e aplica.
+`amp/revisao_de_listas/agente.md` é a cópia. Desde 2026-11-11 (o Luan: não gastar esforço onde não
+há o que mudar), o agente primeiro vê se há diferença entre as revisões ou entre o controle e a
+revisão atual:
+- **sem diferença**, devolve a resposta curta, um HTML de três linhas com o `<title>` SEM
+  DIFERENÇAS (maiúsculas e minúsculas e espaços não contam);
+- **com diferença**, devolve o HTML com o que mudou, cada diferença como SIGNIFICATIVA (item que
+  entra ou sai, quantidade, código, marca, modelo) ou SÓ TEXTO (a descrição reescrita, a marca
+  completada), e as ações no controle: criar, alterar e mover para a `SEM_LISTA_STATUS_PMIB`. Com
+  até 5 blocos de linhas seguidas, vêm só as linhas que mudam, de baixo para cima, cada bloco com a
+  instrução; com mais, a `_STATUS_PMIB` inteira. O `<title>` começa por MUDANÇA SIGNIFICATIVA ou
+  SÓ CORREÇÃO DE TEXTO.
+
+O SIG-FT **não lê o conteúdo** dos arquivos e não aplica nada no Excel: o Luan confere o HTML e
+aplica. Do HTML, ele lê só o começo do `<title>` (`classificacao`).
 
 | Camada | Arquivo | O quê |
 |---|---|---|
@@ -241,14 +253,21 @@ depois de N s") viram erro. O teste de 03/11 mostrou que a rede da GE segura a c
 3. **Resposta boa:**
    - o HTML vai para `<código>[<em uso>-<atual>] revisao AMP.html`, na pasta da lista;
    - a gravação usa `open(..., "x")` e **nunca sobrescreve**: o nome que existe ganha " (2)",
-     " (3)"...
-4. **Também é falha:**
-   - a resposta sem HTML;
+     " (3)"...;
+   - o `<title>` dá a `classificacao` (`SIGNIFICATIVA` ou `SO_TEXTO`, no `ResultadoAmp`), que vai
+     para o log e para a coluna AMP; sem o título combinado, fica vazia, como antes de 2026-11-11.
+4. **Sem diferenças** (`<title>` SEM DIFERENÇAS e nenhuma tabela): nada é gravado, e a lista volta
+   `sem_diferencas`. Se a revisão muda (ou não havia revisão em uso), o log traz a linha de revisão
+   nova, escrita pelo SIG-FT (`docpack.texto_da_revisao`, com `hoje`): o texto do agente não vai
+   para o log. Com tabela, o HTML é gravado, mesmo com esse título: o SIG-FT nunca joga fora uma
+   tabela. E a conferência dos arquivos vem antes: sem um deles, "sem diferenças" é falha.
+5. **Também é falha:**
+   - a resposta sem HTML, mesmo a que diz "SEM DIFERENÇAS" em texto solto;
    - o workflow dizer que recebeu menos arquivos do que os mandados ("o workflow recebeu N de M
      arquivo(s)").
-5. **A falha de uma lista não para as outras.** O diagnóstico vai para
+6. **A falha de uma lista não para as outras.** O diagnóstico vai para
    `Documentos\SIG-FT\logs\amp\<AAAAMMDD-HHMMSS> <código>.txt`.
-6. **O ritmo:**
+7. **O ritmo:**
    - `cancelado_cb` é lido entre as listas, e as que sobram ficam "parado";
    - `resultado_cb` recebe cada lista quando ela acaba, e a tabela da aba anda junto.
 
@@ -260,7 +279,8 @@ depois de N s") viram erro. O teste de 03/11 mostrou que a rede da GE segura a c
   - `vai:`, com o nome e o tamanho de cada arquivo;
   - um batimento a cada 30 s enquanto o agente trabalha (`… 1:30 esperando o AMP`);
   - `resposta:`, com o HTTP, o tempo, a execução do n8n e os arquivos recebidos;
-  - o `✓` com o HTML gravado, ou o `✗` com o motivo;
+  - o `✓` com o HTML gravado (e, desde 2026-11-11, `· mudança significativa` ou `· só correção de
+    texto`), o `✓ sem diferenças` com a linha de revisão nova, ou o `✗` com o motivo;
 - **o fim:** a contagem e o tempo total.
 
 A aba grava as mesmas linhas, com a hora, em `Documentos\SIG-FT\logs\amp\amp_revisao_*.log`, e o
@@ -292,7 +312,8 @@ O eco da v1 saiu: o agente lê o arquivo original, e os códigos voltaram intact
 - **A rodada.**
   - O **Revisar no AMP** manda só as marcadas, na ordem da tabela, e trava as caixas durante a
     rodada.
-  - No fim, as que voltaram com HTML se desmarcam: um segundo clique manda só as que faltaram.
+  - No fim, as que voltaram, com HTML ou sem diferenças, se desmarcam: um segundo clique manda só
+    as que faltaram.
   - Se a Conferência rodou de novo, o clique refaz a tabela e não manda nada até o próximo clique.
   - Com a Conferência ainda rodando, aparece um aviso, e nada é chamado.
 - **O webhook.** Desde 2026-11-05 fica no **Configurar IA** do alto da Conferência de Listas (entrada "Revisão no AMP", só Workflow AMP; a aba mostra só se está configurado). Endereço e chave guardados no
@@ -302,8 +323,10 @@ O eco da v1 saiu: o agente lê o arquivo original, e os códigos voltaram intact
   - Os nomes antigos (`AMP_WEBHOOK_URL` e `AMP_WEBHOOK_CHAVE`, de Configuração → Chaves de API até
     a v1) são adotados uma vez.
   - Cada workflow do AMP tem o seu par: um módulo novo usa a mesma janela com outros nomes.
-- **Os botões e a tabela.** A coluna AMP diz "na fila", "HTML pronto: ...", "falhou: ...", a falta
-  ou "parado". Dois cliques abrem o HTML. "Copiar diagnóstico" só liga com falha na rodada.
+- **Os botões e a tabela.** A coluna AMP diz "na fila", "HTML pronto: ..." (ou "HTML pronto
+  (mudança significativa): ..." e "HTML pronto (só correção de texto): ..."), "sem diferenças",
+  "falhou: ...", a falta ou "parado". Dois cliques abrem o HTML; na lista sem diferenças, não há o
+  que abrir. "Copiar diagnóstico" só liga com falha na rodada.
 
 **Testes:**
 - `test_amp_workflow.py`: o `.json` sai do gerador; os nós e o contrato;

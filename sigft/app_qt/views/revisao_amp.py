@@ -43,14 +43,22 @@ AVISO_TABELA_REFEITA = marcar("A conferência mudou: a tabela foi refeita com as
 WEBHOOK_NAO_CONFIGURADO = marcar("Workflow AMP sem configurar: use Configurar IA, no alto da Conferência de Listas.")
 WEBHOOK_CONFIGURADO = marcar("Workflow AMP configurado (em Configurar IA).")
 EXPLICACAO = marcar("Manda ao AMP, uma por vez, as listas marcadas da última conferência (aba Conferência "
-                    "de Revisões). Cada uma volta como um HTML na pasta do _STATUS_PMIB, com o que mudou e as "
-                    "ações no controle: nada é aplicado no Excel. Dois cliques numa lista abrem o HTML.")
+                    "de Revisões). A lista com diferença volta como um HTML na pasta do _STATUS_PMIB, com o que "
+                    "mudou e as linhas a colar no controle; a sem diferença não gera arquivo. Nada é aplicado no "
+                    "Excel. Dois cliques numa lista abrem o HTML.")
 
 # O que a coluna "AMP" diz de cada lista. A falta vem pronta do serviço ("falta: ...").
+# [2026-11-11] O HTML diz no título se a mudança é significativa ou só de texto; sem o título
+# combinado (o agente de antes), fica o "HTML pronto" de sempre.
 NA_FILA = marcar("na fila")
 PRONTO = marcar("HTML pronto: {nome}")
+PRONTO_SIGNIFICATIVA = marcar("HTML pronto (mudança significativa): {nome}")
+PRONTO_SO_TEXTO = marcar("HTML pronto (só correção de texto): {nome}")
+SEM_DIFERENCAS = marcar("sem diferenças")
 FALHOU = marcar("falhou: {erro}")
 PARADO = marcar("parado")
+_PRONTO_POR_CLASSIFICACAO = {revisao_amp_svc.SIGNIFICATIVA: PRONTO_SIGNIFICATIVA,
+                             revisao_amp_svc.SO_TEXTO: PRONTO_SO_TEXTO}
 
 # Os nomes vão em `marcar` e são traduzidos onde a tabela é montada (`t(c)`). As larguras
 # somam 850: cabem na aba a 1280x850 (as colunas esticam, mas não encolhem).
@@ -77,7 +85,9 @@ def _linha(*widgets) -> QHBoxLayout:
 
 def _texto_amp(resultado) -> str:
     if resultado.situacao == "pronto":
-        return t(PRONTO, nome=resultado.html.name)
+        return t(_PRONTO_POR_CLASSIFICACAO.get(resultado.classificacao, PRONTO), nome=resultado.html.name)
+    if resultado.situacao == "sem_diferencas":
+        return t(SEM_DIFERENCAS)
     if resultado.situacao == "falhou":
         return t(FALHOU, erro=resultado.detalhe)
     if resultado.situacao == "parado":
@@ -306,10 +316,11 @@ class ModuloRevisaoAmp(ModuleFrame):
     def _terminar(self, resultados) -> None:
         self.resultados_amp = list(resultados)
         self._travar_caixas(False)
-        # A lista que voltou com HTML se desmarca: um segundo clique manda só as que faltaram.
+        # A lista que voltou, com HTML ou sem diferenças, se desmarca: um segundo clique manda só as
+        # que faltaram.
         for resultado in self.resultados_amp:
             indice = self._linha_da_lista.get(id(resultado.lista))
-            if resultado.situacao == "pronto" and indice is not None:
+            if resultado.situacao in ("pronto", "sem_diferencas") and indice is not None:
                 self.tabela.topLevelItem(indice).setCheckState(0, Qt.CheckState.Unchecked)
         falhas = sum(1 for r in self.resultados_amp if r.situacao == "falhou")
         self.btn_copiar_diag.setEnabled(any(r.diagnostico for r in self.resultados_amp))
