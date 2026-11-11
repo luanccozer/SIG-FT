@@ -6,9 +6,17 @@ Para cada lista marcada na aba, ele leva ao agente *Spare Parts Document Reviewe
 - o PDF da revisão atual;
 - o `_STATUS_PMIB.xlsx`.
 
-Os arquivos vão como estão na pasta da lista. O agente devolve um HTML com o que mudou entre as
-revisões e as ações no controle (criar, excluir ou substituir linhas). O SIG-FT grava esse HTML na
-pasta da lista. Nada é aplicado no Excel.
+Os arquivos vão como estão na pasta da lista. Primeiro o agente vê se há o que mudar:
+- **sem diferença** entre as revisões nem entre o controle e a revisão atual, ele devolve a resposta
+  curta (o `<title>` é SEM DIFERENÇAS). O SIG-FT não grava nada: a aba diz "sem diferenças", e o
+  console traz a linha de revisão nova, quando a revisão muda;
+- **com diferença**, ele devolve um HTML que diz se ela é **significativa** (item que entra ou sai,
+  quantidade, código, marca, modelo) ou **só correção de texto**, e as linhas a colar no controle
+  (criar, alterar, mover para a SEM_LISTA). Com poucas mudanças, vêm só as linhas que mudam, em
+  blocos com a instrução; com muitas e espalhadas, a `_STATUS_PMIB` inteira. O SIG-FT grava esse
+  HTML na pasta da lista.
+
+Nada é aplicado no Excel.
 
 Desenho: `docs/superpowers/specs/2026-11-03-amp-revisao-com-arquivos-design.md`.
 
@@ -105,6 +113,11 @@ O que já mudou (o porquê está no topo do `agente.md`):
 - **2026-11-09, a cópia sem o cabeçalho:** cada botão de copiar leva só as linhas abaixo do
   cabeçalho, que é o mesmo da planilha. No AMP, troque só a frase "Cada tabela tem um botão que
   copia..." pela do `agente.md`.
+- **2026-11-11, só onde há o que mudar:** a resposta curta sem diferença, a diferença significativa
+  separada da correção de texto e só as linhas que mudam. No AMP, troque o **System Prompt
+  inteiro**, o **Customized Goal** e a **Description** pelos do `agente.md`. O workflow não muda.
+  O `<title>` que o agente escreve é o que o SIG-FT lê: o SIG-FT com esta mudança não grava a
+  resposta curta; o de antes (até a 1.4.1-rc.1) a grava como um HTML pequeno, sem falhar.
 
 ## Resgatar um HTML que não chegou ao SIG-FT
 
@@ -171,7 +184,8 @@ documentos: eles não podem sair da GE. O diagnóstico do SIG-FT está abaixo.
 | HTTP 404 | o workflow não está publicado, ou o endereço é a Test URL (`/webhook-test/`) |
 | HTTP 400, etapa `arquivos` | os arquivos não chegaram ao agente: o **Monta a mensagem** precisa de *Include Other Input Fields = All* |
 | HTTP 502, etapa `agente` | o agente falhou: veja a execução no n8n e confira se o **AMP Agent** tem o agente e a credencial |
-| "o agente não devolveu HTML" | o agente respondeu texto: melhore o system prompt no AMP |
+| "o agente não devolveu HTML" | o agente respondeu texto: melhore o system prompt no AMP. Mesmo a resposta "sem diferenças" precisa vir no HTML curto do `agente.md` |
+| "sem diferenças" numa lista que mudou | o agente errou para menos: confira os PDFs e rode a lista de novo; se repetir, leve o caso (a lista e as revisões) para melhorar o system prompt |
 | "o workflow recebeu N de M arquivo(s)" | algum arquivo se perdeu no caminho: veja a aba Binary do Webhook na execução |
 | "o AMP não respondeu JSON" | algo no caminho devolveu uma página (login, proxy): a resposta está no diagnóstico |
 | "a conexão com o AMP caiu depois de N s" | algo no caminho corta a chamada longa; o n8n pode ter seguido (veja a execução). Em 03/11 a rede segurou uma chamada de minutos |

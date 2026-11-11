@@ -728,8 +728,9 @@ Anote o tempo e o número da execução.
 
 **5c.5 — Conferir o HTML.** Com os dois PDFs e o `_STATUS_PMIB` abertos:
 - confira 5 mudanças contra as páginas citadas;
-- confira a tabela de ações (CRIAR, EXCLUIR, SUBSTITUIR) numa **cópia** do `_STATUS_PMIB`, nunca no
-  original nesta fase.
+- aplique a seção 4 (CRIAR, ALTERAR, MOVER PARA A SEM_LISTA) numa **cópia** do `_STATUS_PMIB`,
+  nunca no original nesta fase: siga os blocos na ordem do HTML, de baixo para cima, e veja se cada
+  linha colada caiu no lugar certo.
 
 O conteúdo depende do system prompt, que se melhora no AMP. O passo a passo está no LEIA-ME, em
 "Melhorar o agente".
@@ -747,6 +748,16 @@ O conteúdo depende do system prompt, que se melhora no AMP. O passo a passo est
 
 A tabela de sintomas está no `amp/revisao_de_listas/LEIA-ME.md`, que também ensina o mesmo teste
 pelo PowerShell, sem o SIG-FT.
+
+**5c.7 — Sem diferenças e correção de texto (o agente de 2026-11-11).** Com o system prompt novo
+colado no AMP (`amp/revisao_de_listas/agente.md`):
+- uma lista que **não mudou** (o `_STATUS_PMIB` já igual à revisão atual): a coluna AMP diz "sem
+  diferenças", nenhum HTML aparece na pasta, e o console traz `✓ sem diferenças` e, se a revisão
+  mudou, a `linha de revisão nova`;
+- uma lista em que só mudou o texto (descrição reescrita, marca completada): o console termina o
+  `✓ HTML gravado` com `· só correção de texto`, e o topo do HTML diz o mesmo;
+- uma lista com código, quantidade, marca ou modelo novo: `· mudança significativa`;
+- maiúsculas e minúsculas sozinhas não aparecem no HTML.
 
 ---
 
@@ -849,8 +860,10 @@ ETAPA 5c — Revisão das listas no AMP (v2)
        a lista se desmarcou? ............. [ sim / não ]
   5c.4 A desmarcada ficou de fora? ....... [ sim / não: ______ ]
   5c.5 5 mudanças conferem com os PDFs? .. [ ___ de 5 ]
-       ações aplicadas numa cópia? ....... [ sim / não: ______ ]
+       blocos colados no lugar certo? .... [ sim / não: ______ ]
   5c.6 Falhou? colei o diagnóstico ....... [ não falhou / colei na conversa ]
+  5c.7 Sem diferenças: nada na pasta? .... [ sim / não testei ]
+       classificação no console bate? .... [ sim / não: ______ ]
 ```
 
 ---

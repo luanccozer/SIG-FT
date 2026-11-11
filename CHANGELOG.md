@@ -12,6 +12,10 @@ Escreva cada linha pensando em quem usa o SIG-FT, não em quem o programa:
 "a busca do AutoSpec passa a funcionar com a VPN ligada" é útil; "refatorado o
 cliente HTTP para usar WinHttpGetProxyForUrl" não.
 
+## 1.4.1 - 2026-11-11
+
+- Revisão no AMP: o agente passa a **gastar esforço só onde há o que mudar**. Sem diferença entre as revisões nem entre o _STATUS_PMIB e a revisão atual, ele responde curto e **nada é gravado**: a aba diz "sem diferenças", e o console traz a linha de revisão nova, quando a revisão muda. Com diferença, o HTML diz no topo, e a aba e o console repetem, se a mudança é **significativa** (item que entra ou sai, quantidade, código, marca, modelo) ou **só correção de texto** (a descrição reescrita, a marca completada, como PHOENIX para PHOENIX CONTACT); maiúsculas e minúsculas não contam. Com poucas mudanças, o HTML traz **só as linhas a mudar**, cada bloco com a instrução (cole por cima da linha 15, insira 2 linhas abaixo da 20, exclua a 30), de baixo para cima; a _STATUS_PMIB inteira só vem quando as mudanças são muitas e espalhadas. O texto novo do agente se cola no AMP: `amp/revisao_de_listas/agente.md`.
+
 ## 1.4.0 - 2026-11-10
 
 - IA: o painel antigo de **Modelos de IA** (provedor, modelo padrão, modo avançado por tarefa) **saiu**; a escolha é só por módulo, na janela Modelos de IA e no botão **Configurar IA** de cada módulo. O "Modelo manual" (um modelo do OpenRouter fora do catálogo) veio para a IA Externa. O que já estava escolhido continua valendo.
