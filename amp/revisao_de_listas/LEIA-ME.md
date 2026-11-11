@@ -31,7 +31,8 @@ Desenho: `docs/superpowers/specs/2026-11-03-amp-revisao-com-arquivos-design.md`.
 ### 1. O agente, no AMP
 
 1. Crie o agente, com o texto do `agente.md`:
-   - **Customized Goal:** o goal;
+   - **Customized Goal:** o goal. Ele só serve para a IA do AMP gerar um prompt; o que vale é o
+     System Prompt;
    - **Agent Name** e **Description**;
    - **Tone:** `professional`;
    - **System Prompt:** o system prompt.
@@ -114,8 +115,10 @@ O que já mudou (o porquê está no topo do `agente.md`):
   cabeçalho, que é o mesmo da planilha. No AMP, troque só a frase "Cada tabela tem um botão que
   copia..." pela do `agente.md`.
 - **2026-11-11, só onde há o que mudar:** a resposta curta sem diferença, a diferença significativa
-  separada da correção de texto e só as linhas que mudam. No AMP, troque o **System Prompt
-  inteiro**, o **Customized Goal** e a **Description** pelos do `agente.md`. O workflow não muda.
+  separada da correção de texto e só as linhas que mudam. No AMP, no mesmo agente (Configure),
+  troque o **System Prompt inteiro** e a **Description** pelos do `agente.md`; o Customized Goal
+  fica como está. Não crie agente novo: o nó AMP Agent do workflow acha este pelo nome, e o
+  workflow não muda (a resposta curta também é HTML, e o nó Prepara a resposta a passa adiante).
   O `<title>` que o agente escreve é o que o SIG-FT lê: o SIG-FT com esta mudança não grava a
   resposta curta; o de antes (até a 1.4.1-rc.1) a grava como um HTML pequeno, sem falhar.
 

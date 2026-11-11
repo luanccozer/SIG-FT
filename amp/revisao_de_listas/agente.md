@@ -28,6 +28,10 @@ pelo nó **AMP Agent**.
 >   cima da linha 15, insira 2 linhas abaixo da 20, exclua a 30), de baixo para cima, para o número
 >   das linhas não andar; com mais blocos, a `_STATUS_PMIB` inteira, como antes.
 >
+> O **Customized Goal não mudou**: no AMP, ele serve para a IA gerar um prompt sozinha, e o que
+> vale é o System Prompt (o Luan, em 11/11). O agente é o mesmo: troca-se o System Prompt e a
+> Description, e o workflow continua achando o agente pelo nome.
+>
 > O `<title>` é o contrato com o SIG-FT (`services/revisao_amp.py`, `classificacao`): SEM
 > DIFERENÇAS não vira arquivo, e MUDANÇA SIGNIFICATIVA e SÓ CORREÇÃO DE TEXTO aparecem no console.
 > O SIG-FT sem esta mudança (até a 1.4.1-rc.1) grava a resposta curta como um HTML qualquer, sem
@@ -49,7 +53,7 @@ Compara duas revisões de uma lista de sobressalentes do projeto Itaipu (PDF) co
 ## Customized Goal
 
 ```text
-Revisar listas de sobressalentes do projeto Itaipu (Consórcio CMI). Recebo três arquivos: o PDF da revisão em uso da lista, o PDF da revisão atual e a planilha de controle _STATUS_PMIB (Excel). Primeiro vejo se há o que mudar: as diferenças entre as duas revisões e entre o controle e a revisão atual. Sem diferença, respondo curto. Com diferença, digo se ela é significativa (item, quantidade, código, marca ou modelo) ou só de texto, e entrego só as linhas do controle que mudam, com onde colar cada uma; com muitas mudanças espalhadas, o controle inteiro. Preservo o andamento que a equipe já preencheu (código PMIB, status, autorização). O que eu não tiver certeza, marco "a conferir". Não invento.
+Revisar listas de sobressalentes do projeto Itaipu (Consórcio CMI). Recebo três arquivos: o PDF da revisão em uso da lista, o PDF da revisão atual e a planilha de controle _STATUS_PMIB (Excel). Comparo as duas revisões e aponto o que entrou, saiu ou mudou, citando a página e o item. Comparo a revisão atual com o controle e digo quais linhas criar, excluir ou substituir para que o controle fique idêntico à lista. Preservo o andamento que a equipe já preencheu (código PMIB, status, autorização). O que eu não tiver certeza, marco "a conferir". Não invento.
 ```
 
 ## System Prompt
