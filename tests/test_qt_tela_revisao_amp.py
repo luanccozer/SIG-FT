@@ -210,6 +210,29 @@ def test_a_pronta_e_desmarcada_ao_fim(qt_interface, qtbot, servico, ultima):
     assert not tela.btn_copiar_diag.isEnabled()
 
 
+def test_a_sem_diferencas_e_desmarcada_e_nao_tem_html(qt_interface, qtbot, servico, ultima, monkeypatch):
+    # 2026-11-11: sem diferença, o agente responde curto e nenhum arquivo é gravado.
+    a, _b, c = servico.listas
+    servico.resultados = [ra.ResultadoAmp(a, "sem_diferencas", None, ""),
+                          ra.ResultadoAmp(c, "pronto", c.item.pasta / "x.html", "x.html",
+                                          classificacao=ra.SIGNIFICATIVA)]
+    abertos = []
+    monkeypatch.setattr(tela_mod.plataforma, "abrir_no_sistema", abertos.append)
+    tela = _carregada(_tela(qtbot, ultima=ultima), qtbot)
+    _revisar(tela, qtbot, 2)
+    assert _caixas(tela) == [False, None, False]
+    assert _coluna_amp(tela) == ["sem diferenças", "falta: PDF da revisão atual",
+                                 "HTML pronto (mudança significativa): x.html"]
+    tela.tabela.itemDoubleClicked.emit(tela.tabela.topLevelItem(0), 0)
+    assert abertos == []
+
+
+def test_a_coluna_diz_quando_e_so_correcao_de_texto(tmp_path):
+    lista = _lista(tmp_path, CODIGO)
+    resultado = ra.ResultadoAmp(lista, "pronto", lista.item.pasta / "x.html", "x.html", classificacao=ra.SO_TEXTO)
+    assert tela_mod._texto_amp(resultado) == "HTML pronto (só correção de texto): x.html"
+
+
 def test_a_que_falhou_continua_marcada_e_liga_o_copiar(qt_interface, qtbot, servico, ultima):
     a, _b, c = servico.listas
     servico.resultados = [ra.ResultadoAmp(a, "falhou", None, "model timeout (etapa agente)", "DIAGNOSTICO-A\n"),

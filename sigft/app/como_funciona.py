@@ -239,10 +239,10 @@ TEXTOS: dict[str, Texto] = {
         (
             marcar("Pede uma conferência feita nesta sessão e o webhook do workflow, no Configurar IA, no "
                    "alto da seção."),
-            marcar("As listas vêm todas marcadas; a que tem falta fica sem caixa. As que voltam com HTML se "
-                   "desmarcam sozinhas."),
-            marcar("O agente do AMP recebe os dois PDFs e o _STATUS_PMIB como estão e devolve o que mudou e as "
-                   "ações no controle."),
+            marcar("As listas vêm todas marcadas; a que tem falta fica sem caixa. As que voltam, com HTML ou "
+                   "sem diferenças, se desmarcam sozinhas."),
+            marcar("O agente lê os dois PDFs e o _STATUS_PMIB. Sem diferença, nada é gravado; com diferença, o "
+                   "HTML diz se ela é significativa ou só de texto."),
             marcar("O HTML vai para a pasta da lista, sem sobrescrever. Nada muda no Excel: você confere e "
                    "aplica."),
             marcar("O console mostra cada passo, e o log de cada rodada fica em Documentos\\SIG-FT\\logs\\amp."),

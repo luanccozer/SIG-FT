@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import date
+
+import pytest
 
 from sigft.core import dados_usuario
 from sigft.core.amp.cliente import RespostaAmp
@@ -152,6 +155,110 @@ def test_workflow_que_recebeu_menos_arquivos_e_falha(tmp_path):
     assert (resultado.situacao, resultado.detalhe) == ("falhou", "o workflow recebeu 1 de 3 arquivo(s)")
 
 
+# ------------------------------------------------------------------ sem diferenças e a classificação
+# 2026-11-11 (pedido do Luan): sem diferença, o agente devolve a resposta curta, que não vira
+# arquivo; com diferença, o <title> do HTML diz se ela é significativa ou só de texto
+# (`amp/revisao_de_listas/agente.md`).
+
+CURTA = ('<!DOCTYPE html>\n<html lang="pt-BR"><head><meta charset="utf-8">'
+         f"<title>SEM DIFERENÇAS · {CODIGO}</title></head>\n<body>\n<h1>SEM DIFERENÇAS</h1>\n"
+         f"<p>Lista {CODIGO}: {DOCUMENTO}</p>\n<p>Linha de revisão nova: REVISÃO DA LISTA DE SOBRESSALENTES "
+         "ATUAL EM USO: 0B - DATA DE ALTERAÇÃO: 11/11/2026</p>\n</body>\n</html>")
+LINHA_DE_REVISAO = ("      linha de revisão nova: REVISÃO DA LISTA DE SOBRESSALENTES ATUAL EM USO: 0B - "
+                    "DATA DE ALTERAÇÃO: 11/11/2026")
+
+
+def _com_titulo(titulo):
+    return (f"<!DOCTYPE html><html><head><title>{titulo}</title></head><body>"
+            f"<table><tr><td>{DOCUMENTO}</td></tr></table></body></html>")
+
+
+@pytest.mark.parametrize("html, esperado", [
+    (f"<html><head><title>SEM DIFERENÇAS · {CODIGO}</title>", ra.SEM_DIFERENCAS),
+    ("<title>\n  Mudança significativa · X</title>", ra.SIGNIFICATIVA),
+    ("<TITLE>SÓ CORREÇÃO DE TEXTO</TITLE>", ra.SO_TEXTO),
+    ("<title>SO CORRECAO DE TEXTO · X</title>", ra.SO_TEXTO),
+    ("<title>Revisão da lista X</title>", ""),
+    ("<title></title><h1>SEM DIFERENÇAS</h1>", ""),
+    ("<html><table></table></html>", ""),
+    ("", ""),
+])
+def test_classificacao_pelo_titulo(html, esperado):
+    assert ra.classificacao(html) == esperado
+
+
+def test_sem_diferencas_nao_grava_arquivo_e_o_log_traz_a_linha_de_revisao(tmp_path):
+    lista = _lista(tmp_path)
+    linhas = []
+    [resultado] = _rodar([lista], _Cliente(_ok(CURTA)), linhas, hoje=date(2026, 11, 11))
+    assert (resultado.situacao, resultado.html) == ("sem_diferencas", None)
+    assert list(lista.item.pasta.glob("*.html")) == []
+    assert "    ✓ sem diferenças: nada a mudar nas linhas do controle" in linhas
+    assert LINHA_DE_REVISAO in linhas
+    assert linhas[-1].startswith("Fim: 0 HTML pronto(s), 1 sem diferença(s), 0 falha(s), 0 com falta, 0 parada(s)")
+    # A linha de revisão é do SIG-FT: o texto do agente não vai para o log.
+    assert DOCUMENTO not in "\n".join(linhas)
+
+
+def test_sem_diferencas_na_mesma_revisao_nao_tem_linha_de_revisao(tmp_path):
+    linhas = []
+    [resultado] = _rodar([_lista(tmp_path, em_uso="0B")], _Cliente(_ok(CURTA)), linhas, hoje=date(2026, 11, 11))
+    assert resultado.situacao == "sem_diferencas"
+    assert not any("linha de revisão nova" in linha for linha in linhas)
+
+
+def test_sem_diferencas_sem_revisao_em_uso_traz_a_linha_de_revisao(tmp_path):
+    linhas = []
+    _rodar([_lista(tmp_path, em_uso="")], _Cliente(_ok(CURTA)), linhas, hoje=date(2026, 11, 11))
+    assert LINHA_DE_REVISAO in linhas
+
+
+def test_sem_diferencas_com_arquivo_faltando_e_falha(tmp_path):
+    # Sem um dos arquivos, "sem diferenças" não prova nada.
+    [resultado] = _rodar([_lista(tmp_path)], _Cliente(_ok(CURTA, arquivos=["b.pdf", "s.xlsx"])),
+                         gravar_diagnostico=False)
+    assert (resultado.situacao, resultado.detalhe) == ("falhou", "o workflow recebeu 2 de 3 arquivo(s)")
+
+
+def test_titulo_sem_diferencas_com_tabela_e_gravado(tmp_path):
+    # O título diz uma coisa e o HTML outra: o SIG-FT nunca joga fora uma tabela.
+    [resultado] = _rodar([_lista(tmp_path)], _Cliente(_ok(_com_titulo(f"SEM DIFERENÇAS · {CODIGO}"))))
+    assert resultado.situacao == "pronto" and resultado.html.is_file()
+    assert resultado.classificacao == ""
+
+
+def test_texto_sem_html_continua_falha_mesmo_dizendo_sem_diferencas(tmp_path):
+    # O SIG-FT só confia no <title> do HTML: o texto solto, como antes, é falha (o workflow de
+    # 2026-11-03 já o devolve com ok falso).
+    dados = {"ok": False, "modo": "revisar", "html": "SEM DIFERENÇAS", "execucao": "77",
+             "erro": "o agente não devolveu HTML"}
+    [resultado] = _rodar([_lista(tmp_path)], _Cliente(_falha("o agente não devolveu HTML", 200, dados)),
+                         gravar_diagnostico=False)
+    assert (resultado.situacao, resultado.detalhe) == ("falhou", "o agente não devolveu HTML")
+
+
+@pytest.mark.parametrize("titulo, rotulo, constante", [
+    (f"MUDANÇA SIGNIFICATIVA · {CODIGO}", "mudança significativa", ra.SIGNIFICATIVA),
+    (f"SÓ CORREÇÃO DE TEXTO · {CODIGO}", "só correção de texto", ra.SO_TEXTO),
+])
+def test_o_html_gravado_diz_a_classificacao(tmp_path, titulo, rotulo, constante):
+    linhas = []
+    [resultado] = _rodar([_lista(tmp_path)], _Cliente(_ok(_com_titulo(titulo))), linhas)
+    assert resultado.situacao == "pronto" and resultado.html.is_file()
+    assert resultado.classificacao == constante
+    gravado = next(linha for linha in linhas if linha.startswith("    ✓ HTML gravado: "))
+    assert gravado.endswith(f") · {rotulo}")
+
+
+def test_html_sem_o_titulo_combinado_e_gravado_como_antes(tmp_path):
+    # O agente de antes de 2026-11-11 não põe a classificação no título.
+    linhas = []
+    [resultado] = _rodar([_lista(tmp_path)], _Cliente(_ok()), linhas)
+    assert (resultado.situacao, resultado.classificacao) == ("pronto", "")
+    gravado = next(linha for linha in linhas if linha.startswith("    ✓ HTML gravado: "))
+    assert gravado.endswith(")")
+
+
 # ------------------------------------------------------------------ o log
 
 def test_o_log_diz_o_que_vai_e_o_que_voltou(tmp_path):
@@ -168,7 +275,8 @@ def test_o_log_diz_o_que_vai_e_o_que_voltou(tmp_path):
     assert any(linha.startswith(f"    ✓ HTML gravado: {CODIGO}[0A-0B] revisao AMP.html (") for linha in linhas)
     assert f"[2/2] {OUTRO} · em uso 0A → atual 0B" in linhas
     assert "    - falta: PDF da revisão atual" in linhas
-    assert linhas[-1].startswith("Fim: 1 HTML pronto(s), 0 falha(s), 1 com falta, 0 parada(s), em 0:0")
+    assert linhas[-1].startswith("Fim: 1 HTML pronto(s), 0 sem diferença(s), 0 falha(s), 1 com falta, "
+                                 "0 parada(s), em 0:0")
     texto = "\n".join(linhas)
     assert DOCUMENTO not in texto and CHAVE not in texto
 

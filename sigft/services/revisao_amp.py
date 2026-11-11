@@ -6,6 +6,10 @@ e o `_STATUS_PMIB` como estão, como o Luan fazia no chat do AMP: o SIG-FT não 
 deles. A rodada escreve no log o que vai e o que voltou de cada lista, com o número da execução do
 n8n, e um batimento enquanto o agente trabalha (o Luan, em 03/11: "precisamos ver o que está
 acontecendo"). Desenho: `docs/superpowers/specs/2026-11-03-amp-revisao-com-arquivos-design.md`.
+
+Desde 2026-11-11 (pedido do Luan: não gastar esforço onde não há o que mudar), o `<title>` do HTML
+diz o que o agente achou (`classificacao`): SEM DIFERENÇAS é a resposta curta, que não vira
+arquivo; MUDANÇA SIGNIFICATIVA e SÓ CORREÇÃO DE TEXTO vão para o log e para a tabela da aba.
 """
 from __future__ import annotations
 
@@ -17,12 +21,14 @@ import time
 import traceback
 from dataclasses import dataclass
 from datetime import date, datetime
+from html import unescape
 from pathlib import Path
 from typing import Literal
 
 from sigft.core import dados_usuario
 from sigft.core.aconex.status_real import revisoes_iguais
 from sigft.core.amp.cliente import RespostaAmp
+from sigft.services.autorizacao import normalizar
 from sigft.services.conferencia_revisoes import (
     Conferencia,
     Download,
@@ -30,6 +36,7 @@ from sigft.services.conferencia_revisoes import (
     nome_do_pdf,
     resolver_status_pmib,
 )
+from sigft.services.docpack import texto_da_revisao
 
 CORPO_NO_DIAGNOSTICO = 1500   # caracteres do corpo da resposta que o diagnóstico mostra
 ERRO_NO_DIAGNOSTICO = 300     # o erro do workflow, cortado: ele pode repetir a saída do agente
@@ -45,6 +52,15 @@ ARQUIVOS_DO_REPOSITORIO = (
 )
 _RESERVADOS = re.compile(r'[<>:"/\\|?*]')   # os mesmos de conferencia_revisoes.nome_do_pdf
 _TEM_HTML = re.compile(r"<html|<table", re.IGNORECASE)
+_TEM_TABELA = re.compile(r"<table", re.IGNORECASE)
+_TITULO = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
+
+# O começo do <title> do HTML do agente (`amp/revisao_de_listas/agente.md`, desde 2026-11-11): é o
+# contrato com ele, e `tests/test_amp_workflow.py` confere que o agente.md escreve os três.
+SEM_DIFERENCAS = "SEM DIFERENÇAS"
+SIGNIFICATIVA = "MUDANÇA SIGNIFICATIVA"
+SO_TEXTO = "SÓ CORREÇÃO DE TEXTO"
+_CLASSIFICACOES = (SEM_DIFERENCAS, SIGNIFICATIVA, SO_TEXTO)
 
 
 @dataclass(frozen=True)
@@ -69,10 +85,11 @@ class PedidoAmp:
 @dataclass(frozen=True)
 class ResultadoAmp:
     lista: ListaParaAmp
-    situacao: Literal["pronto", "falhou", "falta", "parado"]
+    situacao: Literal["pronto", "sem_diferencas", "falhou", "falta", "parado"]
     html: Path | None
     detalhe: str
     diagnostico: str = ""   # só na falha: o texto para colar numa conversa nova
+    classificacao: str = ""  # no "pronto": SIGNIFICATIVA, SO_TEXTO, ou "" (título fora do combinado)
 
 
 def _mm_ss(segundos: float) -> str:
@@ -173,6 +190,17 @@ def nome_do_html(codigo: str, em_uso: str, atual: str) -> str:
     """`<código>[<em uso>-<atual>] revisao AMP.html`; sem revisão em uso, `[-<atual>]`. Só os
     reservados do Windows viram `_`."""
     return _RESERVADOS.sub("_", f"{codigo}[{em_uso}-{atual}] revisao AMP") + ".html"
+
+
+def classificacao(html: str) -> str:
+    """O que o agente achou, pelo começo do `<title>`: `SEM_DIFERENCAS`, `SIGNIFICATIVA` ou
+    `SO_TEXTO`; "" sem o título combinado (o agente de antes de 2026-11-11). Sem caixa nem acento:
+    "So correcao de texto" também vale."""
+    achado = _TITULO.search(html or "")
+    if achado is None:
+        return ""
+    titulo = normalizar(unescape(achado.group(1)))
+    return next((rotulo for rotulo in _CLASSIFICACOES if titulo.startswith(normalizar(rotulo))), "")
 
 
 def gravar_html(pasta: Path, nome: str, html: str) -> Path:
@@ -318,7 +346,21 @@ def _falhou(lista: ListaParaAmp, pedido: PedidoAmp | None, resposta: RespostaAmp
     return ResultadoAmp(lista, "falhou", None, detalhe, diagnostico(lista, pedido, resposta, erro=erro, **contexto))
 
 
-def _revisar(lista: ListaParaAmp, cliente, montar, log_cb, batimento: float, **contexto) -> ResultadoAmp:
+def _sem_diferencas(lista: ListaParaAmp, log_cb, hoje: date | None) -> ResultadoAmp:
+    """A resposta curta do agente não vira arquivo (o Luan, em 11/11: sem diferença, o HTML não é
+    preciso). Se a revisão muda, o log traz a linha de revisão nova, escrita pelo SIG-FT: o texto do
+    agente não vai para o log (§5.6 do desenho)."""
+    log_cb("    ✓ sem diferenças: nada a mudar nas linhas do controle")
+    em_uso = lista.item.lista.revisao_em_uso
+    if em_uso and revisoes_iguais(em_uso, lista.revisao_atual):
+        return ResultadoAmp(lista, "sem_diferencas", None, "")
+    linha = texto_da_revisao(lista.revisao_atual, hoje or date.today())
+    log_cb(f"      linha de revisão nova: {linha}")
+    return ResultadoAmp(lista, "sem_diferencas", None, linha)
+
+
+def _revisar(lista: ListaParaAmp, cliente, montar, log_cb, batimento: float, hoje: date | None,
+             **contexto) -> ResultadoAmp:
     dados = lista.item.lista
     if lista.falta:
         log_cb(f"    - {lista.falta}")
@@ -340,14 +382,20 @@ def _revisar(lista: ListaParaAmp, cliente, montar, log_cb, batimento: float, **c
         return _falhou(lista, pedido, resposta,
                        f"o workflow recebeu {len(resposta.arquivos)} de {len(pedido.arquivos)} arquivo(s)",
                        log_cb, **contexto)
+    rotulo = classificacao(resposta.html)
+    if rotulo == SEM_DIFERENCAS:
+        if not _TEM_TABELA.search(resposta.html):
+            return _sem_diferencas(lista, log_cb, hoje)
+        rotulo = ""   # o título diz "sem diferenças" e o HTML tem tabela: grava, sem classificar
     nome = nome_do_html(dados.codigo, dados.revisao_em_uso, lista.revisao_atual)
     try:
         caminho = gravar_html(lista.item.pasta, nome, resposta.html)
     except OSError as erro:
         return _falhou(lista, pedido, resposta, f"o HTML não foi gravado: {erro}", log_cb,
                        erro=f"o HTML não foi gravado: {erro}", **contexto)
-    log_cb(f"    ✓ HTML gravado: {caminho.name} ({_tamanho(caminho)})")
-    return ResultadoAmp(lista, "pronto", caminho, caminho.name)
+    sufixo = f" · {rotulo.lower()}" if rotulo else ""
+    log_cb(f"    ✓ HTML gravado: {caminho.name} ({_tamanho(caminho)}){sufixo}")
+    return ResultadoAmp(lista, "pronto", caminho, caminho.name, classificacao=rotulo)
 
 
 def _gravar_diagnostico(resultado: ResultadoAmp, log_cb) -> None:
@@ -391,13 +439,14 @@ def _ping_falhou(listas, ping: RespostaAmp, log_cb, resultado_cb, gravar_diagnos
 
 def revisar_listas(listas: list[ListaParaAmp], cliente, *, versao_sigft: str, url: str, chave_posta: bool, log_cb,
                    progress_cb=None, cancelado_cb=None, resultado_cb=None, gravar_diagnostico: bool = True,
-                   montar=montar_pedido, desmarcadas=(), com_falta=(), batimento: float = BATIMENTO
-                   ) -> list[ResultadoAmp]:
+                   montar=montar_pedido, desmarcadas=(), com_falta=(), batimento: float = BATIMENTO,
+                   hoje: date | None = None) -> list[ResultadoAmp]:
     """Uma lista por vez (§5 do desenho). Antes, o `ping`: falhando, nada é mandado. A lista com
     falta não é chamada; a falha de uma não para as outras e deixa o diagnóstico em
     `logs\\amp\\`; `cancelado_cb()` é lido entre as listas, e as que sobram ficam "parado".
     `resultado_cb(resultado)` recebe cada lista assim que ela acaba. `desmarcadas` e `com_falta`
-    (os códigos que ficaram fora) só vão para o começo do log."""
+    (os códigos que ficaram fora) só vão para o começo do log. `hoje` é a DATA DE ALTERAÇÃO da
+    linha de revisão que o log dá à lista sem diferenças (sem ela, a de hoje)."""
     contexto = {"versao_sigft": versao_sigft, "url": url, "chave_posta": chave_posta}
     inicio = time.monotonic()
     for linha in _cabecalho(listas, list(desmarcadas), list(com_falta), url, chave_posta):
@@ -422,7 +471,7 @@ def revisar_listas(listas: list[ListaParaAmp], cliente, *, versao_sigft: str, ur
             if progress_cb:
                 progress_cb(min(0.05 + n / len(listas) * 0.9, 0.95))
             log_cb(f"[{n + 1}/{len(listas)}] {lista.item.lista.codigo} · {_revisoes(lista)}")
-            resultado = _revisar(lista, cliente, montar, log_cb, batimento, **contexto)
+            resultado = _revisar(lista, cliente, montar, log_cb, batimento, hoje, **contexto)
             if resultado.diagnostico and gravar_diagnostico:
                 _gravar_diagnostico(resultado, log_cb)
         resultados.append(resultado)
@@ -430,9 +479,11 @@ def revisar_listas(listas: list[ListaParaAmp], cliente, *, versao_sigft: str, ur
             resultado_cb(resultado)
     if progress_cb:
         progress_cb(1.0)
-    contagem = {s: sum(r.situacao == s for r in resultados) for s in ("pronto", "falhou", "falta", "parado")}
-    log_cb(f"Fim: {contagem['pronto']} HTML pronto(s), {contagem['falhou']} falha(s), {contagem['falta']} com falta, "
-           f"{contagem['parado']} parada(s), em {_mm_ss(time.monotonic() - inicio)}")
+    contagem = {s: sum(r.situacao == s for r in resultados)
+                for s in ("pronto", "sem_diferencas", "falhou", "falta", "parado")}
+    log_cb(f"Fim: {contagem['pronto']} HTML pronto(s), {contagem['sem_diferencas']} sem diferença(s), "
+           f"{contagem['falhou']} falha(s), {contagem['falta']} com falta, {contagem['parado']} parada(s), "
+           f"em {_mm_ss(time.monotonic() - inicio)}")
     return resultados
 
 
