@@ -15,6 +15,7 @@ cliente HTTP para usar WinHttpGetProxyForUrl" não.
 ## 1.4.1 - 2026-11-11
 
 - Revisão no AMP: o agente passa a **gastar esforço só onde há o que mudar**. Sem diferença entre as revisões nem entre o _STATUS_PMIB e a revisão atual, ele responde curto e **nada é gravado**: a aba diz "sem diferenças", e o console traz a linha de revisão nova, quando a revisão muda. Com diferença, o HTML diz no topo, e a aba e o console repetem, se a mudança é **significativa** (item que entra ou sai, quantidade, código, marca, modelo) ou **só correção de texto** (a descrição reescrita, a marca completada, como PHOENIX para PHOENIX CONTACT); maiúsculas e minúsculas não contam. Com poucas mudanças, o HTML traz **só as linhas a mudar**, cada bloco com a instrução (cole por cima da linha 15, insira 2 linhas abaixo da 20, exclua a 30), de baixo para cima; a _STATUS_PMIB inteira só vem quando as mudanças são muitas e espalhadas. O texto novo do agente se cola no AMP: `amp/revisao_de_listas/agente.md`.
+- Ficha duplicada: nas **Condições**, o robô passa a abrir de fato cada sub-aba, inclusive **Armazenamento**, antes de escrever nela. Antes, depois da conferência ele ficava na sub-aba Descarte, procurava os campos de Armazenamento no lugar errado, e uma ficha chegou a levar mais de 8 minutos só nas Condições. Campo que não aparece fica pendente, sem tentativas no vazio, e o SALVAR clicado é sempre o da seção. Se o navegador fechar no meio do lote, o robô para, guarda no _STATUS_PMIB o que já fez e diz quantas fichas não foram iniciadas.
 
 ## 1.4.0 - 2026-11-10
 
