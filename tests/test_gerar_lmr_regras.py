@@ -51,6 +51,14 @@ def test_expande_rds():
     assert r.expande_rds(m, "AMD-03") == m
 
 
+def test_rds_generico_e_partes():
+    assert r.rds_generico("#ST60=M20MKF10UZ001") == "#ST[XX]=M[XX]MKF10UZ001"
+    assert r.rds_generico("#ST50=M00MKF10") == "#ST50=M00MKF10"
+    assert r.rds_generico("#ST50=M21MKF10") == "#ST50=M21MKF10"
+    assert r.partes_rds("#ST50=M01MKF10UZ001") == ("50", "M01")
+    assert r.partes_rds("SEM RDS") == (None, None)
+
+
 def test_elevacao_local_eixo_trecho():
     assert r.formata_elevacao("106,105") == ("106,11", "elevação 106,105 arredondada para 106,11")
     assert r.formata_elevacao("98.5") == ("98,50", None)

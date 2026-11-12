@@ -145,6 +145,17 @@ def expande_rds(modelo: str, trecho: str) -> str:
     return s.replace("#ST[XX]", f"#ST{t.hz}").replace("M[XX]", t.m)
 
 
+def partes_rds(rds) -> tuple[str | None, str | None]:
+    """(#ST, M) de um RDS-PP expandido, ex. ('50', 'M01'); pega também M inválido (M9A, M18A)."""
+    m = re.search(r"#ST(\d\d)=(M[0-9A]{2,3})(?=[A-Z]{3}\d\d)", txt(rds))
+    return (m[1], m[2]) if m else (None, None)
+
+
+def rds_generico(rds) -> str:
+    """#ST50=M01MKF10... → #ST[XX]=M[XX]MKF10... (M00/M50/M60 ficam)."""
+    return re.sub(r"^#ST(50|60)=M(0[1-9]|1\d|20)(?=[A-Z])", "#ST[XX]=M[XX]", txt(rds), count=1)
+
+
 # ───────────── 4. CÓDIGO_LMR e TAG_LMR ─────────────
 
 
