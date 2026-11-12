@@ -297,11 +297,12 @@ TEXTOS: dict[str, Texto] = {
         ),
     ),
     "GerarLMR.analise": Texto(
-        marcar("A análise no AMP chega depois."),
+        marcar("Manda a extração ao agente do AMP, que devolve o CSV da aplicação."),
         (
-            marcar("Por enquanto, o CSV vem do agente do AMP, fora do SIG-FT."),
-            marcar("Esta aba não grava nada: só avisa o que vem depois."),
-            marcar("Com o CSV pronto, siga para a aba 3."),
+            marcar("Configurar IA guarda o endereço e a chave do webhook; Testar conexão não chama o agente."),
+            marcar("Enviar ao AMP manda o índice, o Status e os lotes numa chamada só, sem repetir sozinho."),
+            marcar("O CSV volta em LMR\\EXTRACAO\\RESPOSTA_AMP.csv; o anterior fica como (anterior)."),
+            marcar("Lote que o agente não leu é avisado no console: o CSV sai incompleto, e a aba 3 o valida."),
         ),
     ),
     "GerarLMR.aplicacao": Texto(
