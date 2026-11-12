@@ -103,7 +103,7 @@ def test_os_modulos_novos_estao_no_menu_e_nos_cards():
     i = telas_do_menu.index("PMIBManager")
     assert telas_do_menu[i:i + 5] == ["PMIBManager", "ConferenciaListas", "DocPack", "ListaPrecos", "SearchPMIB"]
     assert "ConferenciaRevisoes" not in telas_do_menu
-    assert len(catalogo.MODULOS) == 16  # 2026-11-04: + Conferência de Listas e DocPack; 11-05: Lista de Preços
+    assert len(catalogo.MODULOS) == 17  # 2026-11-04: + Conferência de Listas e DocPack; 11-05: Lista de Preços; 11-12: Gerar Aplicação LMR
 
 
 def test_a_tela_diz_se_tem_tarefa_rodando(qt_interface, qtbot):

@@ -129,6 +129,19 @@ def test_argumentos_preservam_acento_e_espaco(tmp_path):
     assert extracao.documentos == 1
 
 
+def test_muitos_pdfs_viram_varias_chamadas_da_dlc(tmp_path, monkeypatch):
+    monkeypatch.setattr(ex, "LIMITE_DA_LINHA", 400)
+    nomes = [f"Documento comprido numero {i:02d} [R0].pdf" for i in range(12)]
+    docs = {n: [(COM_TAG, False)] for n in nomes}
+    chamadas = []
+    extracao, _, prog = rodar(tmp_path, [tmp_path / "pasta" / n for n in nomes],
+                              dlc_falsa(docs, chamadas=chamadas))
+    assert len(chamadas) > 1 and all(sum(len(a) + 1 for a in c) <= 400 for c in chamadas)
+    assert [Path(a).name for c in chamadas for a in c[2:]] == nomes  # todos, uma vez, na ordem
+    assert extracao.documentos == 12
+    assert [p[0] for p in prog] == list(range(1, 13)) and {p[1] for p in prog} == {12}  # progresso do total
+
+
 def test_nome_sem_codigo_entra_com_o_nome_e_aviso(tmp_path):
     docs = {SEM_CODIGO: [(COM_TAG, False)]}
     extracao, log, _ = rodar(tmp_path, [SEM_CODIGO], dlc_falsa(docs))

@@ -135,6 +135,11 @@ def _lista_precos(parent, controller):
     return ModuloListaPrecos(parent, controller)
 
 
+def _gerar_lmr(parent, controller):
+    from sigft.app_qt.views.gerar_aplicacao_lmr import ModuloGerarAplicacaoLMR
+    return ModuloGerarAplicacaoLMR(parent, controller)
+
+
 def _upload_fotos(parent, controller):
     from sigft.app_qt.views.upload_fotos import ModuloUploadFotos
     return ModuloUploadFotos(parent, controller)
@@ -166,6 +171,7 @@ TELAS = {
     # Etapa 2 (pilotos): Tradutor e a seção Aplicação LMR (Upload + Exclusão).
     "Translator": lambda parent, controller: ModuloTranslator(parent, controller),
     "LMR": lambda parent, controller: ModuloAplicacaoLMR(parent, controller),
+    "GerarLMR": _gerar_lmr,
     # Etapas 3 a 5.
     "CriaFichas": _cria_fichas,
     "PDM": _pdm,

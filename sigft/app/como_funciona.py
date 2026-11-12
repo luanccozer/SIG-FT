@@ -287,6 +287,32 @@ TEXTOS: dict[str, Texto] = {
             marcar("Item novo entra sem preço; o que saiu do _STATUS_PMIB sai da lista e vai para o log."),
         ),
     ),
+    "GerarLMR.extracao": Texto(
+        marcar("Lê os PDFs de um sistema com o Docling e deixa o texto pronto em LMR\\EXTRACAO."),
+        (
+            marcar("Escolha a pasta do sistema e o _STATUS_PMIB; os PDFs da pasta aparecem marcados."),
+            marcar("Extrair documentos roda o componente à parte; PDF que falha não para os outros."),
+            marcar("Páginas sem texto no PDF são lidas por OCR e ficam marcadas no índice."),
+            marcar("Só entram nos lotes as páginas com TAG, RDS-PP, elevação ou código de material."),
+        ),
+    ),
+    "GerarLMR.analise": Texto(
+        marcar("A análise no AMP chega depois."),
+        (
+            marcar("Por enquanto, o CSV vem do agente do AMP, fora do SIG-FT."),
+            marcar("Esta aba não grava nada: só avisa o que vem depois."),
+            marcar("Com o CSV pronto, siga para a aba 3."),
+        ),
+    ),
+    "GerarLMR.aplicacao": Texto(
+        marcar("Gera a planilha da Aplicação LMR e a de validação a partir do CSV."),
+        (
+            marcar("Escolha o CSV (a resposta do AMP, se existir, já vem preenchida) e o nome curto do sistema."),
+            marcar("Escopo, subsistema e trechos valem para o sistema todo; LISTA pede os trechos."),
+            marcar("As planilhas saem em LMR\\SAIDA ATUAL, e linha bloqueada fica só na validação."),
+            marcar("Nada é gravado se o arquivo estiver aberto no Excel ou o caminho for comprido demais."),
+        ),
+    ),
     "SearchPMIB": Texto(
         marcar("Procura um código ou descrição nos _STATUS_PMIB de uma pasta inteira, de uma vez."),
         (
@@ -307,6 +333,7 @@ ABAS_DAS_SECOES: dict[str, tuple[str, ...]] = {
     "ConferenciaListas": ("ConferenciaListas.conferencia", "ConferenciaListas.amp"),  # nao-e-interface
     "DocPack": ("DocPack.etapa1", "DocPack.etapa2"),  # nao-e-interface
     "ListaPrecos": ("ListaPrecos.criar", "ListaPrecos.conferir"),  # nao-e-interface
+    "GerarLMR": ("GerarLMR.extracao", "GerarLMR.analise", "GerarLMR.aplicacao"),  # nao-e-interface
 }
 
 

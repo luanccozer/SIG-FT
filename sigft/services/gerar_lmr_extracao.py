@@ -21,6 +21,7 @@ from sigft.services.gerar_lmr_csv import catalogo_do_status
 TAMANHO_DO_LOTE = 80_000
 PASTA_DA_DLC = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "SIG-FT" / "docling"
 VERSAO_DA_DLC = "1"
+LIMITE_DA_LINHA = 30_000  # o CreateProcess do Windows aceita 32.767 caracteres; sobra margem
 _EXE = "docling_sigft.exe"
 
 _TAG = re.compile(r"\b[A-Z]{1,3}\d{2,3}[A-Z]?\b")
@@ -78,7 +79,24 @@ def _encerrar(proc) -> None:
     raise ExtracaoInterrompida("Extração interrompida.")
 
 
-def _ler_saida(proc, pdfs: list[Path], log_cb, progresso_cb, parar) -> tuple[set[str], dict[str, str]]:
+def _em_chamadas(pdfs: list[Path], fixo: int):
+    """Divide os PDFs em grupos que cabem numa linha de comando do Windows (limite de 32.767 caracteres)."""
+    grupo: list[Path] = []
+    tamanho = fixo
+    for pdf in pdfs:
+        n = len(str(pdf)) + 3  # espaço e aspas
+        if grupo and tamanho + n > LIMITE_DA_LINHA:
+            yield grupo
+            grupo, tamanho = [], fixo
+        grupo.append(pdf)
+        tamanho += n
+    if grupo:
+        yield grupo
+
+
+def _ler_saida(proc, pdfs: list[Path], log_cb, progresso_cb, parar, feitos: int = 0,
+               total_geral: int | None = None) -> tuple[set[str], dict[str, str]]:
+    total_geral = total_geral or len(pdfs)
     nomes = [p.name for p in pdfs]
     lidos: set[str] = set()
     falhas: dict[str, str] = {}
@@ -93,7 +111,7 @@ def _ler_saida(proc, pdfs: list[Path], log_cb, progresso_cb, parar) -> tuple[set
             contagem, _, nome = linha[10:].partition(" ")
             atual, _, total = contagem.partition("/")
             if atual.isdigit() and total.isdigit():
-                progresso_cb(int(atual), int(total), item=nome)
+                progresso_cb(feitos + int(atual), total_geral, item=nome)
         elif linha.startswith("OK "):
             # os dois últimos campos são os números; o resto é o nome (que pode ter espaços)
             partes = linha[3:].rsplit(" ", 2)
@@ -116,10 +134,18 @@ def extrair(pdfs, status, pasta_sistema, *, log_cb, progresso_cb, parar=lambda: 
     pdfs = [Path(p) for p in pdfs]
     catalogo = catalogo_do_status(Path(status))
 
-    args = [str(PASTA_DA_DLC / _EXE), str(pasta), *map(str, pdfs)]
-    proc = executar(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8",
-                    errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    lidos, falhas = _ler_saida(proc, pdfs, log_cb, progresso_cb, parar)
+    exe = str(PASTA_DA_DLC / _EXE)
+    lidos: set[str] = set()
+    falhas: dict[str, str] = {}
+    feitos = 0
+    for grupo in _em_chamadas(pdfs, len(exe) + len(str(pasta)) + 6):
+        proc = executar([exe, str(pasta), *map(str, grupo)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                        text=True, encoding="utf-8", errors="replace",
+                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        ok, falha = _ler_saida(proc, grupo, log_cb, progresso_cb, parar, feitos, len(pdfs))
+        lidos |= ok
+        falhas.update(falha)
+        feitos += len(grupo)
 
     documentos: list[dict] = []
     nao_lidos: list[tuple[str, str]] = []

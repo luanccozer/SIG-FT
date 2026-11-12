@@ -85,6 +85,7 @@ MODULOS_ESSENCIAIS = [
     "sigft.app_qt.views.home",
     "sigft.app_qt.views.translator",
     "sigft.app_qt.views.aplicacao_lmr",
+    "sigft.app_qt.views.gerar_aplicacao_lmr",
     "sigft.app_qt.views.cria_fichas",
     "sigft.app_qt.views.pdm",
     "sigft.app_qt.views.analyzer",
