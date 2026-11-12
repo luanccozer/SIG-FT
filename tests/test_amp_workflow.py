@@ -16,7 +16,11 @@ from __future__ import annotations
 import importlib.util
 import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 PASTA = Path(__file__).resolve().parent.parent / "amp" / "revisao_de_listas"
 
@@ -153,3 +157,104 @@ def test_a_copia_leva_so_as_linhas_abaixo_do_cabecalho():
     agente = (PASTA / "agente.md").read_text(encoding="utf-8")
     assert "copia só as linhas abaixo do cabeçalho" in agente
     assert "Cada tabela tem um botão que copia a tabela como texto" not in agente
+
+
+# ------------------------------------------------------------------ a cópia para o Excel (2026-11-12)
+# O Luan: o que mudou vem em azul #0070C0, e os números não desformatam no Excel (o código PMIB com
+# ponto, o 0034871 que virava 34871, o número longo que virava exponencial). Texto puro não leva cor:
+# o script do prompt copia em HTML (o Ctrl+V do Excel) e em texto (com ' na frente desses números).
+
+PAGINA_DE_TESTE = """<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>X</title></head><body>
+<button id="b" onclick="copiar('t1', this)">Copiar</button>
+<table id="t1">
+<tr><th>Linha</th><th>ITEM</th><th>QTD.</th><th>UNID.</th><th>DESCRIÇÃO</th><th>CÓDIGO DO MATERIAL</th>
+<th>CÓDIGO CMI</th><th>MARCA/MODELO</th><th>Codigo PMIB</th><th>DATA DO EMAIL</th><th>DIAS DE ATRASO</th></tr>
+<tr><td>15</td><td>3.10</td><td>2</td><td>PÇ</td><td>CONTATOR   3RT2026 &amp; cia &lt;x&gt;</td><td>0034871</td>
+<td>123456789012345</td><td class="txt">PHOENIX CONTACT</td><td>4500063671.9003</td><td>12/05/2026</td><td>5</td></tr>
+<tr class="nova"><td>16</td><td>12</td><td>1,5</td><td>M</td><td>CABO</td><td>12345678</td><td>X-1</td>
+<td class="sig">SIEMENS</td><td></td><td></td><td></td></tr>
+</table>
+__SCRIPT__
+</body></html>"""
+
+TESTADOR = r"""
+const { chromium } = require('playwright');
+(async () => {
+  const browser = await chromium.launch();
+  try {
+    const context = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] });
+    const page = await context.newPage();
+    const erros = [];
+    page.on('pageerror', e => erros.push(e.message));
+    await page.goto('file://' + process.argv[2]);
+    await page.click('#b');
+    const copiado = await page.evaluate(async () => {
+      const out = {};
+      for (const item of await navigator.clipboard.read())
+        for (const tipo of item.types) out[tipo] = await (await item.getType(tipo)).text();
+      return out;
+    });
+    console.log(JSON.stringify({ botao: await page.textContent('#b'), erros, ...copiado }));
+  } finally {
+    await browser.close();
+  }
+})().catch(e => { console.error(String(e)); process.exit(1); });
+"""
+
+
+def _node_com_playwright():
+    node = shutil.which("node")
+    if node is None:
+        return None
+    try:
+        tem = subprocess.run([node, "-e", "require('playwright')"], capture_output=True, timeout=60).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return node if tem else None
+
+
+def test_a_copia_leva_o_azul_e_os_numeros_como_texto():
+    prompt = _system_prompt()
+    for trecho in ('class="sig"', 'class="txt"', 'class="nova"', "copiar('<id da tabela>', this)",
+                   "exatamente como está, o script abaixo", "azul #0070C0", "A QTD. continua número",
+                   "as datas vão como dd/mm/aaaa"):
+        assert trecho in prompt, trecho
+    [script] = re.findall(r"<script>.*?</script>", prompt, re.DOTALL)
+    for trecho in ("function copiar(id, botao)", "color:#0070C0", "mso-number-format:'@'",
+                   "font-family:'Swis721 Lt BT'", "border:.5pt solid windowtext", "'text/html'", "'text/plain'"):
+        assert trecho in script, trecho
+
+
+def test_o_script_de_copiar_no_chromium(tmp_path):
+    """O script do prompt, como está, numa página aberta do disco (como o SIG-FT abre o HTML)."""
+    node = _node_com_playwright()
+    if node is None:
+        pytest.skip("sem node com playwright: o script de copiar só roda onde há o Chromium")
+    [script] = re.findall(r"<script>.*?</script>", _system_prompt(), re.DOTALL)
+    pagina = tmp_path / "pagina.html"
+    pagina.write_text(PAGINA_DE_TESTE.replace("__SCRIPT__", script), encoding="utf-8")
+    testador = tmp_path / "testar.js"
+    testador.write_text(TESTADOR, encoding="utf-8")
+    saida = subprocess.run([node, str(testador), str(pagina)], capture_output=True, text=True, timeout=180)
+    if saida.returncode != 0 and "Executable doesn't exist" in saida.stderr:
+        pytest.skip("o Chromium do playwright não está instalado")
+    assert saida.returncode == 0, saida.stderr
+    copiado = json.loads(saida.stdout)
+    assert (copiado["botao"], copiado["erros"]) == ("Copiado", [])
+    # O texto: sem o cabeçalho e sem a coluna da linha; o ' nos números que o Excel estragaria
+    # (as colunas CÓDIGO sempre), e nunca na QTD.
+    assert [linha.split("\t") for linha in copiado["text/plain"].split("\r\n")] == [
+        ["'3.10", "2", "PÇ", "CONTATOR 3RT2026 & cia <x>", "'0034871", "'123456789012345", "PHOENIX CONTACT",
+         "'4500063671.9003", "12/05/2026", "5"],
+        ["12", "1,5", "M", "CABO", "'12345678", "X-1", "SIEMENS", "", "", ""],
+    ]
+    # O HTML: azul só no que mudou (a célula txt e a linha nova, sem as vazias), Texto nos mesmos
+    # números, e a fonte e a borda do template em toda célula.
+    celulas = re.findall(r'<td style="([^"]*)">([^<]*)</td>', copiado["text/html"])
+    assert len(celulas) == 20
+    assert [valor for estilo, valor in celulas if "color:#0070C0" in estilo] == [
+        "PHOENIX CONTACT", "12", "1,5", "M", "CABO", "12345678", "X-1", "SIEMENS"]
+    assert [valor for estilo, valor in celulas if "mso-number-format:'@'" in estilo] == [
+        "3.10", "0034871", "123456789012345", "4500063671.9003", "12345678"]
+    assert all("font-family:'Swis721 Lt BT'" in estilo and "border:.5pt solid windowtext" in estilo
+               for estilo, _ in celulas)

@@ -121,6 +121,11 @@ O que já mudou (o porquê está no topo do `agente.md`):
   workflow não muda (a resposta curta também é HTML, e o nó Prepara a resposta a passa adiante).
   O `<title>` que o agente escreve é o que o SIG-FT lê: o SIG-FT com esta mudança não grava a
   resposta curta; o de antes (até a 1.4.1-rc.1) a grava como um HTML pequeno, sem falhar.
+- **2026-11-12, a cópia em azul e os números como texto:** colado no Excel, o que mudou vem em azul
+  #0070C0, e o código PMIB, o código com zero na frente e o número longo não desformatam. No AMP,
+  troque de novo o **System Prompt inteiro** pelo do `agente.md` (mudou o trecho "Nas tabelas das
+  seções 4 e 5", que agora traz o script de copiar). O Ctrl+V do Excel cola o HTML, com a cor, a
+  fonte e a borda da planilha; Colar especial → Texto cola o texto, com ' na frente dos números.
 
 ## Resgatar um HTML que não chegou ao SIG-FT
 

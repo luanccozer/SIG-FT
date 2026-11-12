@@ -757,7 +757,10 @@ colado no AMP (`amp/revisao_de_listas/agente.md`):
 - uma lista em que só mudou o texto (descrição reescrita, marca completada): o console termina o
   `✓ HTML gravado` com `· só correção de texto`, e o topo do HTML diz o mesmo;
 - uma lista com código, quantidade, marca ou modelo novo: `· mudança significativa`;
-- maiúsculas e minúsculas sozinhas não aparecem no HTML.
+- maiúsculas e minúsculas sozinhas não aparecem no HTML;
+- num bloco colado com Ctrl+V numa **cópia** do `_STATUS_PMIB` (o agente de 2026-11-12): o que mudou
+  fica em azul, a linha colada mantém a fonte e a borda das outras, e o código PMIB e os códigos com
+  zero na frente continuam iguais, sem virar número.
 
 ---
 
@@ -864,6 +867,7 @@ ETAPA 5c — Revisão das listas no AMP (v2)
   5c.6 Falhou? colei o diagnóstico ....... [ não falhou / colei na conversa ]
   5c.7 Sem diferenças: nada na pasta? .... [ sim / não testei ]
        classificação no console bate? .... [ sim / não: ______ ]
+       colado em azul, sem desformatar? .. [ sim / não: ______ ]
 ```
 
 ---

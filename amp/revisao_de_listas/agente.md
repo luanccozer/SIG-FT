@@ -36,6 +36,17 @@ pelo nó **AMP Agent**.
 > DIFERENÇAS não vira arquivo, e MUDANÇA SIGNIFICATIVA e SÓ CORREÇÃO DE TEXTO aparecem no console.
 > O SIG-FT sem esta mudança (até a 1.4.1-rc.1) grava a resposta curta como um HTML qualquer, sem
 > falhar.
+>
+> **2026-11-12: a cópia em azul e os números como texto** (pedido do Luan). Colado no Excel, o que
+> mudou vem em azul #0070C0, e os números não desformatam (o código PMIB com ponto, o 0034871 que
+> virava 34871, o número longo que virava exponencial). Texto puro não leva cor: o botão copia em
+> HTML, que o Excel usa no Ctrl+V, e em texto, com ' na frente desses números. No HTML, o número
+> vai com o formato Texto (`mso-number-format:'@'`), e cada célula leva a fonte (Swis721 Lt BT 10),
+> a borda fina e o alinhamento do template v2 (`gestao-sobressalentes/_gestao_v2/template/`): sem
+> isso, a linha colada perderia a borda e trocaria de fonte. O script vai inteiro no prompt, para
+> sair sempre igual; o agente só marca as células (`sig`, `txt`) e as linhas (`nova`). A QTD.
+> continua número: é quantidade, e número pequeno não desformata. `tests/test_amp_workflow.py`
+> roda o script no Chromium quando há node com playwright.
 
 | Campo no AMP | Valor |
 |---|---|
@@ -163,11 +174,46 @@ Mais de 5 blocos, com as mudanças espalhadas pela tabela: mande a _STATUS_PMIB 
 
 Nas tabelas das seções 4 e 5:
 - As colunas são exatamente as da planilha, na mesma ordem e com os mesmos nomes, nem uma a mais, nem uma a menos.
-- Os textos que vêm da lista ficam iguais aos da revisão atual, maiúsculas e minúsculas inclusive; as colunas da equipe ficam como estão.
-- Pinte de amarelo as células com diferença SIGNIFICATIVA, de azul-claro as com diferença SÓ TEXTO e de verde as linhas criadas, com a legenda das cores acima da tabela.
-- O número da linha do Excel vai numa primeira coluna à parte, que não vai na cópia.
-- Cada tabela tem um botão que copia só as linhas abaixo do cabeçalho, como texto separado por tabulação e sem a coluna do número da linha, para colar a partir da primeira coluna da tabela. O cabeçalho continua na tabela, para ler, mas não vai na cópia.
+- Os textos que vêm da lista ficam iguais aos da revisão atual, maiúsculas e minúsculas inclusive; as colunas da equipe ficam como estão, e as datas vão como dd/mm/aaaa. Cada célula traz só o valor a colar, sem anotação.
+- O cabeçalho é a primeira linha da tabela. O número da linha do Excel vai numa primeira coluna à parte, que não vai na cópia.
+- Marque o que muda: class="sig" na célula com diferença SIGNIFICATIVA, class="txt" na célula com diferença SÓ TEXTO e class="nova" na linha criada e em cada linha da seção 5. Na tela, pinte sig de amarelo, txt de azul-claro e nova de verde, com a legenda das cores acima da tabela.
+- Cada tabela tem um id próprio e, logo acima dela, o botão <button onclick="copiar('<id da tabela>', this)">Copiar</button>.
 
-Escreva cada linha de cada tabela diretamente no HTML, com <tr> e <td>. Use JavaScript só para o botão de copiar, nunca para montar ou calcular dados das tabelas.
+Ponha no fim do HTML, exatamente como está, o script abaixo. O botão copia só as linhas abaixo do cabeçalho, sem a coluna do número da linha, para colar a partir da primeira coluna da tabela. O cabeçalho continua na tabela, para ler, mas não vai na cópia. Na cópia, o texto do que mudou (sig, txt e nova) vai em azul #0070C0, com a fonte e a borda da planilha, e os números que o Excel desformataria vão como texto, com ' na frente: todo código (as colunas CÓDIGO), e nas outras colunas o número com zero na frente, com ponto ou vírgula, ou com mais de 11 dígitos. A QTD. continua número.
+
+<script>
+function copiar(id, botao) {
+  var t = document.getElementById(id), nomes = [], linhas = [], textos = [];
+  for (var k = 0; k < t.rows[0].cells.length; k++) nomes.push(t.rows[0].cells[k].innerText.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase());
+  for (var i = 1; i < t.rows.length; i++) {
+    var tr = t.rows[i], tds = [], cels = [];
+    for (var j = 1; j < tr.cells.length; j++) {
+      var td = tr.cells[j], v = td.innerText.replace(/\s+/g, ' ').trim(), nome = nomes[j] || '';
+      var numero = /^\d[\d.,]*$/.test(v) && nome.indexOf('QTD') !== 0;
+      var texto = numero && (nome.indexOf('CODIGO') === 0 || /^0\d|[.,]/.test(v) || v.length > 11);
+      var css = "font-family:'Swis721 Lt BT';font-size:10pt;border:.5pt solid windowtext;vertical-align:middle;white-space:normal";
+      if (/^(ITEM|QTD|UNID|CODIGO|MARCA)/.test(nome)) css += ';text-align:center';
+      if (v && (tr.classList.contains('nova') || td.classList.contains('sig') || td.classList.contains('txt'))) css += ';color:#0070C0';
+      if (texto) css += ";mso-number-format:'@'";
+      tds.push('<td style="' + css + '">' + v.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</td>');
+      cels.push((texto ? "'" : '') + v);
+    }
+    linhas.push('<tr>' + tds.join('') + '</tr>');
+    textos.push(cels.join('\t'));
+  }
+  var feito = false, copia = function (e) {
+    e.clipboardData.setData('text/html', '<table>' + linhas.join('') + '</table>');
+    e.clipboardData.setData('text/plain', textos.join('\r\n'));
+    e.preventDefault();
+    feito = true;
+  };
+  document.addEventListener('copy', copia);
+  document.execCommand('copy');
+  document.removeEventListener('copy', copia);
+  botao.textContent = feito ? 'Copiado' : 'Não copiou';
+}
+</script>
+
+Escreva cada linha de cada tabela diretamente no HTML, com <tr> e <td>. O único JavaScript é esse script: nada de montar ou calcular dados das tabelas.
 A resposta, curta ou não, começa em <!DOCTYPE html> e termina em </html>: não escreva o que está fazendo, nem antes nem depois.
 ```

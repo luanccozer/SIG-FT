@@ -198,6 +198,13 @@ revisão atual:
   até 5 blocos de linhas seguidas, vêm só as linhas que mudam, de baixo para cima, cada bloco com a
   instrução; com mais, a `_STATUS_PMIB` inteira. O `<title>` começa por MUDANÇA SIGNIFICATIVA ou
   SÓ CORREÇÃO DE TEXTO.
+- **o botão de copiar** (desde 2026-11-12) é um script fixo, que vai inteiro no prompt; o agente só
+  marca as células (`sig`, `txt`) e as linhas novas (`nova`). Ele copia em HTML, que o Ctrl+V do
+  Excel usa: o que mudou vai em azul #0070C0, cada célula com a fonte, a borda e o alinhamento do
+  template v2, e os números que o Excel desformataria (as colunas CÓDIGO, zero na frente, ponto ou
+  vírgula, mais de 11 dígitos; nunca a QTD.) no formato Texto. E copia em texto, com ' na frente
+  desses números. `tests/test_amp_workflow.py` roda o script no Chromium, quando há node com
+  playwright.
 
 O SIG-FT **não lê o conteúdo** dos arquivos e não aplica nada no Excel: o Luan confere o HTML e
 aplica. Do HTML, ele lê só o começo do `<title>` (`classificacao`).
