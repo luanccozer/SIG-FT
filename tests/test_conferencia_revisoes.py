@@ -188,6 +188,54 @@ def test_nome_do_pdf():
     assert cr.nome_do_pdf('A/B\\C:D*"E', "1?") == "A_B_C_D__E[1_].pdf"
 
 
+# ---------------------------------------------------------------- o PDF de uma revisão na pasta
+
+# [2026-11-12] O caso do Luan: a lista mudou de código no Aconex (o RDS-PP mudou), e a 0C dela,
+# baixada à mão, veio com o código antigo. A pasta é a da captura de tela.
+NOVO, ANTIGO = "#ST00=B01BMU10TA010&EPB020", "#ST00=B01MSE10&EPB020"
+
+
+def _pasta_do_luan(raiz: Path) -> Path:
+    (raiz / "DATASHEET").mkdir(parents=True)
+    (raiz / cr.nome_do_pdf(NOVO, "0")).write_bytes(b"%PDF 0")
+    (raiz / f"{NOVO}_STATUS_PMIB.xlsx").write_bytes(b"planilha")
+    (raiz / cr.nome_do_pdf(ANTIGO, "0C")).write_bytes(b"%PDF 0C baixado a mao")
+    return raiz
+
+
+def test_pdf_da_revisao_pelo_nome_do_padrao(tmp_path):
+    (tmp_path / cr.nome_do_pdf(NOVO, "0C")).write_bytes(b"%PDF")
+    (tmp_path / cr.nome_do_pdf(ANTIGO, "0C")).write_bytes(b"%PDF")
+    assert cr.pdf_da_revisao(tmp_path, NOVO, "0C") == tmp_path / cr.nome_do_pdf(NOVO, "0C")
+
+
+def test_pdf_da_revisao_com_o_codigo_antigo_da_lista(tmp_path):
+    pasta = _pasta_do_luan(tmp_path)
+    assert cr.pdf_da_revisao(pasta, NOVO, "0c") == pasta / cr.nome_do_pdf(ANTIGO, "0C")
+    assert cr.pdf_da_revisao(pasta, NOVO, "0") == pasta / cr.nome_do_pdf(NOVO, "0")
+    assert cr.codigo_no_nome(pasta / cr.nome_do_pdf(ANTIGO, "0C")) == ANTIGO
+
+
+def test_pdf_da_revisao_nao_pega_o_de_outra_lista_da_pasta(tmp_path):
+    # A outra lista tem o _STATUS_PMIB nesta pasta: o PDF dela é dela.
+    (tmp_path / f"{OUTRO}_STATUS_PMIB.xlsx").write_bytes(b"planilha")
+    (tmp_path / cr.nome_do_pdf(OUTRO, "0C")).write_bytes(b"%PDF")
+    assert cr.pdf_da_revisao(tmp_path, NOVO, "0C") is None
+
+
+def test_pdf_da_revisao_com_dois_candidatos_nao_escolhe(tmp_path):
+    (tmp_path / cr.nome_do_pdf(ANTIGO, "0C")).write_bytes(b"%PDF")
+    (tmp_path / cr.nome_do_pdf("#ST00=B01XYZ10&EPB020", "0C")).write_bytes(b"%PDF")
+    assert cr.pdf_da_revisao(tmp_path, NOVO, "0C") is None
+
+
+def test_pdf_da_revisao_sem_revisao_ou_sem_pasta(tmp_path):
+    (tmp_path / cr.nome_do_pdf(NOVO, "0")).write_bytes(b"%PDF")
+    assert cr.pdf_da_revisao(tmp_path, NOVO, "") is None
+    assert cr.pdf_da_revisao(tmp_path / "nao-existe", NOVO, "0C") is None
+    assert cr.codigo_no_nome(tmp_path / "datasheet.pdf") is None
+
+
 # ---------------------------------------------------------------- o download (§5.4)
 
 class _Cliente:
@@ -254,6 +302,30 @@ def test_baixa_tambem_a_revisao_em_uso_que_falta(tmp_path):
     downloads = cr.baixar(_conferencia(_item(tmp_path, ultima="0B", em_uso="0")), cliente, log_cb=lambda _m: None)
     assert [(d.revisao, d.situacao) for d in downloads] == [("0B", "baixado"), ("0", "baixado")]
     assert (tmp_path / f"{CODIGO}[0].pdf").read_bytes() == b"%PDF 100"
+
+
+def test_revisao_em_uso_de_outro_codigo_vem_com_o_codigo_atual_da_lista(tmp_path):
+    # O cliente achou a 0C pelo Tracking ID, com o código antigo (`ClienteAconex.versao`). O PDF
+    # ganha o código atual da lista: o agente do AMP espera os dois PDFs com ele.
+    logs = []
+    cliente = _Cliente(vigentes={NOVO: Versao("300", NOVO, "0", 4, True)},
+                       historico={(NOVO, "0C"): Versao("201", ANTIGO, "0C", 3, False, "T-77")})
+    downloads = cr.baixar(_conferencia(_item(tmp_path, codigo=NOVO, ultima="0", em_uso="0C")), cliente,
+                          log_cb=logs.append)
+    assert [(d.codigo, d.revisao, d.situacao) for d in downloads] == [(NOVO, "0", "baixado"), (NOVO, "0C", "baixado")]
+    assert (tmp_path / cr.nome_do_pdf(NOVO, "0C")).read_bytes() == b"%PDF 201"
+    assert ANTIGO in downloads[1].detalhe and any(ANTIGO in m for m in logs)
+
+
+def test_revisao_em_uso_posta_a_mao_com_o_codigo_antigo_nao_baixa_de_novo(tmp_path):
+    pasta = _pasta_do_luan(tmp_path)
+    cliente = _Cliente(vigentes={NOVO: Versao("300", NOVO, "0", 4, True)},
+                       historico={(NOVO, "0C"): Versao("201", ANTIGO, "0C", 3, False, "T-77")})
+    downloads = cr.baixar(_conferencia(_item(pasta, codigo=NOVO, ultima="0", em_uso="0C")), cliente,
+                          log_cb=lambda _m: None)
+    assert [(d.revisao, d.situacao, d.caminho.name) for d in downloads] == [
+        ("0", "ja_existia", cr.nome_do_pdf(NOVO, "0")), ("0C", "ja_existia", cr.nome_do_pdf(ANTIGO, "0C"))]
+    assert cliente.baixados == []
 
 
 def test_revisao_em_uso_fora_do_historico_avisa_e_segue(tmp_path):

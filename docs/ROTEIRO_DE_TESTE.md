@@ -759,6 +759,23 @@ colado no AMP (`amp/revisao_de_listas/agente.md`):
 - uma lista com código, quantidade, marca ou modelo novo: `· mudança significativa`;
 - maiúsculas e minúsculas sozinhas não aparecem no HTML.
 
+**5c.8 — A lista com falta de PDF (2026-11-12).** O caso que travou: a `#ST00=B01BMU10TA010&EPB020`,
+em uso 0C, que no Aconex ainda tem o código antigo `#ST00=B01MSE10&EPB020`. Serve qualquer lista que
+mudou de código entre as revisões.
+1. **Com o PDF posto à mão** (`#ST00=B01MSE10&EPB020[0C].pdf` na pasta), clique em **Reler as
+   pastas**. O console diz `Pastas relidas: ...`, `✓ <código>: não falta mais nada, e a lista ficou
+   marcada` e `! <código>: #ST00=B01MSE10&EPB020[0C].pdf tem outro código no nome ...`. A linha
+   ganha a caixa, marcada, e as outras ficam como estavam (marcas e HTML).
+2. **Pelo Aconex:** tire esse PDF da pasta, clique em **Reler as pastas** (a falta volta) e depois em
+   **Baixar do Aconex o que falta**. O console mostra `A revisão 0C não está no histórico de ...:
+   procurando no Tracking ID ...` e `✓ <código> → #ST00=B01BMU10TA010&EPB020[0C].pdf (revisão em
+   uso, no Aconex com o código antigo #ST00=B01MSE10&EPB020)`, e a linha se destrava sozinha.
+3. Mande a lista ao AMP: o agente compara as revisões pelos itens e comenta a troca do código só no
+   resumo.
+
+Se a 0C não aparecer nem pelo Tracking ID, o console diz `a revisão em uso 0C não aparece no
+histórico do Aconex`: anote o código e a revisão, porque então ela é outro documento no Aconex.
+
 ---
 
 ## Etapa 5d — Atualização automática (2026-10-27, sem portal)

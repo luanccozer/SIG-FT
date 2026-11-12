@@ -9,6 +9,13 @@ no "Configurar IA" da Conferência de Listas (desde 2026-11-05; antes, o botão 
 aparece na tela nem no log. Cada rodada e cada teste de conexão gravam as linhas do console em
 `logs\\amp\\` (`core/log_execucao.py`).
 Desenho: `docs/superpowers/specs/2026-11-03-amp-revisao-com-arquivos-design.md`, §5.
+
+[2026-11-12] A lista com falta de PDF não tinha saída na aba (o Luan: "não tenho nenhum botão pra
+baixar do Aconex" e, com o PDF posto à mão, "ainda tá travado"). "Baixar do Aconex o que falta"
+baixa a revisão em uso e a atual das listas sem PDF (a da lista que mudou de código sai pelo
+Tracking ID) e relê; "Reler as pastas" vê o que foi posto à mão, até com o código antigo da lista.
+Nos dois, a tabela fica como estava (marcas e o que o AMP devolveu), e a lista que deixou de ter
+falta ganha a caixa, marcada.
 """
 from __future__ import annotations
 
@@ -20,6 +27,7 @@ from PySide6.QtWidgets import QApplication, QHBoxLayout
 from sigft import __version__
 from sigft.app.idioma import marcar, t
 from sigft.app_qt import interface
+from sigft.app_qt.views.conferencia_revisoes import conectar_aconex, perfil_do_aconex
 from sigft.app_qt.widgets.ia_do_modulo import avisos as avisos_da_ia, chaves_do_webhook_so
 from sigft.app_qt.widgets import blocos, dialogos_selecao, webhook_amp
 from sigft.app_qt.widgets.module_frame import ModuleFrame
@@ -40,6 +48,11 @@ AVISO_SEM_CHAVE = marcar("Configure o endereço e a chave do webhook em Configur
 AVISO_NENHUMA_MARCADA = marcar("Marque ao menos uma lista para mandar ao AMP.")
 AVISO_TABELA_REFEITA = marcar("A conferência mudou: a tabela foi refeita com as listas dela. Confira as "
                               "marcas e clique em Revisar no AMP de novo.")
+AVISO_TABELA_REFEITA_BAIXAR = marcar("A conferência mudou: a tabela foi refeita com as listas dela. Clique de "
+                                     "novo para baixar o que falta.")
+AVISO_OCUPADA = marcar("Espere a tarefa em andamento terminar.")
+AVISO_NADA_A_BAIXAR = marcar("Não falta PDF em nenhuma lista da tabela.")
+SEM_PERFIL_DO_ACONEX = marcar("Nenhum perfil do Aconex neste Windows: cadastre-o no DocManager.")
 WEBHOOK_NAO_CONFIGURADO = marcar("Workflow AMP sem configurar: use Configurar IA, no alto da Conferência de Listas.")
 WEBHOOK_CONFIGURADO = marcar("Workflow AMP configurado (em Configurar IA).")
 EXPLICACAO = marcar("Manda ao AMP, uma por vez, as listas marcadas da última conferência (aba Conferência "
@@ -106,6 +119,7 @@ class ModuloRevisaoAmp(ModuleFrame):
         self.resultados_amp: list[revisao_amp_svc.ResultadoAmp] = []
         self._listas_na_tabela: list = []           # uma ListaParaAmp por linha, na ordem da tabela
         self._conferencia_na_tabela = None          # a `UltimaConferencia` que a tabela mostra
+        self._downloads_da_aba: list = []           # o que o "Baixar do Aconex" trouxe para ela
         self._carregando = False
         self._linha_da_lista: dict[int, int] = {}   # id(ListaParaAmp) -> linha da tabela
         self._resultado_na_linha: list = []
@@ -138,7 +152,11 @@ class ModuloRevisaoAmp(ModuleFrame):
         self.btn_marcar.clicked.connect(lambda _marcado=False: self._marcar_todas(True))
         self.btn_desmarcar = blocos.botao(t("Desmarcar todas"), variante="cinza", largura_minima=140)
         self.btn_desmarcar.clicked.connect(lambda _marcado=False: self._marcar_todas(False))
-        lay.addLayout(_linha(self.btn_marcar, self.btn_desmarcar))
+        self.btn_reler = blocos.botao(t("Reler as pastas"), variante="cinza", largura_minima=140)
+        self.btn_reler.clicked.connect(self._reler)
+        self.btn_baixar = blocos.botao(t("Baixar do Aconex o que falta"), variante="cinza", largura_minima=220)
+        self.btn_baixar.clicked.connect(self._baixar)
+        lay.addLayout(_linha(self.btn_marcar, self.btn_desmarcar, self.btn_reler, self.btn_baixar))
 
         # Sem barra de lado: as colunas esticam até a largura da tela (`EsticaColunas`), e as
         # larguras somam 850, que cabem a 1280x850 (nenhuma tela rola de lado).
@@ -188,12 +206,13 @@ class ModuloRevisaoAmp(ModuleFrame):
         return arquivo, log
 
     # -- as listas ---------------------------------------------------------
-    def _listas(self, ultima) -> list:
-        """As listas da conferência, com os arquivos de cada uma. Na thread do worker: o
-        levantamento da pasta raiz pode demorar."""
+    def _listas(self, ultima, extras=()) -> list:
+        """As listas da conferência, com os arquivos de cada uma como estão nas pastas agora. Na
+        thread do worker: o levantamento da pasta raiz pode demorar. `extras` são os downloads
+        desta aba ("Baixar do Aconex o que falta")."""
         if ultima is None:
             return []
-        return revisao_amp_svc.listas_para_amp(ultima.conferencia, ultima.downloads,
+        return revisao_amp_svc.listas_para_amp(ultima.conferencia, [*ultima.downloads, *extras],
                                                ultima.mapeadora.caminho.parent, ultima.pasta_raiz)
 
     def atualizar_listas(self) -> None:
@@ -204,39 +223,142 @@ class ModuloRevisaoAmp(ModuleFrame):
             return
         if getattr(self.fonte, "rodando", lambda: False)():
             return
-        self._carregando = True
-        self.iniciar_tarefa(self._worker_carregar, ultima)
+        self._carregar(ultima)
 
-    def _worker_carregar(self, ultima) -> None:
+    def _carregar(self, ultima, botao=None) -> None:
+        """Lê as listas numa tarefa. Com a conferência que a tabela já mostra, é a releitura das
+        pastas: leva os downloads da aba e o que faltava em cada lista, para o console dizer o que
+        mudou."""
+        releitura = ultima is self._conferencia_na_tabela
+        extras = list(self._downloads_da_aba) if releitura else []
+        faltava = {lista.item.lista.codigo: lista.falta for lista in self._listas_na_tabela} if releitura else None
+        self._carregando = True
+        self.iniciar_tarefa(self._worker_carregar, ultima, extras, faltava, botao=botao)
+
+    def _worker_carregar(self, ultima, extras=(), faltava=None) -> None:
         listas = None
         try:
-            listas = self._listas(ultima)
+            listas = self._listas(ultima, extras)
             podem = sum(1 for lista in listas if not lista.falta)
-            self.log(f"Revisão no AMP: {len(listas)} lista(s) na conferência; {podem} podem ir ao AMP, "
-                     f"{len(listas) - podem} com falta.")
+            if faltava is None:
+                self.log(f"Revisão no AMP: {len(listas)} lista(s) na conferência; {podem} podem ir ao AMP, "
+                         f"{len(listas) - podem} com falta.")
+            else:
+                self.log(f"Pastas relidas: {podem} de {len(listas)} lista(s) podem ir ao AMP, "
+                         f"{len(listas) - podem} com falta.")
+            for lista in listas:
+                codigo = lista.item.lista.codigo
+                if faltava is not None and faltava.get(codigo) and not lista.falta:
+                    self.log(f"  ✓ {codigo}: não falta mais nada, e a lista ficou marcada")
+                for pdf in revisao_amp_svc.com_outro_codigo(lista):
+                    self.log(f"  ! {codigo}: {pdf.name} tem outro código no nome (a lista mudou de código no "
+                             "Aconex); vai ao AMP assim")
         finally:
             interface.na_interface(self._mostrar_listas, listas, ultima)
+
+    def _estado_das_linhas(self) -> dict:
+        """Por código: a marca (`None` na lista com falta, que não tem caixa) e o que o AMP devolveu."""
+        estado = {}
+        for i, lista in enumerate(self._listas_na_tabela):
+            marcada = None if lista.falta else self.tabela.topLevelItem(i).checkState(0) == Qt.CheckState.Checked
+            estado[lista.item.lista.codigo] = (marcada, self._resultado_na_linha[i])
+        return estado
 
     def _mostrar_listas(self, listas, ultima) -> None:
         self._carregando = False
         if listas is None:          # o erro já foi para o console (`iniciar_tarefa`)
             return
+        # Na releitura, cada lista fica como estava: a marca e o que o AMP devolveu. A que tinha
+        # falta e não tem mais entra marcada, como as listas de uma conferência nova.
+        releitura = ultima is self._conferencia_na_tabela
+        antes = self._estado_das_linhas() if releitura else {}
+        if not releitura:
+            self._downloads_da_aba = []
         self.tabela.clear()
         self._listas_na_tabela = list(listas)
         self._conferencia_na_tabela = ultima
         self._linha_da_lista = {id(lista): i for i, lista in enumerate(listas)}
         self._resultado_na_linha = [None] * len(listas)
-        for lista in listas:
+        for i, lista in enumerate(listas):
             dados = lista.item.lista
+            marcada, resultado = antes.get(dados.codigo, (None, None))
+            if lista.falta:
+                resultado = None
+            amp = lista.falta or (_texto_amp(resultado) if resultado is not None else "")
             item = dialogos_selecao.linha_ttk(self.tabela, (dados.codigo, dados.revisao_em_uso, lista.revisao_atual,
-                                                            dados.status_real, lista.falta, ""))
+                                                            dados.status_real, amp, ""))
             dialogos_selecao.botao_de_pasta(self.tabela, item, COLUNA_PASTA, lista.item.pasta, self._abrir_pasta)
+            self._resultado_na_linha[i] = resultado
             # O QTreeWidgetItem já nasce marcável: a lista com falta perde isso e fica sem caixa.
             if lista.falta:
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
             else:
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                item.setCheckState(0, Qt.CheckState.Checked)
+                item.setCheckState(0, Qt.CheckState.Unchecked if marcada is False else Qt.CheckState.Checked)
+
+    # -- reler as pastas e baixar o que falta (2026-11-12) -----------------
+    def _ocupada(self) -> bool:
+        """Uma coisa por vez: a rodada escreve na tabela, e baixar ou reler a refaz. Com a
+        Conferência rodando, a última conferência ainda está sem os downloads."""
+        if getattr(self.fonte, "rodando", lambda: False)():
+            self.avisar(t(TITULO), t(AVISO_CONFERENCIA_RODANDO), "aviso")
+            return True
+        if self.rodando():
+            self.avisar(t(TITULO), t(AVISO_OCUPADA), "aviso")
+            return True
+        return False
+
+    def _reler(self) -> None:
+        """Relê as pastas das listas: o PDF posto à mão, mesmo com o código antigo da lista, passa
+        a valer, e a lista que deixou de ter falta ganha a caixa, marcada."""
+        if self._ocupada():
+            return
+        ultima = getattr(self.fonte, "ultima", None)
+        if ultima is None:
+            self.avisar(t(TITULO), t(AVISO_SEM_CONFERENCIA), "aviso")
+            return
+        self._carregar(ultima, botao=self.btn_reler)
+
+    def _baixar(self) -> None:
+        """Baixa do Aconex os PDFs que faltam nas listas da tabela (a revisão em uso e a atual) e
+        relê as pastas. O perfil é o do cofre do DocManager, como na Conferência de Revisões."""
+        if self._ocupada():
+            return
+        ultima = getattr(self.fonte, "ultima", None)
+        if ultima is None:
+            self.avisar(t(TITULO), t(AVISO_SEM_CONFERENCIA), "aviso")
+            return
+        if ultima is not self._conferencia_na_tabela:
+            self.atualizar_listas()
+            self.avisar(t(TITULO), t(AVISO_TABELA_REFEITA_BAIXAR), "aviso")
+            return
+        faltam = [lista for lista in self._listas_na_tabela if revisao_amp_svc.faltam_pdfs(lista)]
+        if not faltam:
+            self.avisar(t(TITULO), t(AVISO_NADA_A_BAIXAR), "info")
+            return
+        perfil = perfil_do_aconex(self)
+        if perfil is None:
+            self.log("[AVISO] " + t(SEM_PERFIL_DO_ACONEX))
+            return
+        self._cancelado.clear()
+        self.iniciar_tarefa(self._worker_baixar, ultima, faltam, perfil, botao=self.btn_baixar)
+
+    def _worker_baixar(self, ultima, faltam, perfil) -> None:
+        self.log(f"Baixar do Aconex o que falta: {len(faltam)} lista(s) sem um dos PDFs "
+                 f"({', '.join(lista.item.lista.codigo for lista in faltam)}).")
+        cliente = conectar_aconex(perfil, self.log)
+        if cliente is None:
+            return
+        downloads = revisao_amp_svc.baixar_o_que_falta(faltam, cliente, log_cb=self.log, progress_cb=self._progresso,
+                                                       cancelado_cb=self._cancelado.is_set)
+        interface.na_interface(self._depois_de_baixar, ultima, downloads)
+
+    def _depois_de_baixar(self, ultima, downloads) -> None:
+        """Guarda o que veio e relê as pastas, se a tabela ainda é a desta conferência."""
+        if ultima is not self._conferencia_na_tabela:
+            return
+        self._downloads_da_aba.extend(downloads)
+        self._carregar(ultima)
 
     def _itens_com_caixa(self):
         for i, lista in enumerate(self._listas_na_tabela):
@@ -263,9 +385,8 @@ class ModuloRevisaoAmp(ModuleFrame):
     # -- a revisão ---------------------------------------------------------
     def _revisar(self) -> None:
         # Com a Conferência ainda baixando, a última conferência está sem os downloads, e
-        # um PDF pode estar pela metade.
-        if getattr(self.fonte, "rodando", lambda: False)():
-            self.avisar(t(TITULO), t(AVISO_CONFERENCIA_RODANDO), "aviso")
+        # um PDF pode estar pela metade; com o download da aba ou a releitura, a tabela vai mudar.
+        if self._ocupada():
             return
         ultima = getattr(self.fonte, "ultima", None)
         if ultima is None:

@@ -173,6 +173,10 @@ para qualquer código novo que fale com o register:
 - **A busca exata não traz o histórico inteiro de uma lista.** Ela trouxe 7 versões;
   o `trackingid` do mesmo documento trouxe 15. As outras 8 são a mesma lista com
   outro código (o RDS-PP mudou). Quem quer o histórico segue o `TrackingId`.
+  Desde 2026-11-12 o `ClienteAconex.versao` faz isso: procura a revisão no código e,
+  se ela não está lá, no `trackingid:<id>` (o id vem da busca do código, com o campo
+  `trackingId`). Foi o que travou a revisão em uso 0C da `#ST00=B01BMU10TA010&EPB020`,
+  que no Aconex é a `#ST00=B01MSE10&EPB020`.
 - **Um 500 de sintaxe não passa esperando.** Com 5 tentativas e as esperas de 5, 15,
   30 e 60 s, uma sonda parada levou quase 2 minutos. O diagnóstico tenta 2 vezes; a
   extração continua com 5, porque lá o 500 pode ser passageiro.
