@@ -108,7 +108,7 @@ def test_busca_sem_acento_e_sem_caixa():
 TAGS_INFORMATIVAS = {
     "[i]", "[INFO]", "[Lista]", "[Formato]", "[Injetor]", "[ATUALIZADO]", "[REPROVADA]",
     "[Revisão]", "[Contexto]", "[Tipo]", "[PARADO]", "[CONFERIR]", "[Diagnóstico]",
-    "[Parado pelo usuário]", "[SIG-FT]",
+    "[Parado pelo usuário]", "[SIG-FT]", "[Intervenção]",
 }
 _TAG = re.compile(r"^\s*(?:->\s*)?(\[(?:[A-ZÀ-Ý!][^\]{}\\]{0,28}|i)\])")
 # Primeiro argumento destas é expressão regular, não log: "[A-Z0-9]" não é tag.

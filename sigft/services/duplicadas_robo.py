@@ -43,6 +43,20 @@ NOME_DO_MODULO = "duplicadas"  # chave em `config.RPA_ENGINE`
 
 PAUSA_APOS_ABRIR_FICHA = 3.0
 
+# --- Intervenção humana entre fichas ---------------------------------------
+# Ficha que terminou com erro, seção que falhou ou aviso do robô: ANTES da
+# próxima, o chamador abre uma janela (Editar / Continuar). Quanto o robô espera
+# sem resposta antes de seguir sozinho:
+ESPERA_DA_INTERVENCAO_S = 60
+
+RESPOSTA_EDITAR = "editar"
+RESPOSTA_CONTINUAR = "continuar"
+RESPOSTA_SEM_RESPOSTA = "sem_resposta"
+_RESPOSTAS = (RESPOSTA_EDITAR, RESPOSTA_CONTINUAR, RESPOSTA_SEM_RESPOSTA)
+
+# Linhas de log que viram "ponto a conferir" da ficha (`ResultadoDaFicha.avisos`).
+MARCADORES_DE_ALERTA = ("[Erro]", "[Aviso]", "[!]", "Preencha à mão")
+
 # Rótulos de bloco, no modo de visualização, que trazem o fabricante. Lista e
 # não constante porque não sabemos ainda como o portal nomeia esse bloco -- e
 # chutar um nome só faria a leitura devolver vazio sem dizer por quê.
@@ -153,6 +167,10 @@ class ResultadoDaFicha:
         self.secoes = []
         self.erro_fatal = ""
         self.interrompida = False
+        # Linhas de log de alerta desta ficha (ver `_coletor_de_avisos`) e o que
+        # a pessoa respondeu quando o lote pediu conferência (`Intervencao`).
+        self.avisos = []
+        self.intervencao = None
         # Cronômetro. Ver `tempos`/`resumo_de_tempos` -- serve para responder
         # ONDE o robô gasta o tempo, em vez de a gente adivinhar caçando
         # `time.sleep`.
@@ -224,6 +242,62 @@ class ResultadoDaFicha:
         if pendentes:
             texto += f"; pendente(s) do checkpoint: {', '.join(pendentes)}"
         return texto
+
+
+class Intervencao:
+    """O pedido de conferência de UMA ficha: os motivos e o que a pessoa fez."""
+
+    def __init__(self, motivos, resposta):
+        self.motivos = list(motivos)
+        self.resposta = resposta
+
+
+def _coletor_de_avisos(resultado, callback_log):
+    """`callback_log` que REPASSA toda linha e guarda em `resultado.avisos` as de
+    alerta (`MARCADORES_DE_ALERTA`), sem repetir.
+
+    Coletar nunca derruba a ficha: qualquer falha da coleta é engolida. A falha
+    do `callback_log` original, essa continua subindo como sempre subiu. Sem
+    `callback_log` o coletor coleta do mesmo jeito.
+    """
+    def _coletar(mensagem):
+        try:
+            for linha in str(mensagem).splitlines():
+                linha = linha.strip()
+                if (linha and linha not in resultado.avisos
+                        and any(m in linha for m in MARCADORES_DE_ALERTA)):
+                    resultado.avisos.append(linha)
+        except Exception:  # noqa: BLE001 -- coletar não pode derrubar a ficha
+            pass
+        if callback_log:
+            callback_log(mensagem)
+    return _coletar
+
+
+def motivos_de_intervencao(resultado):
+    """Por que esta ficha merece um olhar humano antes da próxima. `[]` = nenhum.
+
+    Ficha interrompida (navegador fechado) não tem a quem pedir: o lote para.
+    Ordem: erro fatal, uma linha por seção que falhou, depois os avisos do log.
+    """
+    if resultado.interrompida:
+        return []
+    motivos = []
+
+    def _juntar(texto):
+        if texto and texto not in motivos:
+            motivos.append(texto)
+
+    _juntar(resultado.erro_fatal)
+    for secao in resultado.secoes:
+        if not secao.ok and not secao.pendente:
+            _juntar(f"seção {secao.nome}: {secao.detalhe or 'falhou'}")
+    for aviso in resultado.avisos:
+        # O erro fatal também é logado como "[Erro] <erro>": já está na lista.
+        if resultado.erro_fatal and resultado.erro_fatal in aviso:
+            continue
+        _juntar(aviso)
+    return motivos
 
 
 def iniciar(wait_timeout=20):
@@ -518,8 +592,11 @@ def processar_ficha(portal, ficha, callback_log=None, log_auditoria=None):
     o lote inteiro. O que ela produz é um resultado com `ok=False` e o motivo,
     que o chamador loga e segue.
     """
-    _log = _log_de(callback_log)
     resultado = ResultadoDaFicha(ficha.pmib, ficha.ficha_original)
+    # O coletor entra ANTES de qualquer log: `callback_log` vai para todas as
+    # etapas, e `_log` também passa por ele.
+    callback_log = _coletor_de_avisos(resultado, callback_log)
+    _log = _log_de(callback_log)
     _log(f"\n>> {ficha.pmib}  <-  {ficha.ficha_original}  ({ficha.descricao})")
 
     try:
@@ -717,10 +794,18 @@ def processar_ficha(portal, ficha, callback_log=None, log_auditoria=None):
 
 
 def processar_lote(fichas, callback_log=None, callback_progresso=None,
-                   portal=None, deve_parar=None, log_auditoria=None):
+                   portal=None, deve_parar=None, log_auditoria=None,
+                   callback_intervencao=None):
     """Duplica cada ficha de `fichas`. Devolve a lista de `ResultadoDaFicha`.
 
     `portal` injetável para teste; em produção vem de `iniciar()`.
+
+    `callback_intervencao(resultado, motivos, segundos)`, se dado, é chamado
+    depois de cada ficha com algo a conferir (inclusive a última: a ficha ainda
+    está aberta) e BLOQUEIA até a pessoa responder, ou até `segundos`. Devolve
+    `RESPOSTA_EDITAR`, `RESPOSTA_CONTINUAR` ou `RESPOSTA_SEM_RESPOSTA`; valor
+    desconhecido ou exceção valem `RESPOSTA_SEM_RESPOSTA` -- a janela nunca
+    derruba o lote. Sem ele, o lote é o de sempre.
     """
     _log = _log_de(callback_log)
     resultados = []
@@ -735,6 +820,8 @@ def processar_lote(fichas, callback_log=None, callback_progresso=None,
                             log_auditoria=log_auditoria))
         if callback_progresso:
             callback_progresso(posicao / total if total else 1)
+        if callback_intervencao and not resultados[-1].interrompida:
+            _pedir_intervencao(resultados[-1], callback_intervencao, _log)
         if resultados[-1].interrompida:
             _log(f"\n[Aviso] Lote interrompido: navegador fechado. {total - posicao} ficha(s) "
                  "não iniciada(s); selecione-as novamente para retomar o lote.")
@@ -746,6 +833,63 @@ def processar_lote(fichas, callback_log=None, callback_progresso=None,
         if not resultado.ok:
             _log(f"    - {resultado.resumo}")
     return resultados
+
+
+_DESFECHO_NO_LOG = {
+    RESPOSTA_EDITAR: "a pessoa editou a ficha no portal e mandou seguir",
+    RESPOSTA_CONTINUAR: "a pessoa mandou seguir sem editar",
+    RESPOSTA_SEM_RESPOSTA: f"ninguém respondeu em {ESPERA_DA_INTERVENCAO_S} s; segui sozinho",
+}
+
+
+def _pedir_intervencao(resultado, callback_intervencao, _log):
+    """Pede a conferência humana desta ficha, se houver motivo, e guarda a resposta."""
+    motivos = motivos_de_intervencao(resultado)
+    if not motivos:
+        return
+    pmib = resultado.pmib_alvo
+    _log(f"   [Intervenção] {pmib}: pedindo conferência humana ({len(motivos)} "
+         f"ponto(s)); sigo sozinho em {ESPERA_DA_INTERVENCAO_S} s sem resposta.")
+    try:
+        resposta = callback_intervencao(resultado, list(motivos), ESPERA_DA_INTERVENCAO_S)
+    except Exception as erro:  # noqa: BLE001 -- a janela não derruba o lote
+        _log(f"   [Aviso] Intervenção de {pmib}: a janela falhou ({type(erro).__name__}: {erro}).")
+        resposta = RESPOSTA_SEM_RESPOSTA
+    if resposta not in _RESPOSTAS:
+        resposta = RESPOSTA_SEM_RESPOSTA
+    resultado.intervencao = Intervencao(motivos, resposta)
+    _log(f"   [Intervenção] {pmib}: {_DESFECHO_NO_LOG[resposta]}.")
+
+
+_ROTULO_NO_RELATORIO = {
+    RESPOSTA_SEM_RESPOSTA: "SEM RESPOSTA (segui sozinho)",
+    RESPOSTA_EDITAR: "EDITADA pela pessoa",
+    RESPOSTA_CONTINUAR: "SEGUIU sem editar",
+}
+
+
+def relatorio_de_intervencoes(resultados):
+    """Linhas de log com TODOS os pedidos de intervenção do lote, para o fecho.
+
+    As sem resposta vêm primeiro: são as que a pessoa precisa conferir ao voltar.
+    """
+    pedidos = [r for r in resultados if getattr(r, "intervencao", None) is not None]
+    if not pedidos:
+        return ["=== Pedidos de intervenção: nenhum."]
+    quantas = {resposta: sum(1 for r in pedidos if r.intervencao.resposta == resposta)
+               for resposta in _RESPOSTAS}
+    linhas = [f"=== Pedidos de intervenção: {len(pedidos)} ficha(s) pediram; "
+              f"{quantas[RESPOSTA_EDITAR]} editada(s), "
+              f"{quantas[RESPOSTA_CONTINUAR]} seguida(s) sem editar, "
+              f"{quantas[RESPOSTA_SEM_RESPOSTA]} SEM RESPOSTA."]
+    # `sorted` é estável: dentro de cada grupo vale a ordem do lote.
+    for r in sorted(pedidos, key=lambda r: r.intervencao.resposta != RESPOSTA_SEM_RESPOSTA):
+        linhas.append(f"    - {r.pmib_alvo}: {_ROTULO_NO_RELATORIO[r.intervencao.resposta]}")
+        linhas.extend(f"        {motivo}" for motivo in r.intervencao.motivos)
+    if quantas[RESPOSTA_EDITAR]:
+        linhas.append("    Atenção: o _STATUS_PMIB ficou como o ROBÔ conferiu; o que a pessoa "
+                      "consertou à mão não foi reconferido. Ajuste a coluna se for o caso.")
+    return linhas
 
 
 # ===========================================================================

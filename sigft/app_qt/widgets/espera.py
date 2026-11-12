@@ -23,6 +23,7 @@ from sigft.app_qt.widgets import dialogos_selecao, dialogs
 # primeira linha da própria mensagem.
 TEXTO_ESPERA_EXCEL = marcar("Um arquivo do Excel está aberto e trava a gravação. Feche o arquivo e escolha Repetir.")
 TEXTO_ESPERA_TRAVADOS = marcar("Alguns arquivos não puderam ser gravados. Escolha Repetir ou Seguir.")
+TEXTO_ESPERA_INTERVENCAO = marcar("Uma ficha precisa de conferência. Escolha Editar ou Continuar.")
 
 
 class DialogosDeEspera:
@@ -73,6 +74,16 @@ class DialogosDeEspera:
         self._abrir_e_esperar(lambda evento, _res: dialogs.PausaLoginDialog(
             self, mensagem=mensagem, evento_espera=evento, texto_botao=texto_botao),
             aviso=aviso_windows.primeira_linha(mensagem))
+
+    def pedir_intervencao(self, ficha: str, motivos: list[str], segundos: int) -> str:
+        """O robô da ficha duplicada pede conferência antes da próxima ficha.
+
+        Devolve "editar", "continuar" ou "sem_resposta" (a janela falhou ao
+        abrir, ou a contagem de `segundos` acabou). O worker espera aqui."""
+        resultado = self._abrir_e_esperar(lambda evento, res: dialogs.IntervencaoDialog(
+            self, ficha=ficha, motivos=motivos, segundos=segundos, evento_espera=evento, resultado=res),
+            aviso=t(TEXTO_ESPERA_INTERVENCAO))
+        return resultado.get("resposta", "sem_resposta")  # = RESPOSTA_SEM_RESPOSTA do serviço
 
     def perguntar_retry_excel(self, caminho: object = None) -> bool:
         mensagem = msg_excel_bloqueado(caminho) if caminho is not None else t(MSG_EXCEL_BLOQUEADO)

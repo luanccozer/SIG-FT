@@ -162,6 +162,8 @@ TEXTOS: dict[str, Texto] = {
                    "imagens."),
             marcar("Cada coluna do _STATUS_PMIB só recebe COMPLETO se todas as seções dela deram "
                    "certo; o resto fica INCOMPLETO."),
+            marcar("Ficha com erro ou dúvida abre uma janela: Editar ou Continuar. Sem resposta em "
+                   "1 minuto, o robô segue."),
             marcar("O log de auditoria guarda também a estrutura das telas, para investigar uma cópia "
                    "que falhou."),
         ),

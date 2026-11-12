@@ -79,6 +79,37 @@ Não foi executado um lote autenticado no PMIB nesta correção. Para quem usa
 o instalador, o PR só chega ao aplicativo após integração e publicação de
 uma nova versão; este trabalho não publica um instalador.
 
+## Intervenção humana entre as fichas (2026-11-12)
+
+No robô novo, uma ficha que termina **com erro fatal, com seção que falhou ou
+com aviso do próprio robô** não passa direto para a próxima: o lote abre a
+janela "Atenção: Intervenção Necessária" (`IntervencaoDialog`, em
+`widgets/dialogs.py`) e espera. Vale também para a última ficha, que ainda está
+aberta no navegador. Ficha interrompida (navegador fechado) não pede nada: o lote
+para, como antes.
+
+- **Quando abre.** `duplicadas_robo.motivos_de_intervencao(resultado)`: o erro
+  fatal, uma linha por seção que falhou (`seção <nome>: <detalhe>`) e as linhas
+  de log com `[Erro]`, `[Aviso]`, `[!]` ou `Preencha à mão`, que `processar_ficha`
+  junta em `resultado.avisos`. Sem motivo, nada abre.
+- **Os dois botões.** *Continuar* segue para a próxima ficha. *Editar* para a
+  contagem e a janela passa a pedir que a pessoa corrija a ficha no navegador (que
+  continua aberto na ficha alvo, em edição) e salve cada seção; ali não há limite
+  de tempo, e o *Continuar* seguinte devolve "editar". Fechar no "X" ou no Esc
+  responde "continuar" na primeira fase e "editar" na segunda: o robô nunca fica
+  preso.
+- **O minuto.** Sem resposta em `ESPERA_DA_INTERVENCAO_S` (60 s), o robô segue
+  sozinho e registra "sem resposta". Isso se repete a cada ficha.
+- **O relatório.** Ao fim do lote, depois da linha do `_STATUS_PMIB`, o log traz
+  `relatorio_de_intervencoes`: quantas fichas pediram, quantas foram editadas,
+  seguidas sem editar ou ficaram SEM RESPOSTA (essas primeiro, com os motivos),
+  para conferir ao voltar. Vai também para o log de auditoria.
+- **O `_STATUS_PMIB` não muda.** Ele continua refletindo o que o ROBÔ conferiu;
+  o que a pessoa consertou à mão não é reconferido, e o relatório avisa
+  disso quando houve ficha editada.
+- Sem `callback_intervencao` em `processar_lote`, o comportamento é o de antes
+  (os testes do serviço rodam assim).
+
 ## Propósito
 
 Clona fichas técnicas completas (informações gerais, fornecedores, condições, características, documentos, imagens) de uma ficha base para uma ficha alvo, usando Selenium para scraping/injeção de dados com purga de características preservando CÓDIGO PMIB da base. Orquestra 3 fases: fila (GerenciadorFilaPMIB), extração base (ExtratorFichaBase), injeção alvo (InjetorFichaAlvo), atualização status.
