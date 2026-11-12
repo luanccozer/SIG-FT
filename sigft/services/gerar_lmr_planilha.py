@@ -10,6 +10,7 @@ from copy import copy
 from dataclasses import dataclass
 from pathlib import Path
 
+from sigft.core.excel.locking import salvar_perguntando
 from sigft.services.gerar_lmr_csv import catalogo_do_status, conferir_com_extracao, ler_csv
 from sigft.services.gerar_lmr_motor import Achado, gerar
 from sigft.services.gerar_lmr_regras import trechos_do_projeto
@@ -50,7 +51,14 @@ def _conferir_antes_de_gravar(destinos: list[Path]) -> None:
             raise NaoDaParaGravar(f"Feche o arquivo no Excel e tente de novo: {d.name}") from exc
 
 
-def _gravar_aplicacao(openpyxl, destino: Path, nome: str, subsistema: str, resultado, linhas_csv, catalogo) -> None:
+def _salvar(wb, destino: Path, retry_lock) -> None:
+    try:
+        salvar_perguntando(wb, destino, retry_lock=retry_lock)
+    except PermissionError as exc:
+        raise NaoDaParaGravar(f"Feche o arquivo no Excel e tente de novo: {destino.name}") from exc
+
+
+def _gravar_aplicacao(openpyxl, destino: Path, nome: str, subsistema: str, resultado, linhas_csv, catalogo, retry_lock) -> None:
     wb = openpyxl.load_workbook(TEMPLATE)
     docs = wb["DOCS DE REFERÊNCIA"]
     docs["C2"] = nome
@@ -72,10 +80,10 @@ def _gravar_aplicacao(openpyxl, destino: Path, nome: str, subsistema: str, resul
         for col, valor in enumerate((ficha, codigo, tag), 1):
             ap.cell(row=i, column=col, value=valor)
     ap.auto_filter.ref = f"A1:C{len(resultado.linhas) + 1}"
-    wb.save(destino)
+    _salvar(wb, destino, retry_lock)
 
 
-def _gravar_validacao(openpyxl, destino: Path, achados: list[Achado]) -> None:
+def _gravar_validacao(openpyxl, destino: Path, achados: list[Achado], retry_lock) -> None:
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "VALIDAÇÃO"
@@ -83,11 +91,11 @@ def _gravar_validacao(openpyxl, destino: Path, achados: list[Achado]) -> None:
     for a in achados:
         ws.append((a.linha_csv, a.ficha, a.trecho, a.regra, a.severidade, a.mensagem))
     ws.auto_filter.ref = f"A1:F{len(achados) + 1}"
-    wb.save(destino)
+    _salvar(wb, destino, retry_lock)
 
 
 def realizar_aplicacao(csv: Path, status: Path, pasta_sistema: Path, *, nome: str, escopo: str, subsistema: str,
-                       opcao_trechos: str, lista_trechos: list[str] | None, log_cb) -> Saida:
+                       opcao_trechos: str, lista_trechos: list[str] | None, log_cb, retry_lock=None) -> Saida:
     import openpyxl  # tardio: o conftest troca o módulo por um dublê nos testes que não usam planilha
 
     inicio = time.monotonic()
@@ -110,8 +118,8 @@ def realizar_aplicacao(csv: Path, status: Path, pasta_sistema: Path, *, nome: st
         log_cb("Sem a pasta de extração (LMR\\EXTRACAO\\docling): a conferência com os documentos foi pulada.", "warn")
 
     aplicacao.parent.mkdir(parents=True, exist_ok=True)
-    _gravar_aplicacao(openpyxl, aplicacao, nome, subsistema, resultado, linhas_csv, catalogo)
-    _gravar_validacao(openpyxl, validacao, achados)
+    _gravar_aplicacao(openpyxl, aplicacao, nome, subsistema, resultado, linhas_csv, catalogo, retry_lock)
+    _gravar_validacao(openpyxl, validacao, achados, retry_lock)
 
     avisos = sum(a.severidade == "aviso" for a in achados)
     saida = Saida(aplicacao, validacao, len(resultado.linhas), resultado.bloqueadas, avisos, resultado.assinatura)
