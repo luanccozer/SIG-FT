@@ -489,3 +489,267 @@ def test_processar_ficha_loga_onde_o_tempo_foi(monkeypatch):
     robo.processar_ficha(portal, _Ficha(), callback_log=logs.append)
 
     assert any("total" in linha and "s" in linha for linha in logs)
+
+
+# ===========================================================================
+# Intervenção humana: o robô pede conferência antes de ir para a próxima ficha
+# ===========================================================================
+def _resultado(pmib="A", *, ok=True, falhas=(), erro="", avisos=(), interrompida=False):
+    """`ResultadoDaFicha` montado à mão: o que se testa aqui é a regra de
+    intervenção, não as etapas do portal."""
+    resultado = robo.ResultadoDaFicha(pmib, "ORIG")
+    resultado.secoes.append(injetor.ResultadoDaSecao("fabricante", ok))
+    for nome, detalhe in falhas:
+        resultado.secoes.append(injetor.ResultadoDaSecao(nome, False, detalhe))
+    resultado.erro_fatal = erro
+    resultado.avisos = list(avisos)
+    resultado.interrompida = interrompida
+    return resultado
+
+
+def test_o_coletor_repassa_toda_linha_e_guarda_so_as_de_alerta(monkeypatch):
+    portal = _com_etapas(monkeypatch)
+    logs = []
+
+    resultado = robo.processar_ficha(portal, _Ficha(), callback_log=logs.append)
+
+    # O callback original recebe TUDO, inclusive o que não é alerta.
+    assert any(linha.startswith("\n>>") for linha in logs)
+    assert resultado.avisos, "o [Aviso] de fornecedor ausente devia ter sido coletado"
+    assert all(any(m in linha for m in robo.MARCADORES_DE_ALERTA) for linha in resultado.avisos)
+    assert not any(">>" in linha for linha in resultado.avisos)
+    for linha in resultado.avisos:
+        assert linha == linha.strip()
+        assert linha in "\n".join(logs)
+
+
+def test_o_coletor_coleta_mesmo_sem_callback_de_log(monkeypatch):
+    portal = _com_etapas(monkeypatch)
+
+    resultado = robo.processar_ficha(portal, _Ficha(), callback_log=None)
+
+    assert any("[Aviso]" in linha for linha in resultado.avisos)
+
+
+def test_o_coletor_nao_repete_a_mesma_linha():
+    resultado = robo.ResultadoDaFicha("A", "B")
+    coletor = robo._coletor_de_avisos(resultado, None)
+
+    coletor("   [Aviso] mesma coisa")
+    coletor("   [Aviso] mesma coisa")
+    coletor("   Preencha à mão o campo X")
+    coletor("linha qualquer")
+
+    assert resultado.avisos == ["[Aviso] mesma coisa", "Preencha à mão o campo X"]
+
+
+def test_o_coletor_nunca_levanta_por_causa_da_coleta():
+    resultado = robo.ResultadoDaFicha("A", "B")
+    coletor = robo._coletor_de_avisos(resultado, None)
+
+    coletor(None)        # não é texto
+    coletor(12345)
+
+    assert resultado.avisos == []
+
+
+def test_ficha_ok_sem_avisos_nao_pede_intervencao():
+    assert robo.motivos_de_intervencao(_resultado()) == []
+
+
+def test_secao_que_falhou_vira_motivo_com_detalhe_ou_sem():
+    resultado = _resultado(falhas=[("referencia", "campo não aceitou"), ("imagens", "")])
+
+    assert robo.motivos_de_intervencao(resultado) == [
+        "seção referencia: campo não aceitou", "seção imagens: falhou"]
+
+
+def test_secao_pendente_nao_e_motivo():
+    resultado = _resultado()
+    resultado.secoes.append(injetor.ResultadoDaSecao("x", False, "ainda não existe", pendente=True))
+
+    assert robo.motivos_de_intervencao(resultado) == []
+
+
+def test_erro_fatal_vem_primeiro_depois_as_secoes_depois_os_avisos():
+    resultado = _resultado(erro="deu ruim", falhas=[("pdm", "não achei")],
+                           avisos=["[Aviso] cuidado"])
+
+    assert robo.motivos_de_intervencao(resultado) == [
+        "deu ruim", "seção pdm: não achei", "[Aviso] cuidado"]
+
+
+def test_ficha_interrompida_nao_gera_motivo_nenhum():
+    resultado = _resultado(erro="Navegador fechado", avisos=["[Aviso] x"], interrompida=True)
+
+    assert robo.motivos_de_intervencao(resultado) == []
+
+
+def test_motivos_sem_duplicata():
+    resultado = _resultado(erro="deu ruim", avisos=["[Erro] deu ruim", "[Aviso] a", "[Aviso] a"])
+
+    motivos = robo.motivos_de_intervencao(resultado)
+
+    assert len(motivos) == len(set(motivos))
+    assert motivos == ["deu ruim", "[Aviso] a"]
+
+
+def _lote_com(monkeypatch, resultados):
+    """`processar_lote` com `processar_ficha` trocada por resultados prontos."""
+    fila = list(resultados)
+    monkeypatch.setattr(robo, "processar_ficha", lambda *_a, **_k: fila.pop(0))
+    return [_Ficha(r.pmib_alvo) for r in resultados]
+
+
+def test_o_lote_pede_intervencao_so_para_a_ficha_com_motivo(monkeypatch):
+    fichas = _lote_com(monkeypatch, [_resultado("A"), _resultado("B", erro="deu ruim")])
+    pedidos, logs = [], []
+
+    def pedir(resultado, motivos, segundos):
+        pedidos.append((resultado.pmib_alvo, list(motivos), segundos))
+        return robo.RESPOSTA_EDITAR
+
+    resultados = robo.processar_lote(fichas, callback_log=logs.append,
+                                     callback_intervencao=pedir)
+
+    assert pedidos == [("B", ["deu ruim"], robo.ESPERA_DA_INTERVENCAO_S)]
+    assert robo.ESPERA_DA_INTERVENCAO_S == 60
+    assert resultados[0].intervencao is None
+    assert resultados[1].intervencao.resposta == "editar"
+    assert resultados[1].intervencao.motivos == ["deu ruim"]
+    juntos = "\n".join(logs)
+    assert "[Intervenção] B: pedindo conferência humana (1 ponto(s)); sigo sozinho em 60 s" in juntos
+    assert "a pessoa editou a ficha no portal e mandou seguir" in juntos
+
+
+def test_o_pedido_acontece_antes_da_proxima_ficha_e_tambem_na_ultima(monkeypatch):
+    ordem = []
+    resultados = [_resultado("A", erro="x"), _resultado("B", erro="y")]
+    fila = list(resultados)
+
+    def processar_ficha(*_a, **_k):
+        r = fila.pop(0)
+        ordem.append(f"processa {r.pmib_alvo}")
+        return r
+
+    monkeypatch.setattr(robo, "processar_ficha", processar_ficha)
+
+    def pedir(resultado, _motivos, _segundos):
+        ordem.append(f"pede {resultado.pmib_alvo}")
+        return robo.RESPOSTA_CONTINUAR
+
+    robo.processar_lote([_Ficha("A"), _Ficha("B")], callback_log=lambda _m: None,
+                        callback_intervencao=pedir)
+
+    assert ordem == ["processa A", "pede A", "processa B", "pede B"]
+
+
+@pytest.mark.parametrize("resposta,trecho", [
+    ("continuar", "a pessoa mandou seguir sem editar"),
+    ("sem_resposta", "ninguém respondeu em 60 s; segui sozinho"),
+])
+def test_o_desfecho_de_cada_resposta_vai_para_o_log(monkeypatch, resposta, trecho):
+    fichas = _lote_com(monkeypatch, [_resultado("A", erro="x")])
+    logs = []
+
+    resultados = robo.processar_lote(fichas, callback_log=logs.append,
+                                     callback_intervencao=lambda *_a: resposta)
+
+    assert resultados[0].intervencao.resposta == resposta
+    assert trecho in "\n".join(logs)
+
+
+def test_excecao_no_callback_de_intervencao_nao_derruba_o_lote(monkeypatch):
+    fichas = _lote_com(monkeypatch, [_resultado("A", erro="x"), _resultado("B")])
+
+    def pedir(*_a):
+        raise RuntimeError("janela quebrou")
+
+    resultados = robo.processar_lote(fichas, callback_log=lambda _m: None,
+                                     callback_intervencao=pedir)
+
+    assert len(resultados) == 2
+    assert resultados[0].intervencao.resposta == robo.RESPOSTA_SEM_RESPOSTA
+
+
+@pytest.mark.parametrize("devolvido", ["talvez", None, 7, ""])
+def test_resposta_desconhecida_vira_sem_resposta(monkeypatch, devolvido):
+    fichas = _lote_com(monkeypatch, [_resultado("A", erro="x")])
+
+    resultados = robo.processar_lote(fichas, callback_log=lambda _m: None,
+                                     callback_intervencao=lambda *_a: devolvido)
+
+    assert resultados[0].intervencao.resposta == robo.RESPOSTA_SEM_RESPOSTA
+
+
+def test_sem_callback_de_intervencao_nada_muda(monkeypatch):
+    fichas = _lote_com(monkeypatch, [_resultado("A", erro="x")])
+    logs = []
+
+    resultados = robo.processar_lote(fichas, callback_log=logs.append)
+
+    assert resultados[0].intervencao is None
+    assert "Intervenção" not in "\n".join(logs)
+
+
+def test_ficha_interrompida_nao_pede_intervencao(monkeypatch):
+    fichas = _lote_com(monkeypatch, [_resultado("A", erro="Navegador fechado", interrompida=True)])
+    pedidos = []
+
+    robo.processar_lote(fichas, callback_log=lambda _m: None,
+                        callback_intervencao=lambda *a: pedidos.append(a) or "continuar")
+
+    assert pedidos == []
+
+
+def _com_resposta(pmib, resposta, *motivos):
+    resultado = _resultado(pmib)
+    resultado.intervencao = robo.Intervencao(list(motivos), resposta)
+    return resultado
+
+
+def test_relatorio_sem_pedido_e_uma_linha_so():
+    assert robo.relatorio_de_intervencoes([_resultado("A"), _resultado("B")]) == [
+        "=== Pedidos de intervenção: nenhum."]
+    assert robo.relatorio_de_intervencoes([]) == ["=== Pedidos de intervenção: nenhum."]
+
+
+def test_relatorio_conta_e_poe_os_sem_resposta_primeiro():
+    resultados = [
+        _com_resposta("A", "editar", "motivo A1"),
+        _com_resposta("B", "sem_resposta", "motivo B1", "motivo B2"),
+        _resultado("C"),
+        _com_resposta("D", "continuar", "motivo D1"),
+        _com_resposta("E", "sem_resposta", "motivo E1"),
+    ]
+
+    linhas = robo.relatorio_de_intervencoes(resultados)
+
+    assert linhas[0] == ("=== Pedidos de intervenção: 4 ficha(s) pediram; 1 editada(s), "
+                         "1 seguida(s) sem editar, 2 SEM RESPOSTA.")
+    corpo = [linha for linha in linhas if linha.startswith("    - ")]
+    assert corpo == [
+        "    - B: SEM RESPOSTA (segui sozinho)",
+        "    - E: SEM RESPOSTA (segui sozinho)",
+        "    - A: EDITADA pela pessoa",
+        "    - D: SEGUIU sem editar",
+    ]
+    i = linhas.index("    - B: SEM RESPOSTA (segui sozinho)")
+    assert linhas[i + 1].endswith("motivo B1") and linhas[i + 2].endswith("motivo B2")
+    assert linhas[i + 1].startswith("        ")   # recuo maior que o da ficha
+    assert not any("C:" in linha for linha in linhas)
+
+
+def test_relatorio_avisa_do_status_pmib_so_quando_houve_editada():
+    com_editada = robo.relatorio_de_intervencoes([_com_resposta("A", "editar", "m")])
+    sem_editada = robo.relatorio_de_intervencoes([_com_resposta("A", "continuar", "m")])
+
+    assert "_STATUS_PMIB" in com_editada[-1] and "ROBÔ" in com_editada[-1]
+    assert not any("_STATUS_PMIB" in linha for linha in sem_editada)
+
+
+def test_relatorio_aceita_resultado_sem_o_campo_intervencao():
+    """Dublês de teste da tela não trazem o atributo."""
+    sem_campo = type("R", (), {"ok": True})()
+
+    assert robo.relatorio_de_intervencoes([sem_campo]) == ["=== Pedidos de intervenção: nenhum."]
