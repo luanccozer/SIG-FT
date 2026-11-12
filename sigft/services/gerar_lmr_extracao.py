@@ -16,6 +16,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from sigft.services.gerar_lmr_csv import catalogo_do_status
+
 TAMANHO_DO_LOTE = 80_000
 PASTA_DA_DLC = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "SIG-FT" / "docling"
 VERSAO_DA_DLC = "1"
@@ -41,13 +43,6 @@ class Extracao:
 
 class ExtracaoInterrompida(RuntimeError):
     pass
-
-
-def catalogo_do_status(caminho_xlsx: Path):
-    # Import tardio: a função mora em gerar_lmr_csv (Tarefa 6); aqui só o nome fica estável para os testes.
-    from sigft.services.gerar_lmr_csv import catalogo_do_status as ler
-
-    return ler(caminho_xlsx)
 
 
 def dlc_instalada() -> bool:
