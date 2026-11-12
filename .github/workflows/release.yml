@@ -24,7 +24,7 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["v*", "docling-v*"]   # docling-v<n>: so o pacote da DLC (job `dlc`, no fim do arquivo)
   workflow_dispatch:
     inputs:
       versao:
@@ -42,6 +42,7 @@ permissions:
 
 jobs:
   build:
+    if: ${{ !startsWith(github.ref_name, 'docling-v') }}   # a tag docling-v* e so da DLC
     runs-on: windows-latest        # o PyInstaller nao faz compilacao cruzada
     timeout-minutes: 90            # o pacote do SIG-FT passa de 400 MB
 
@@ -431,3 +432,72 @@ jobs:
           # de baixar e olhar; quem precisa de mais, roda de novo.
           retention-days: 3
           if-no-files-found: warn
+
+  # ═══ O pacote da DLC do Docling  [Gerar Aplicacao LMR; sem relacao com a versao do SIG-FT] ═══
+  # Disparo:  git tag docling-v1 && git push origin docling-v1
+  # O numero e o do programa da DLC (VERSAO em empacotamento/docling_dlc/docling_sigft.py) e o
+  # VERSAO_DA_DLC de sigft/services/gerar_lmr_extracao.py: o passo "Conferir" reprova se divergirem.
+  # Publica SIG-FT-Docling-<n>.zip no release docling-v<n> (pre-lancamento e sem "latest", para
+  # nunca virar atualizacao do SIG-FT), de onde sigft/services/gerar_lmr_dlc.py o baixa.
+  dlc:
+    if: ${{ startsWith(github.ref_name, 'docling-v') }}
+    runs-on: windows-latest
+    timeout-minutes: 120           # torch + modelos: o download e a maior parte
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Gerar o pacote (Gerar-DLC.bat)
+        shell: pwsh
+        run: |
+          & empacotamento\docling_dlc\Gerar-DLC.bat
+          if ($LASTEXITCODE -ne 0) { throw "o Gerar-DLC.bat falhou (codigo $LASTEXITCODE)" }
+
+      - name: Conferir versao e tamanho do pacote
+        shell: pwsh
+        run: |
+          $versao = $env:GITHUB_REF_NAME -replace '^docling-v', ''
+          $dist = "empacotamento\docling_dlc\dist"
+          $doPrograma = (& "$dist\docling_sigft\docling_sigft.exe" --versao | Out-String).Trim()
+          if ($doPrograma -ne $versao) {
+            throw "a tag diz DLC $versao, mas o docling_sigft.exe diz $doPrograma"
+          }
+          $doApp = [regex]::Match((Get-Content sigft\services\gerar_lmr_extracao.py -Raw), 'VERSAO_DA_DLC = "([^"]*)"').Groups[1].Value
+          if ($doApp -ne $versao) {
+            throw "a tag diz DLC $versao, mas o SIG-FT procura a DLC $doApp (VERSAO_DA_DLC em gerar_lmr_extracao.py)"
+          }
+          $zip = Get-Item "$dist\docling_sigft.zip"
+          # Um asset do GitHub tem no maximo 2 GiB.
+          if ($zip.Length -ge 2GB) {
+            throw ("o zip da DLC tem {0:N2} GB e passa do limite de 2 GiB de um asset do GitHub. Divida em partes " +
+                   "(ver o comentario shortcut em sigft/services/gerar_lmr_dlc.py) antes de publicar." -f ($zip.Length / 1GB))
+          }
+          $destino = "$dist\SIG-FT-Docling-$versao.zip"
+          Move-Item $zip.FullName $destino -Force
+          "PACOTE=$($destino -replace '\\', '/')" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "Zip: {0:N2} GB" -f ($zip.Length / 1GB)
+
+      - name: Publicar o release da DLC
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          VERSAO="${TAG#docling-v}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "O release $TAG ja existe - trocando o arquivo."
+            gh release upload "$TAG" "$PACOTE" --clobber
+          else
+            gh release create "$TAG" "$PACOTE" \
+              --target "${{ github.sha }}" \
+              --title "DLC do Docling v$VERSAO" \
+              --notes "Pacote do Docling para o modulo Gerar Aplicacao LMR do SIG-FT. O SIG-FT o baixa pela tela do modulo (Instalar componente)." \
+              --prerelease --latest=false
+          fi
+          gh release view "$TAG"
