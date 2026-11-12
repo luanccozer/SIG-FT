@@ -196,3 +196,7 @@ tela cabe em 1366x768), `test_como_funciona.py` e `test_textos_da_interface.py` 
 
 Mexem em arquivos compartilhados: `SIG-FT.spec` (o template nos dados), `sigft/app/ia_por_modulo.py` (a
 tarefa `aplicacao_lmr`) e `.github/workflows/release.yml` (o job da DLC). Cada uma foi em commit isolado.
+
+---
+
+O que falta para concluir o módulo (pendências, decisões em aberto e armadilhas): [`docs/GERAR_APLICACAO_LMR.md`](../GERAR_APLICACAO_LMR.md).
