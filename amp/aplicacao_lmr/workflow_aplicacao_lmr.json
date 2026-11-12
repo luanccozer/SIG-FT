@@ -1,0 +1,624 @@
+{
+  "name": "SIG-FT · Aplicação LMR (AMP)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## SIG-FT · Aplicação LMR (AMP)\n**Ligar (uma vez):**\n1. **Webhook do SIG-FT** → *Credential for Header Auth* → *Create new*: Name `X-SIGFT-Chave`, Value um valor longo e aleatório. O mesmo valor vai no SIG-FT (Gerar Aplicação LMR → aba Análise no AMP).\n2. **AMP Agent** → escolha o agente *Spare Parts LMR Extractor* → *Add option* → **Timeout**: o máximo.\n3. Ative *Save manual executions*, salve e **publique**. Copie a **Production URL** do webhook para o SIG-FT.\n\nO SIG-FT manda `modo`, `escopo`, `subsistema`, `trechos`, `lotes` e os arquivos `indice`, `status_pmib`, `lote_01`…`lote_NN`. O ping responde sem chamar o agente.\nCada lote é uma volta: o agente é chamado com sessão nova; se falhar, espera 60 s e tenta de novo (até 3 vezes). Lote que falha nas 3 entra em `lotes_com_erro`.\nAs regras de domínio moram no agente: melhore o agente no AMP, não aqui.",
+        "height": 330,
+        "width": 640
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -300
+      ],
+      "id": "30b07532-e4fd-5170-80be-0e46b3b25ac2",
+      "name": "Como ligar"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sigft-aplicacao-lmr",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ],
+      "id": "6bbc166c-5a30-5fe6-b16f-4d681ea0855d",
+      "name": "Webhook do SIG-FT",
+      "webhookId": "2943a890-2332-545e-ba2b-3f854769396e"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "0f689936-df2c-5804-8508-ca4e2c8b3cb9",
+              "leftValue": "={{ $json.body.modo }}",
+              "rightValue": "ping",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "looseTypeValidation": true
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        220,
+        200
+      ],
+      "id": "d20c3548-c817-599a-9ccb-03960bb010a2",
+      "name": "É ping?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, modo: 'ping', versao_workflow: '2026-11-11', execucao: $execution.id }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        460,
+        40
+      ],
+      "id": "a9fb5e50-fbe6-5758-8490-3714701bf3d7",
+      "name": "Responde ping"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "386e1479-cc3b-5c2e-af73-8a68f4c1131a",
+              "name": "lotes",
+              "value": "={{ Number($json.body.lotes) }}",
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        460,
+        300
+      ],
+      "id": "83e3618f-7ced-5914-9061-71337dc446c7",
+      "name": "Passa os arquivos"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "bd9c81d3-329a-5849-b8ac-cbc068be465a",
+              "leftValue": "={{ (() => { const b = Object.keys($binary || {}); const n = Number($json.body.lotes); return n >= 1 && b.includes('indice') && b.includes('status_pmib') && Array.from({ length: n }, (_, i) => 'lote_' + String(i + 1).padStart(2, '0')).every(k => b.includes(k)) ? 'sim' : 'nao'; })() }}",
+              "rightValue": "sim",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "looseTypeValidation": true
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        700,
+        300
+      ],
+      "id": "8fb065f5-b480-5cb8-808e-ac0246260460",
+      "name": "Chegaram os arquivos?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, modo: 'aplicacao_lmr', etapa: 'arquivos', erro: 'os arquivos não chegaram ao workflow: faltam o índice, o catálogo ou algum lote (recebidos: ' + Object.keys($binary || {}).length + ', lotes anunciados: ' + $json.body.lotes + ')', versao_workflow: '2026-11-11', execucao: $execution.id }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        700,
+        480
+      ],
+      "id": "86244a6d-db52-5704-8ae7-201c50e39aa0",
+      "name": "Responde sem arquivos"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Um item por arquivo de texto, na ordem: indice, status_pmib, lote_01…lote_NN.\nconst entrada = $input.first();\nconst b = entrada.binary || {};\nconst n = Number(entrada.json.lotes);\nconst chaves = ['indice', 'status_pmib'];\nfor (let i = 1; i <= n; i++) chaves.push('lote_' + String(i).padStart(2, '0'));\nreturn chaves.map(k => ({ json: { arquivo: k }, binary: { data: b[k] } }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        940,
+        200
+      ],
+      "id": "12b036ee-d2e4-52a4-b043-733cb3e065a8",
+      "name": "Separa os arquivos"
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        1160,
+        200
+      ],
+      "id": "4da60224-5b13-595d-bc41-7f4c026e2923",
+      "name": "Lê o texto"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Uma mensagem por lote: regras de formato, pedido, indice, catalogo e o texto do lote.\nconst CAB = 'FICHA_PMIB;AREA_PAINEL;RDS_PP;TAG;TAG_COM_RDS_PP;PAIS;LOCAL;ELEVACAO;EIXO;TRECHOS;QTD_POR_TRECHO;DOCUMENTO;PAGINA';\nconst pedido = $('Webhook do SIG-FT').first().json.body || {};\nconst textos = $input.all().map(i => String(i.json.data ?? ''));\nconst [indice, catalogo, ...lotes] = textos;\nreturn lotes.map((lote, i) => ({ json: { numero: i + 1, total: lotes.length, chatInput: [\n  'Responda SOMENTE com o CSV (cabecalho e linhas), separador \";\", sem texto antes ou depois.',\n  'Cabecalho: ' + CAB,\n  '',\n  '## PEDIDO',\n  'Escopo: ' + (pedido.escopo || '') + ' | Subsistema: ' + (pedido.subsistema || '') + ' | Trechos: ' + (pedido.trechos || ''),\n  '',\n  '## ÍNDICE DOS DOCUMENTOS',\n  indice,\n  '',\n  '## CATÁLOGO DE MATERIAIS (_STATUS_PMIB)',\n  catalogo,\n  '',\n  '## LOTE ' + (i + 1) + ' DE ' + lotes.length,\n  lote,\n].join('\\n') } }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        200
+      ],
+      "id": "c0a6d220-94a1-5706-9aaf-964664ab68a0",
+      "name": "Monta a mensagem"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1600,
+        200
+      ],
+      "id": "e9d82953-0b75-519b-af7e-1f8641088683",
+      "name": "Um lote por volta"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c38b31f0-9155-5654-ab5b-1650e6c6a791",
+              "name": "tentativa",
+              "value": "={{ ($json.tentativa ?? 0) + 1 }}",
+              "type": "number"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1840,
+        300
+      ],
+      "id": "2570be0c-f0a5-5ee1-9677-0d93eb0605c8",
+      "name": "Marca a tentativa"
+    },
+    {
+      "parameters": {
+        "agentId": {
+          "__rl": true,
+          "value": "{\"agentName\":\"Spare Parts LMR Extractor\",\"model\":\"bedrock-claude-sonnet-5.5\"}",
+          "mode": "list",
+          "cachedResultName": "Spare Parts LMR Extractor"
+        },
+        "sessionId": "={{ 'lmr-' + $execution.id + '-' + $json.numero + '-' + $json.tentativa }}",
+        "options": {}
+      },
+      "type": "CUSTOM.amp",
+      "typeVersion": 1,
+      "position": [
+        2080,
+        300
+      ],
+      "id": "e252bd64-a949-57de-9ba5-c164db30055a",
+      "name": "AMP Agent",
+      "credentials": {
+        "ampOAuth2Api": {
+          "id": "2GcgH0WxCkNN6bg4",
+          "name": "AMP account 1859"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cb4c0a87-577b-5c06-9808-a2353695a8ee",
+              "name": "numero",
+              "value": "={{ $('Marca a tentativa').first().json.numero }}",
+              "type": "number"
+            },
+            {
+              "id": "a26093d5-2bea-54c8-9140-89ad12eb36f2",
+              "name": "csv",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            },
+            {
+              "id": "ebb56780-b401-5bf6-8478-3f1f84b91803",
+              "name": "erro",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2340,
+        220
+      ],
+      "id": "c48cfb36-1d68-5f07-9fde-918b31974630",
+      "name": "Guarda o lote"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "3c06de7e-80ed-5322-98af-16fd97a0dfbb",
+              "leftValue": "={{ $json.tentativa ?? $('Marca a tentativa').first().json.tentativa }}",
+              "rightValue": 3,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "looseTypeValidation": true
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2340,
+        420
+      ],
+      "id": "e155ef24-439c-5538-8df1-f103b1ce401c",
+      "name": "Pode tentar de novo?"
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 60,
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2580,
+        380
+      ],
+      "id": "779818d5-633f-5f01-aac2-ba1ce6024b67",
+      "name": "Espera 60 s",
+      "webhookId": "15338f27-31c8-5115-b36a-946996f7a8be"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d7761d2e-43ce-514f-8a50-12380e1a6994",
+              "name": "numero",
+              "value": "={{ $('Marca a tentativa').first().json.numero }}",
+              "type": "number"
+            },
+            {
+              "id": "080fcc07-6764-52d0-8347-dd67335f82bf",
+              "name": "csv",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "e338747a-3821-5dff-90d0-8207af4f3d94",
+              "name": "erro",
+              "value": "={{ String(($json.error && ($json.error.message || $json.error)) || 'erro sem mensagem') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2580,
+        520
+      ],
+      "id": "36901818-c6df-5034-8bfb-946a3455c680",
+      "name": "Guarda o lote com erro"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Junta as respostas dos lotes: um cabecalho so; lote com erro ou vazio vai em lotes_com_erro.\nconst CAB = 'FICHA_PMIB;AREA_PAINEL;RDS_PP;TAG;TAG_COM_RDS_PP;PAIS;LOCAL;ELEVACAO;EIXO;TRECHOS;QTD_POR_TRECHO;DOCUMENTO;PAGINA';\nconst ehCab = x => x.trim().toUpperCase().startsWith('FICHA_PMIB');\nconst itens = $input.all().map(i => i.json).sort((a, b) => a.numero - b.numero);\nconst linhas = [];\nconst comErro = [];\nfor (const it of itens) {\n  const bruto = String(it.csv ?? '').replace(/^﻿/, '');\n  if (it.erro || !bruto.trim()) { comErro.push(it.numero); continue; }\n  let l = bruto.split(/\\r?\\n/).map(x => x.trimEnd()).filter(x => x.trim() && !x.trim().startsWith('```'));\n  const h = l.findIndex(ehCab);\n  if (h >= 0) l = l.slice(h + 1);\n  for (const x of l) if (!ehCab(x)) linhas.push(x);\n}\nconst ok = itens.length > 0 && comErro.length < itens.length;\nconst resposta = { ok, modo: 'aplicacao_lmr', csv: [CAB, ...linhas].join('\\n') + '\\n', lotes_recebidos: itens.length,\n  lotes_com_erro: comErro, execucao: $execution.id, versao_workflow: '2026-11-11' };\nif (!ok) { resposta.etapa = 'agente'; resposta.erro = 'nenhum lote foi lido pelo agente'; }\nreturn [{ json: { resposta } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        100
+      ],
+      "id": "443e380d-89d6-5365-ad55-23c96cb524c0",
+      "name": "Junta o CSV"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.resposta) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        100
+      ],
+      "id": "a99b2b39-e609-5a41-bdd6-73461f07d00d",
+      "name": "Responde"
+    }
+  ],
+  "connections": {
+    "Webhook do SIG-FT": {
+      "main": [
+        [
+          {
+            "node": "É ping?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É ping?": {
+      "main": [
+        [
+          {
+            "node": "Responde ping",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Passa os arquivos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Passa os arquivos": {
+      "main": [
+        [
+          {
+            "node": "Chegaram os arquivos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chegaram os arquivos?": {
+      "main": [
+        [
+          {
+            "node": "Separa os arquivos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responde sem arquivos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separa os arquivos": {
+      "main": [
+        [
+          {
+            "node": "Lê o texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lê o texto": {
+      "main": [
+        [
+          {
+            "node": "Monta a mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Monta a mensagem": {
+      "main": [
+        [
+          {
+            "node": "Um lote por volta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Um lote por volta": {
+      "main": [
+        [
+          {
+            "node": "Junta o CSV",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marca a tentativa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marca a tentativa": {
+      "main": [
+        [
+          {
+            "node": "AMP Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AMP Agent": {
+      "main": [
+        [
+          {
+            "node": "Guarda o lote",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pode tentar de novo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guarda o lote": {
+      "main": [
+        [
+          {
+            "node": "Um lote por volta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pode tentar de novo?": {
+      "main": [
+        [
+          {
+            "node": "Espera 60 s",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Guarda o lote com erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Espera 60 s": {
+      "main": [
+        [
+          {
+            "node": "Marca a tentativa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guarda o lote com erro": {
+      "main": [
+        [
+          {
+            "node": "Um lote por volta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Junta o CSV": {
+      "main": [
+        [
+          {
+            "node": "Responde",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}
