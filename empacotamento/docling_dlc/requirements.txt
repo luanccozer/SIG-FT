@@ -1,0 +1,5 @@
+# DLC do Docling: só para montar o pacote à parte. O SIG-FT nunca instala isto.
+# torch de CPU (sem CUDA), do índice do PyTorch.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.9.1+cpu
+docling==2.150.0
