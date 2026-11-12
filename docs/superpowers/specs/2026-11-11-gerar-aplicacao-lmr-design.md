@@ -53,7 +53,7 @@ publicados.
 - Os modelos vão dentro do pacote: a máquina do usuário não precisa alcançar o site dos modelos.
 - A tela oferece **Instalar componente** quando a DLC falta ou está desatualizada. Destino:
   `%LOCALAPPDATA%\SIG-FT\docling`, fora da pasta do programa.
-- O SIG-FT chama a DLC como processo separado: `docling_sigft.exe <pasta de entrada> <pasta de saída>`.
+- O SIG-FT chama a DLC como processo separado: `docling_sigft.exe <pasta de saída> <pdf> [<pdf> ...]`.
   Ela escreve uma linha de progresso por documento na saída padrão, que a tela mostra no console.
   O SIG-FT nunca importa `docling` nem `torch`.
 - O `SIG-FT.spec` não muda (o `torch` continua nos `excludes`).
