@@ -236,7 +236,7 @@ Decisões:
 ### Tarefa 7: gravação no template e serviço da aba 3 — **Sonnet 5.5**
 
 **Arquivos:**
-- Criar: `sigft/services/gerar_lmr_planilha.py`, `sigft/dados/lmr/Template_Aplicação_LMR.xlsx` (copiado da branch `AUTOMACAO_LMR`, `aplicacao-lmr/templates/`; conferir que o cabeçalho é `FICHA PMIB | CÓDIGO LMR | TAG LMR`, como o do Box)
+- Criar: `sigft/services/gerar_lmr_planilha.py`, `sigft/dados/lmr/Template_Aplicação_LMR.xlsx` (copiado da branch `AUTOMACAO_LMR`, `aplicacao-lmr/templates/`; cabeçalho `FICHA_PMIB | CÓDIGO_LMR | TAG_LMR | Status`, idêntico ao do Box; a coluna Status fica vazia)
 - Modificar: `SIG-FT.spec` (o template nas `datas`; commit isolado)
 - Teste: `tests/test_gerar_lmr_planilha.py`
 
