@@ -124,7 +124,7 @@ O motor fica em quatro arquivos pequenos, em vez de um só como na spec §7.
 class Trecho: nome: str; m: str | None; hz: int | None; pos: int | None
 
 UGS: tuple[Trecho, ...]; TRECHOS: tuple[Trecho, ...]; TRECHO_POR_NOME: dict[str, Trecho]
-EIXOS = ("AB", "BC", "CD", "MB", "JB", "JD")
+EIXOS = ("AB", "BC", "CD", "MB", "JB", "JD", "BP", "VT")   # 8, como o lmr.js do Box
 LIMITE_TAG = 150
 
 def normaliza_trecho(v) -> str | None
@@ -190,7 +190,9 @@ def gerar(linhas: list[LinhaCsv], catalogo: dict[str, Material], *, escopo: str,
 ```
 
 Regras (as do `gera`, `geraLote` e `valida` do `lmr.js`: V1, V2, V4, V5, V6, V12, V14, V15):
-- `trechos`: lista → esses nomes; `TODAS` → `projeto`; `50HZ`/`60HZ` → `trechos_do_material(projeto, hz)`.
+- `trechos`: lista → esses nomes; `TODAS` → as UGs do `projeto`; `50HZ`/`60HZ` → `trechos_do_material(projeto, hz)`.
+  Nome de trecho inválido na lista → `V14` bloqueia. O RDS-PP chega como o documento escreve: vira `[XX]` só
+  quando o M e o `#ST` batem com um trecho da linha (`rds_generico`); `M00/M50/M60` ficam literais.
   Resultado vazio → achado `V15` que bloqueia: `nenhum trecho do projeto para <valor>`.
 - Material `granel` → 1 linha por trecho, qualquer que seja a `qtd`. Não granel com `qtd` vazia ou < 1 → `V1` bloqueia.
 - Descrição e PN vêm do `catalogo`. Ficha fora do catálogo → `V6` bloqueia.
