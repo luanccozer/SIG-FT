@@ -33,8 +33,10 @@ from sigft.services.conferencia_revisoes import (
     Conferencia,
     Download,
     ItemConferencia,
-    nome_do_pdf,
+    baixar,
+    pdf_da_revisao,
     resolver_status_pmib,
+    tem_outro_codigo,
 )
 from sigft.services.docpack import texto_da_revisao
 
@@ -120,15 +122,15 @@ def _curto(texto, limite: int) -> str:
     return texto if len(texto) <= limite else f"{texto[:limite]}… (+{len(texto) - limite} caracteres)"
 
 
-def _existe(caminho: Path) -> Path | None:
-    return caminho if caminho.is_file() else None
-
-
 def listas_para_amp(conferencia: Conferencia, downloads: list[Download], pasta_mapeadora: Path,
                     pasta_raiz: Path | None) -> list[ListaParaAmp]:
     """As listas da conferência que têm pasta, na ordem das categorias, com os arquivos de
     cada uma. A revisão atual é a do download desta sessão (a que o Aconex devolveu); sem
-    download, a ÚLTIMA REVISÃO EMITIDA da mapeadora, pelo nome do padrão na pasta."""
+    download, a ÚLTIMA REVISÃO EMITIDA da mapeadora.
+
+    [2026-11-12] O PDF de cada revisão é o que está na pasta AGORA (`pdf_da_revisao`): o do nome
+    do padrão ou, na lista que mudou de código no Aconex, o único dessa revisão com o código
+    antigo, posto à mão. É o que deixa o "Reler as pastas" da aba ver o arquivo novo."""
     baixados: dict[str, list[Download]] = {}
     for download in downloads:
         if download.caminho is not None and download.situacao in ("baixado", "ja_existia"):
@@ -145,9 +147,8 @@ def listas_para_amp(conferencia: Conferencia, downloads: list[Download], pasta_m
             atual = next((d for d in baixados.get(lista.codigo, [])
                           if not revisoes_iguais(d.revisao, lista.revisao_em_uso)), None)
             revisao_atual = atual.revisao if atual is not None else lista.ultima_revisao
-            pdf_atual = atual.caminho if atual is not None else _existe(
-                item.pasta / nome_do_pdf(lista.codigo, lista.ultima_revisao))
-            pdf_em_uso = (_existe(item.pasta / nome_do_pdf(lista.codigo, lista.revisao_em_uso))
+            pdf_atual = pdf_da_revisao(item.pasta, lista.codigo, revisao_atual)
+            pdf_em_uso = (pdf_da_revisao(item.pasta, lista.codigo, lista.revisao_em_uso)
                           if lista.revisao_em_uso else None)
             if status is None:
                 falta = "falta: _STATUS_PMIB"
@@ -159,6 +160,34 @@ def listas_para_amp(conferencia: Conferencia, downloads: list[Download], pasta_m
                 falta = ""
             resultado.append(ListaParaAmp(item, status, pdf_em_uso, pdf_atual, revisao_atual, falta))
     return resultado
+
+
+def com_outro_codigo(lista: ListaParaAmp) -> list[Path]:
+    """Os PDFs da lista que estão na pasta com outro código no nome: a revisão de antes de a
+    lista mudar de código no Aconex, posta à mão. Vão ao AMP como estão (o agente sabe que o
+    código pode mudar entre as revisões); a aba só avisa no console."""
+    codigo = lista.item.lista.codigo
+    return [pdf for pdf in (lista.pdf_em_uso, lista.pdf_atual) if pdf is not None and tem_outro_codigo(pdf, codigo)]
+
+
+def faltam_pdfs(lista: ListaParaAmp) -> bool:
+    """Falta o PDF da revisão atual, ou o da revisão em uso (quando há revisão em uso): o que
+    o Aconex tem. O `_STATUS_PMIB` não vem de lá."""
+    return lista.pdf_atual is None or (bool(lista.item.lista.revisao_em_uso) and lista.pdf_em_uso is None)
+
+
+def baixar_o_que_falta(listas: list[ListaParaAmp], cliente, *, log_cb, progress_cb=None,
+                       cancelado_cb=None) -> list[Download]:
+    """[2026-11-12] O botão "Baixar do Aconex o que falta" da aba (o Luan: a lista sem o PDF da
+    revisão em uso não tinha botão nenhum, e o PDF se baixava à mão). Das listas com `faltam_pdfs`,
+    a rotina da Conferência de Revisões (`conferencia_revisoes.baixar`): a revisão vigente e a em
+    uso, que, na lista que mudou de código no Aconex, sai pelo Tracking ID. Nada é sobrescrito, e
+    a aba relê as pastas depois (`listas_para_amp`, com estes downloads)."""
+    itens = [lista.item for lista in listas if faltam_pdfs(lista)]
+    if not itens:
+        return []
+    return baixar(Conferencia(itens, em_dia=0, sem_status_pmib=0), cliente, log_cb=log_cb,
+                  progress_cb=progress_cb, cancelado_cb=cancelado_cb)
 
 
 def mensagem_da_lista(lista: ListaParaAmp, *, hoje: date | None = None) -> str:

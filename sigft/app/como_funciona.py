@@ -241,12 +241,15 @@ TEXTOS: dict[str, Texto] = {
                    "alto da seção."),
             marcar("As listas vêm todas marcadas; a que tem falta fica sem caixa. As que voltam, com HTML ou "
                    "sem diferenças, se desmarcam sozinhas."),
+            # [2026-11-12] Os botões da lista com falta de PDF (o 5 e o 6 de antes viraram um item só).
+            marcar("Falta um PDF? Baixar do Aconex o que falta o traz; o posto à mão, mesmo com o código antigo, "
+                   "vale depois de Reler as pastas."),
             marcar("O agente lê os dois PDFs e o _STATUS_PMIB. Sem diferença, nada é gravado; com diferença, o "
                    "HTML diz se ela é significativa ou só de texto."),
             marcar("O HTML vai para a pasta da lista, sem sobrescrever. Nada muda no Excel: você confere e "
                    "aplica."),
-            marcar("O console mostra cada passo, e o log de cada rodada fica em Documentos\\SIG-FT\\logs\\amp."),
-            marcar("Falhou? Copiar diagnóstico leva o detalhe técnico, sem o texto dos documentos."),
+            marcar("O console mostra cada passo, e o log fica em Documentos\\SIG-FT\\logs\\amp. Falhou? Copiar "
+                   "diagnóstico leva o detalhe, sem os documentos."),
         ),
     ),
     "DocPack.etapa1": Texto(  # nao-e-interface

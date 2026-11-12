@@ -83,6 +83,20 @@ def perfil_do_aconex(pai) -> PerfilAconex | None:
     return next((p for p in perfis if p.nome == nome), None)
 
 
+def conectar_aconex(perfil: PerfilAconex | None, log) -> ClienteAconex | None:
+    """O cliente com o login feito, ou `None` depois de avisar no console que nada será
+    baixado. Na thread do worker. A Revisão no AMP usa o mesmo (o "Baixar do Aconex o que falta")."""
+    if perfil is not None:
+        cliente = ClienteAconex(perfil, log_cb=log)
+        try:
+            cliente.conectar()
+            return cliente
+        except ErroAconex as erro:
+            log(f"[AVISO] {erro}")
+    log("[AVISO] " + t(AVISO_SEM_CONEXAO))
+    return None
+
+
 def _texto_do_pdf(item, downloads) -> str:
     """O que aconteceu com os PDFs da lista; sem download, o motivo do item."""
     if not downloads:
@@ -239,15 +253,7 @@ class ModuloConferenciaRevisoes(ModuleFrame):
 
     def _cliente(self, perfil: PerfilAconex | None) -> ClienteAconex | None:
         """O cliente com o login feito, ou `None` depois de avisar que nada será baixado."""
-        if perfil is not None:
-            cliente = ClienteAconex(perfil, log_cb=self.log)
-            try:
-                cliente.conectar()
-                return cliente
-            except ErroAconex as erro:
-                self.log(f"[AVISO] {erro}")
-        self.log("[AVISO] " + t(AVISO_SEM_CONEXAO))
-        return None
+        return conectar_aconex(perfil, self.log)
 
     def _progresso(self, fracao: float) -> None:
         interface.na_interface(self.progress_bar.setValue, int(fracao * 1000))

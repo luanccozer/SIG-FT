@@ -40,6 +40,7 @@ COLUNAS_OPCIONAIS = (COL_CODIGO_CMI, COL_DESCRICAO, COL_ESPECIFICACAO, COL_CAPIT
 MOTIVO_SEM_REVISAO = "sem revisão emitida no Aconex"
 MOTIVO_SEM_PASTA = "_STATUS_PMIB não encontrado"
 _RESERVADOS = re.compile(r'[<>:"/\\|?*]')
+_PDF_COM_REVISAO = re.compile(r"^(?P<codigo>.+)\[(?P<revisao>[^\[\]]+)\]\.pdf$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -191,6 +192,52 @@ def nome_do_pdf(codigo: str, revisao: str) -> str:
     return _RESERVADOS.sub("_", f"{codigo}[{revisao}]") + ".pdf"
 
 
+def _chave(codigo: str) -> str:
+    """O código como ele fica no nome do arquivo, sem caixa: para comparar nomes."""
+    return _RESERVADOS.sub("_", str(codigo)).strip().upper()
+
+
+def codigo_no_nome(pdf: Path) -> str | None:
+    """O código de um `<código>[<revisão>].pdf` (`nome_do_pdf`); de outro nome, `None`."""
+    casou = _PDF_COM_REVISAO.match(Path(pdf).name)
+    return casou.group("codigo").strip() if casou else None
+
+
+def tem_outro_codigo(pdf: Path, codigo: str) -> bool:
+    """O PDF é do padrão, mas com um código que não é o da lista (`pdf_da_revisao`)."""
+    no_nome = codigo_no_nome(pdf)
+    return no_nome is not None and _chave(no_nome) != _chave(codigo)
+
+
+def pdf_da_revisao(pasta: Path, codigo: str, revisao: str) -> Path | None:
+    """O PDF da `revisao` da lista na pasta dela: o do nome do padrão (`nome_do_pdf`) ou, sem
+    ele, o ÚNICO PDF dessa revisão com outro código. É a lista que mudou de código no Aconex (o
+    RDS-PP mudou): a revisão de antes tem o código antigo, e quem a baixa à mão fica com esse
+    nome (o Luan, em 12/11/2026: `#ST00=B01MSE10&EPB020[0C].pdf` na pasta da
+    `#ST00=B01BMU10TA010&EPB020`, e a lista ficava com "falta: PDF da revisão em uso"). O PDF de
+    outra lista com o `_STATUS_PMIB` na mesma pasta não conta, e com dois candidatos nenhum vale."""
+    if not revisao:
+        return None
+    pasta = Path(pasta)
+    exato = pasta / nome_do_pdf(codigo, revisao)
+    if exato.is_file():
+        return exato
+    try:
+        arquivos = [arquivo for arquivo in pasta.iterdir() if arquivo.is_file()]
+    except OSError:
+        return None
+    proprio = _chave(codigo)
+    outras_listas = {_chave(outro) for arquivo in arquivos
+                     if (outro := status_pmib_arquivos.codigo_do_arquivo(arquivo.name)) and _chave(outro) != proprio}
+    candidatos = []
+    for arquivo in arquivos:
+        casou = _PDF_COM_REVISAO.match(arquivo.name)
+        if (casou and revisoes_iguais(casou.group("revisao"), revisao)
+                and _chave(casou.group("codigo")) not in outras_listas):
+            candidatos.append(arquivo)
+    return candidatos[0] if len(candidatos) == 1 else None
+
+
 def _gravar(cliente: ClienteAconex, pasta: Path, codigo: str, versao: Versao, detalhe: str, log_cb) -> Download:
     """Baixa a versão para a pasta com o nome do padrão. O arquivo que já existe fica
     como está: o botão nunca sobrescreve."""
@@ -213,9 +260,13 @@ def _gravar(cliente: ClienteAconex, pasta: Path, codigo: str, versao: Versao, de
 
 def _revisao_em_uso(cliente: ClienteAconex, pasta: Path, lista: ListaNaMapeadora, log_cb) -> list[Download]:
     """O PDF da revisão em uso, se faltar na pasta (a peça 2 compara a anterior com a
-    nova). O `DocumentId` sai do histórico do código; fora do histórico, avisa e segue."""
-    existente = pasta / nome_do_pdf(lista.codigo, lista.revisao_em_uso)
-    if existente.exists():
+    nova). O que já está lá fica como está, mesmo com o código antigo da lista
+    (`pdf_da_revisao`). O `DocumentId` sai do histórico do código ou, na lista que mudou de
+    código, do Tracking ID (`ClienteAconex.versao`); o PDF ganha o código ATUAL da lista,
+    porque o agente do AMP espera os dois PDFs com ele (`amp/revisao_de_listas/agente.md`).
+    Fora do histórico, avisa e segue."""
+    existente = pdf_da_revisao(pasta, lista.codigo, lista.revisao_em_uso)
+    if existente is not None:
         return [Download(lista.codigo, lista.revisao_em_uso, existente, "ja_existia")]
     try:
         anterior = cliente.versao(lista.codigo, lista.revisao_em_uso)
@@ -225,7 +276,10 @@ def _revisao_em_uso(cliente: ClienteAconex, pasta: Path, lista: ListaNaMapeadora
     if anterior is None:
         log_cb(f"  ! {lista.codigo}: a revisão em uso {lista.revisao_em_uso} não aparece no histórico do Aconex")
         return []
-    return [_gravar(cliente, pasta, lista.codigo, anterior, "revisão em uso", log_cb)]
+    detalhe = "revisão em uso"
+    if anterior.codigo and _chave(anterior.codigo) != _chave(lista.codigo):
+        detalhe += f", no Aconex com o código antigo {anterior.codigo}"
+    return [_gravar(cliente, pasta, lista.codigo, anterior, detalhe, log_cb)]
 
 
 def baixar(conferencia: Conferencia, cliente: ClienteAconex, *, log_cb, progress_cb=None,

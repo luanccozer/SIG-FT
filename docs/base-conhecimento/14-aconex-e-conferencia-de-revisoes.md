@@ -3,7 +3,9 @@
 > Escrito em 2026-10-26, na 1.3.1-rc.1; a peça 2 (Revisão no AMP) entrou em
 > 2026-10-27, na 1.3.1-rc.2, foi refeita em 2026-11-03 (v2: o agente do AMP recebe os
 > arquivos) e está na última seção; desde 2026-11-11, a lista sem diferença não vira arquivo, e o
-> HTML diz se a mudança é significativa ou só de texto. Desenho da peça 1:
+> HTML diz se a mudança é significativa ou só de texto. Desde 2026-11-12, a revisão em uso que ficou
+> com o código antigo da lista sai pelo Tracking ID e vale também posta à mão, e a aba Revisão no AMP
+> tem **Reler as pastas** e **Baixar do Aconex o que falta**. Desenho da peça 1:
 > `docs/superpowers/specs/2026-10-26-aconex-ao-vivo-design.md`. Plano e o que
 > falta: `docs/superpowers/plans/2026-10-26-aconex-ao-vivo.md` e
 > `docs/ACONEX_AO_VIVO.md`.
@@ -74,7 +76,12 @@ Não invente outra: ver o mural do `CLAUDE.md`.
   (`_buscar_doc_atual`): código **entre aspas** (sem aspas o register devolve 0),
   sem histórico, uma página de 25. Fica com a `Current`; sem ela, a primeira.
 - **Revisão em uso** (`versao`): o histórico do código (aspas, com histórico) e a
-  maior versão da revisão pedida, comparada sem caixa nem espaço.
+  maior versão da revisão pedida, comparada sem caixa nem espaço. Se ela não está lá,
+  o histórico do **Tracking ID** (`trackingid:<id>`, com histórico; o id vem da busca
+  do código, que pede o `trackingId`): a lista que mudou de código (o RDS-PP mudou)
+  guarda as revisões de antes com o código antigo, e o `codigo` da `Versao` devolvida
+  diz qual era (2026-11-12; no G1, 7 versões pela busca exata e 15 pelo Tracking ID).
+  A busca da versão vigente continua com os campos do DocManager.
 - **Download** (`baixar`): `GET .../register/{DocumentId}/markedup`, 180 s. O 401
   renova o token uma vez.
 - **Contar sem paginar** (`primeira_pagina`): a página 1 e o `TotalResults`, como a
@@ -124,12 +131,23 @@ uma varredura por conferência, só no primeiro link quebrado).
    Windows viram `_`; `#`, `&` e `=` ficam), com a revisão **que o Aconex
    devolveu**. Se for outra que não a da mapeadora: "mapeadora desatualizada: o
    Aconex está na X";
-2. o PDF da revisão em uso, se faltar na pasta (a peça 2 compara os dois). Fora do
-   histórico: aviso no log e segue;
+2. o PDF da revisão em uso, se faltar na pasta (a peça 2 compara os dois); se ele já
+   está lá, mesmo com o código antigo (`pdf_da_revisao`, abaixo), fica como está. Achado
+   pelo Tracking ID com o código antigo, ele é gravado com o código **atual** da lista (o
+   agente do AMP espera os dois PDFs com ele), e o detalhe diz "no Aconex com o código
+   antigo X". Fora dos dois históricos: aviso no log e segue;
 3. arquivo que já existe: "ja_existia", sem baixar. A gravação usa `open(..., "xb")`:
    **nunca sobrescreve**;
 4. `ErroAconex`, código fora do Aconex ou erro ao gravar: linha "falhou", e o resto
    continua. `cancelado_cb` para o laço entre as listas.
+
+**O PDF de uma revisão na pasta** (`pdf_da_revisao`, 2026-11-12): o do nome do padrão;
+sem ele, o **único** `<código>[<revisão>].pdf` dessa revisão com outro código, que é a
+revisão de antes de a lista mudar de código, posta à mão (o caso do Luan:
+`#ST00=B01MSE10&EPB020[0C].pdf` na pasta da `#ST00=B01BMU10TA010&EPB020`, e a lista ficava
+com "falta: PDF da revisão em uso"). Não conta o PDF de outra lista que tem o
+`_STATUS_PMIB` na mesma pasta, e com dois candidatos nenhum vale. `codigo_no_nome` e
+`tem_outro_codigo` leem o código do nome.
 
 **A tela** é a aba Conferência de Revisões do módulo Conferência de Listas (menu 8.1,
 desde 2026-11-04; era aba do PMIB Manager e, até a rc.1, o item 10 do menu). Mapeadora e pasta raiz começam nas do Gestão PMIB; mostra quando a
@@ -239,10 +257,13 @@ pela rota seguinte quando o tempo esgota ou a conexão cai, e cada repetição s
 agente. Por isso o tempo esgotado ("o AMP não respondeu em 45 min"; era 15 até 2026-11-04, quando uma lista levou 17) e a conexão cortada ("caiu
 depois de N s") viram erro. O teste de 03/11 mostrou que a rede da GE segura a chamada de minutos.
 
-**As listas** (`listas_para_amp`, sem mudança desde a v1):
+**As listas** (`listas_para_amp`):
 - são as da conferência que têm pasta, na ordem das categorias;
 - a revisão atual é a do download desta sessão (a que o Aconex devolveu); sem download, é a ÚLTIMA
-  REVISÃO EMITIDA, achada pelo nome do padrão na pasta;
+  REVISÃO EMITIDA;
+- o PDF de cada revisão é o que está na pasta **agora** (`pdf_da_revisao`, desde 2026-11-12), também
+  o posto à mão com o código antigo; `com_outro_codigo` diz quais vieram assim, e eles vão ao AMP
+  com esse nome (o agente sabe que o código pode mudar entre as revisões);
 - sem o `_STATUS_PMIB`, sem o PDF da revisão atual ou sem o da revisão em uso (quando há revisão em
   uso), a lista fica com a falta e não é mandada.
 
@@ -316,6 +337,18 @@ O eco da v1 saiu: o agente lê o arquivo original, e os códigos voltaram intact
     as que faltaram.
   - Se a Conferência rodou de novo, o clique refaz a tabela e não manda nada até o próximo clique.
   - Com a Conferência ainda rodando, aparece um aviso, e nada é chamado.
+- **A lista com falta** (2026-11-12; o Luan: não havia botão para baixar o PDF que faltava, e o posto
+  à mão não destravava a lista).
+  - **Reler as pastas** chama o `listas_para_amp` de novo, com os downloads da aba.
+  - **Baixar do Aconex o que falta** baixa, com o perfil do cofre (`perfil_do_aconex` e
+    `conectar_aconex`, os da Conferência), a revisão vigente e a em uso das listas com `faltam_pdfs`
+    (`baixar_o_que_falta`, que é o `baixar` da Conferência), e relê.
+  - Nos dois, cada lista fica como estava (a marca e o que o AMP devolveu), e a que deixou de ter
+    falta ganha a caixa, marcada. O console diz `Pastas relidas: ...`, as listas destravadas e os PDFs
+    com outro código no nome.
+  - **Uma coisa por vez:** com a Conferência rodando ou com outra tarefa da aba (a rodada, o download,
+    a releitura, o teste de conexão), os três botões avisam e não começam.
+  - A aba Conferência de Revisões só mostra o que esta aba baixou na próxima conferência.
 - **O webhook.** Desde 2026-11-05 fica no **Configurar IA** do alto da Conferência de Listas (entrada "Revisão no AMP", só Workflow AMP; a aba mostra só se está configurado). Endereço e chave guardados no
   `api_config.json` como `AMP_REVISAO_LISTAS_URL` e `AMP_REVISAO_LISTAS_CHAVE` (variáveis
   `SIGFT_AMP_REVISAO_LISTAS_*`).

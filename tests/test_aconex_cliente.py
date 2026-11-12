@@ -9,6 +9,7 @@ que o Aconex devolve. O segredo e o token nunca aparecem numa mensagem de erro.
 from __future__ import annotations
 
 import base64
+from xml.sax.saxutils import escape
 
 import pytest
 
@@ -50,10 +51,13 @@ def _token(valor="tok1"):
     return _Resposta(200, b"{}", {"access_token": valor})
 
 
-def _doc(document_id, numero, revisao, versao, current):
+def _doc(document_id, numero, revisao, versao, current, tracking=""):
     campos = {"DocumentNumber": numero, "Revision": revisao, "VersionNumber": str(versao),
               "Current": "true" if current else "false"}
-    corpo = "".join(f"<{k}>{v}</{k}>" for k, v in campos.items())
+    if tracking:
+        campos["TrackingId"] = tracking
+    # O `&` dos códigos (`#ST00=X&EPB020`) vem escapado no XML do Aconex.
+    corpo = "".join(f"<{k}>{escape(v)}</{k}>" for k, v in campos.items())
     return f'<Document DocumentId="{document_id}">{corpo}</Document>'
 
 
@@ -230,6 +234,48 @@ def test_versao_por_revisao_normalizada_pega_a_maior_versao():
                                        _doc("222", "#IT-1", "0B", 3, True)))
     assert cl.ClienteAconex(PERFIL, abrir=aconex).versao("#IT-1", "0a") == cl.Versao("112", "#IT-1", "0A", 2, False)
     assert aconex.chamadas[1]["params"]["show_document_history"] == "true"
+
+
+# [2026-11-12] A lista renomeada no Aconex (o RDS-PP mudou) guarda as revisões antigas com o código
+# antigo: a busca exata do código não as traz, e o Tracking ID traz (docs/ACONEX_API.md, o G1 de
+# 27/10: 7 versões contra 15). O caso do Luan: a 0C da B01BMU10TA010 é a B01MSE10.
+NOVO, ANTIGO = "#ST00=B01BMU10TA010&EPB020", "#ST00=B01MSE10&EPB020"
+
+
+def test_versao_que_nao_esta_no_codigo_segue_o_tracking_id():
+    aconex = _Aconex(_token(),
+                     _pagina(_doc("300", NOVO, "0", 4, True, tracking="T-77")),
+                     _pagina(_doc("100", ANTIGO, "0B", 1, False, tracking="T-77"),
+                             _doc("200", ANTIGO, "0C", 2, False, tracking="T-77"),
+                             _doc("201", ANTIGO, "0C", 3, False, tracking="T-77"),
+                             _doc("300", NOVO, "0", 4, True, tracking="T-77")))
+    versao = cl.ClienteAconex(PERFIL, abrir=aconex).versao(NOVO, "0C")
+    assert versao == cl.Versao("201", ANTIGO, "0C", 3, False, "T-77")
+    exata, pelo_tracking = _buscas(aconex)
+    assert exata["params"]["search_query"] == f'"{NOVO}"'
+    assert "trackingId" in exata["params"]["return_fields"].split(",")
+    assert pelo_tracking["params"]["search_query"] == "trackingid:T-77"
+    assert pelo_tracking["params"]["show_document_history"] == "true"
+
+
+def test_versao_achada_no_proprio_codigo_nao_vai_ao_tracking_id():
+    aconex = _Aconex(_token(), _pagina(_doc("111", "#IT-1", "0A", 1, False, tracking="T-1"),
+                                       _doc("222", "#IT-1", "0B", 2, True, tracking="T-1")))
+    assert cl.ClienteAconex(PERFIL, abrir=aconex).versao("#IT-1", "0A").document_id == "111"
+    assert len(_buscas(aconex)) == 1
+
+
+def test_versao_fora_do_codigo_e_sem_tracking_id_devolve_none():
+    aconex = _Aconex(_token(), _pagina(_doc("222", "#IT-1", "0B", 2, True)))
+    assert cl.ClienteAconex(PERFIL, abrir=aconex).versao("#IT-1", "0A") is None
+    assert len(_buscas(aconex)) == 1
+
+
+def test_versao_que_o_tracking_id_tambem_nao_tem_devolve_none():
+    aconex = _Aconex(_token(), _pagina(_doc("222", "#IT-1", "0B", 2, True, tracking="T-1")),
+                     _pagina(_doc("222", "#IT-1", "0B", 2, True, tracking="T-1")))
+    assert cl.ClienteAconex(PERFIL, abrir=aconex).versao("#IT-1", "0A") is None
+    assert len(_buscas(aconex)) == 2
 
 
 def test_primeira_pagina_traz_o_total_do_register():
