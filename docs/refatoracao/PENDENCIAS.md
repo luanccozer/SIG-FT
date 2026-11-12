@@ -979,3 +979,11 @@ duble. Depois, rodar a suite com a 9.2 e tirar o `<9.2`.~~
 |---|---|---|---|
 | 2026-11-09 | DocPack, Etapa 1 (pedido do Luan) | A Etapa 1 deixou de oferecer a lista que ainda não saiu no Aconex (`docpack.motivo_nao_emitida`: STATUS REAL NÃO EMITIDO, LISTA NÃO EMITIDA, sem ÚLTIMA REVISÃO EMITIDA ou sem STATUS REAL), mas a **Etapa 2 não lê a mapeadora**: varre os `_STATUS_PMIB` vazios da raiz. Um dossiê de lista não emitida, criado antes da correção ou à mão, entra no Consultar e falha (`Aconex: ...`): a lista não emitida não tem PDF para baixar, e nada vai ao AMP (correção do Luan, 2026-11-10: "não tem como baixar do Aconex uma lista que não foi emitida"). | Apagar os dossiês criados por engano. Se voltar a acontecer: a Etapa 2 ler a mapeadora do DocPack e pular, com o motivo no console, o dossiê que `motivo_nao_emitida` recusa. |
 | 2026-11-09 | DocPack, Etapa 1 | ~~A lista com STATUS REAL **Cancelado** continua sendo oferecida: o pedido foi só a não emitida.~~ **RESOLVIDO (2026-11-10)**: o Luan pediu para tirar também (`status_real.eh_cancelado`, `docpack.MOTIVO_CANCELADA`). | — |
+
+## 2026-11-12 — Upload de Condições: seletores pelo sufixo
+
+| Data | Descoberto em | Descrição | Destino proposto |
+|---|---|---|---|
+| 2026-11-12 | Upload de Condições (Jonathan, log de 12/11) | **Nada disto foi exercido contra o portal.** O critério de pronto é UMA ficha real: se ainda falhar, a linha `Diagnóstico da aba` separa H1 (prefixo mudou: há elemento pelo sufixo), H2 (a ficha não abriu) e H3 (a seção/sub-aba não montou). | Rodar uma ficha real em sessão local |
+| 2026-11-12 | Upload de Condições | O cabeçalho (`Conditions_Header`), os títulos das sub-abas (`b10-b17-Title`/`div[N]`) e os botões SALVAR (`$b3`/`$b4`/`$b5`, ids GERADOS) só têm o casamento por sufixo com UM elemento: não há contêiner conhecido para escopá-los. Se o portal mudar o prefixo e o sufixo repetir, o robô cai no id velho e o portão diagnostica. O diagnóstico também não diz se a seção está "aberta" (não há marca conhecida para isso). | Olhar o HTML real (`docs/OLHAR_O_PORTAL.md`) e achar um contêiner estável da sub-aba |
+| 2026-11-12 | Ficha duplicada / Upload Specs | `duplicadas_condicoes` e o Upload Specs não foram tocados; se usam id inteiro com prefixo, têm o mesmo risco (fora do escopo). | Conferir com `seletores_duplicada.py` |

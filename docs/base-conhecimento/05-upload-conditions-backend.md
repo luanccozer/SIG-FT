@@ -73,6 +73,31 @@ Processa as fichas de condições de armazenamento, transporte, manutenção e d
 
 **`atualizar_status_excel(caminho, pmib, status, callback_log=None, callback_ask=None)`**: Abre openpyxl, busca dinâmico de colunas "CÓDIGO PMIB"/"CONDIÇÕES" (15 primeiras linhas), blindagem numérica com formato `.4f`, loop retry se PermissionError com callback_ask.
 
+## Seletores, portão da aba e parada (2026-11-12)
+
+Log do usuário: `Input_PackingLength` não foi achado em 20 s e a ficha seguiu
+tentando campos, abas e "Salvando..." com o navegador já fechado. O conserto está
+em `sigft/core/rpa/seletores_condicoes.py` (os ids) e em `UploadAutomation`:
+
+- **Seletor pelo sufixo.** Os 53 campos/botões viraram constantes `Campo`
+  (`sufixo` estável + `id_conhecido` de hoje). `UploadAutomation._sel(campo)`
+  devolve, nesta ordem: o id inteiro de hoje (se existe, sem esperar); o prefixo
+  aprendido com o 1º campo da própria sub-aba + o sufixo; o sufixo
+  (`substring(@id, ...) = '-SUFIXO'`, o `ends-with` do XPath 1.0) **só se casar
+  UM elemento**. Nenhum dos três: o id de hoje, como antes. `RadioButton1-input`
+  e `RadioButton2-input` existem em Armazenamento (`b1`) e Descarte (`b5`): são
+  os únicos sufixos repetidos, resolvidos pelo prefixo da sub-aba.
+- **O prefixo mudou?** O log diz `Id novo no portal: '...'` UMA vez por execução.
+- **Portão da aba** (`_abrir_aba_ou_falhar`): antes de preencher cada sub-aba,
+  espera o 1º campo (id de hoje OU sufixo). Se não vem: UMA linha `Diagnóstico da
+  aba` (endereço sem query, cabeçalho `Conditions_Header`, quantos elementos têm
+  o sufixo e o id do primeiro, se o id de hoje existe, se há modal `role=dialog`),
+  a ficha fica INCOMPLETA e o robô passa à próxima.
+- **Navegador fechado / Parar.** `NavegadorFechado` e a parada (checada antes de
+  cada escrita e de cada sub-aba, nunca entre o clique de salvar e a confirmação)
+  encerram a ficha e o lote na hora (`_registrar_pendencia` os repassa em vez de
+  registrar "campo com falha"); o resumo diz o motivo.
+
 ## Fluxo Detalhado
 
 1. **Carregamento de Status**: Lê `_STATUS_PMIB` com dtype=str, força índice por CÓDIGO PMIB com remoção de apóstrofos e correção de zeros.

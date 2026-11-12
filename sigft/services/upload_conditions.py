@@ -14,6 +14,11 @@ from sigft.core.rpa.ficha_layout import nome_da_aba_da_ficha
 # CP 5.3 (Fase 5): `upload_conditions` migrado -- o `selenium` sumiu dos
 # imports. Quem decide o motor é `config.RPA_ENGINE["upload_conditions"]`.
 from sigft.core.rpa.factory import criar_engine
+from sigft.core.rpa import seletores_condicoes as C
+from sigft.core.rpa.engine import NavegadorFechado
+# O modal (`role="dialog"`) e UM conceito: o diagnostico de aba usa o mesmo
+# seletor que `seletores_duplicada` ja define.
+from sigft.core.rpa.seletores_duplicada import XPATH_DIALOGO
 # CP 2.2 (Fase 2): `safe_click`/`safe_send_keys`/`check_or_uncheck`/a busca-e-
 # abertura inline de `processar_lista`/o stop-flag de `ConditionsProcessor` e
 # `UploadAutomation` passam a delegar para `PMIBPortal`.
@@ -423,11 +428,11 @@ class ConditionsProcessor:
 # =============================================================================
 # CLASSE DE AUTOMAÇÃO (SELENIUM)
 # =============================================================================
-# CP 5.3: os 2 checkboxes que servem de âncora para a navegação por TAB dos
-# campos de temperatura/umidade. Aparecem 2x cada (marcar + focar), então
-# viram constantes em vez de literal repetido.
-XPATH_CHECK_CLIMATIZACAO = '//*[@id="b10-b17-b1-Checkbox4"]'
-XPATH_CHECK_UMIDADE = '//*[@id="b10-b17-b1-Checkbox5"]'
+# Os seletores (ids do portal) moram em `sigft.core.rpa.seletores_condicoes`,
+# como `Campo`s: o sufixo estável + o id inteiro de hoje. Os 2 checkboxes que
+# servem de âncora para a navegação por TAB dos campos de temperatura/umidade
+# (antes `XPATH_CHECK_CLIMATIZACAO`/`XPATH_CHECK_UMIDADE`) são
+# `C.ARM_CHECK_CLIMATIZACAO` e `C.ARM_CHECK_UMIDADE`.
 
 
 # ---------------------------------------------------------------------------
@@ -587,7 +592,30 @@ def mesmo_valor(escrito, na_tela):
 SECOES_DE_CONDICOES = ("Armazenamento", "Transporte", "Manutenção", "Descarte")
 
 
+class _InterrupcaoDaFicha(Exception):
+    """Encerra a ficha de propósito. NÃO é pendência de campo: os blocos de
+    campos a repassam em vez de registrá-la (ver `_registrar_pendencia`)."""
+
+
+class _ParadaSolicitada(_InterrupcaoDaFicha):
+    """O usuário pediu parada; vale entre campos e entre abas."""
+
+
+class _AbaNaoMontou(_InterrupcaoDaFicha):
+    """O 1º campo da sub-aba não apareceu: preencher os outros ~15 a 20 s cada
+    só gastaria minutos (2026-11-12)."""
+
+    def __init__(self, aba):
+        super().__init__(f"a aba '{aba}' não montou o primeiro campo")
+        self.aba = aba
+
+
 def _registrar_pendencia(pendencias, onde, erro, callback_log=None):
+    # Navegador fechado e interrupção não são "campo com falha": se o bloco as
+    # registrasse, o robô seguiria para o próximo campo, as outras abas e os
+    # "Salvando..." sem navegador (log de 2026-11-12: 9 linhas iguais).
+    if isinstance(erro, (NavegadorFechado, _InterrupcaoDaFicha)):
+        raise erro
     pendencias.append(f"{onde}: {type(erro).__name__}: {erro}")
     if callback_log:
         callback_log(f"Aviso: Falha {onde}. {erro}")
@@ -606,6 +634,12 @@ class UploadAutomation:
         # `PMIBPortal` (preserva um stop-flag já setado, se houver) -- ver
         # docs/refatoracao/PENDENCIAS.md.
         self.portal = PMIBPortal()
+        # Resolução de seletores (ver `_sel`): o prefixo de id aprendido por
+        # sub-aba (por ficha), o aviso de "id novo" (uma vez por execução) e
+        # onde escrever os avisos da resolução.
+        self._prefixos = {}
+        self._id_novo_logado = False
+        self._log_sel = None
 
     def solicitar_parada(self):
         self.portal.solicitar_parada()
@@ -658,24 +692,172 @@ class UploadAutomation:
         seletor = locator[1] if isinstance(locator, tuple) else locator
         self.portal.check_or_uncheck(seletor, should_check)
 
+    # ------------------------------------------------------------------
+    # Seletores: o id de hoje primeiro, o sufixo estável de reserva
+    # ------------------------------------------------------------------
+    def _contar(self, xpath):
+        """Quantos elementos casam AGORA (não espera). Falha de leitura = 0."""
+        try:
+            return int(self.engine.contar(xpath) or 0)
+        except NavegadorFechado:
+            raise
+        except Exception:  # noqa: BLE001 -- ler a tela não derruba a ficha
+            return 0
+
+    def _avisar(self, mensagem):
+        if self._log_sel:
+            self._log_sel(mensagem)
+
+    def _id_real(self, campo):
+        try:
+            return self.engine.atributo(C.seletor_por_sufixo(campo.sufixo), "id") or ""
+        except NavegadorFechado:
+            raise
+        except Exception:  # noqa: BLE001
+            return ""
+
+    def _avisar_id_novo(self, campo, id_real):
+        """UMA linha por execução: é a prova de que o prefixo do id mudou."""
+        if self._id_novo_logado:
+            return
+        self._id_novo_logado = True
+        self._avisar(f"      [i] Id novo no portal: '{id_real or '?'}' (o conhecido era "
+                     f"'{campo.id_conhecido}'). O prefixo do id mudou; sigo pelo sufixo.")
+
+    def _sel(self, campo):
+        """O XPath de `campo` que existe na tela AGORA.
+
+        1. o id inteiro de hoje (nada muda se o portal não mudou) -- sem esperar;
+        2. o prefixo aprendido com o 1º campo da própria sub-aba + o sufixo
+           (é o que separa `RadioButton1-input` de Armazenamento do de Descarte);
+        3. o sufixo estável, mas só se casar UM elemento -- nunca "o primeiro
+           do documento".
+
+        Nenhum dos três: devolve o id de hoje, como sempre (a espera e a falha
+        acontecem com o motivo, e o portão da aba já diagnosticou).
+        """
+        conhecido = campo.xpath_conhecido
+        if self._contar(conhecido) > 0:
+            return conhecido
+        prefixo = self._prefixos.get(campo.aba) if campo.aba else None
+        if prefixo:
+            exato = campo.xpath_com_prefixo(prefixo)
+            if self._contar(exato) > 0:
+                self._avisar_id_novo(campo, prefixo + campo.sufixo)
+                return exato
+        por_sufixo = campo.xpath_sufixo
+        quantos = self._contar(por_sufixo)
+        if quantos == 1:
+            self._avisar_id_novo(campo, self._id_real(campo))
+            return por_sufixo
+        if quantos > 1:
+            self._avisar(f"      [!] Há mais de um elemento com id terminando em "
+                         f"'-{campo.sufixo}' ({quantos}) e não sei de qual sub-aba: "
+                         f"não vou adivinhar.")
+        return conhecido
+
+    def _aprender_prefixo(self, campo):
+        """Guarda o prefixo real da sub-aba, lido do id do seu 1º campo."""
+        if not campo.aba:
+            return
+        try:
+            id_real = self.engine.atributo(self._sel(campo), "id") or ""
+        except NavegadorFechado:
+            raise
+        except Exception:  # noqa: BLE001
+            return
+        prefixo = C.prefixo_de(id_real, campo.sufixo)
+        if prefixo:
+            self._prefixos[campo.aba] = prefixo
+
+    def _parar_se_pedido(self):
+        if self.portal.deve_parar():
+            raise _ParadaSolicitada()
+
+    def _esperar_primeiro_campo(self, nome, primeiro_campo, callback_log=None):
+        """Espera o 1º campo da sub-aba ficar visível. Devolve se apareceu.
+
+        Com um `Campo`, espera o id de hoje OU o sufixo (união de XPath): se o
+        prefixo mudou, a espera não gasta os 20 s no id velho.
+        """
+        if isinstance(primeiro_campo, str):
+            alvo = primeiro_campo
+        else:
+            alvo = f"{primeiro_campo.xpath_conhecido} | {primeiro_campo.xpath_sufixo}"
+        try:
+            self.engine.wait_visible(alvo)
+        except NavegadorFechado:
+            raise
+        except Exception:  # noqa: BLE001
+            if callback_log:
+                callback_log(f"      [!] A aba '{nome}' não mostrou o primeiro campo a tempo.")
+            return False
+        if not isinstance(primeiro_campo, str):
+            self._aprender_prefixo(primeiro_campo)
+        return True
+
     def abrir_aba(self, seletor_aba, seletor_primeiro_campo, nome, callback_log=None):
-        """Clica na aba e ESPERA ela assentar antes de devolver.
+        """Clica na aba e ESPERA ela assentar antes de devolver. Devolve se o
+        1º campo apareceu.
 
         A espera é pelo primeiro campo ficar visível, e não um `sleep` cego: o
         campo visível é a evidência de que a re-renderização terminou. O
         `sleep` fica como piso mínimo depois disso, porque "visível" e
         "estável" não são a mesma coisa num widget que anima.
 
-        Ver `PAUSA_ABA_ASSENTAR` para o defeito que motivou isto.
+        Ver `PAUSA_ABA_ASSENTAR` para o defeito que motivou isto. Quem decide o
+        que fazer quando o campo não vem é o chamador (`_abrir_aba_ou_falhar`).
         """
+        if not isinstance(seletor_aba, str):
+            seletor_aba = self._sel(seletor_aba)
         self.safe_click(seletor_aba)
-        try:
-            self.engine.wait_visible(seletor_primeiro_campo)
-        except Exception:  # noqa: BLE001
-            if callback_log:
-                callback_log(f"      [!] A aba '{nome}' não mostrou o primeiro campo a tempo. "
-                             f"Vou tentar preencher assim mesmo.")
+        apareceu = self._esperar_primeiro_campo(nome, seletor_primeiro_campo, callback_log)
         time.sleep(PAUSA_ABA_ASSENTAR)
+        return apareceu
+
+    def _abrir_aba_ou_falhar(self, nome, aba, primeiro_campo, callback_log=None):
+        """Portão da sub-aba: sem o 1º campo, UMA linha de diagnóstico e a ficha
+        é encerrada INCOMPLETA (`_AbaNaoMontou`), em vez de ~15 esperas longas."""
+        self._parar_se_pedido()
+        if aba is None:
+            # Sem clique de aba (a seção abre pelo cabeçalho) e sem o piso de
+            # `PAUSA_ABA_ASSENTAR`: as esperas de Armazenamento não mudam.
+            apareceu = self._esperar_primeiro_campo(nome, primeiro_campo, callback_log)
+        else:
+            apareceu = self.abrir_aba(aba, primeiro_campo, nome, callback_log)
+        if not apareceu:
+            self._diagnosticar_aba(nome, primeiro_campo, callback_log)
+            raise _AbaNaoMontou(nome)
+
+    def _diagnosticar_aba(self, nome, primeiro_campo, callback_log=None):
+        """UMA linha com o que o robô VÊ quando a aba não montou -- só leitura,
+        sem dado pessoal e sem HTML. Separa as hipóteses: o prefixo mudou (há
+        elemento pelo sufixo), a ficha/seção não abriu (cabeçalho ausente, nada
+        pelo sufixo) ou um modal cobre a tela (regra 4 do portal)."""
+        if not callback_log:
+            return
+
+        def sim_nao(valor):
+            return "sim" if valor else "não"
+
+        try:
+            url = (self.engine.current_url() or "").split("?")[0] or "?"
+        except NavegadorFechado:
+            raise
+        except Exception:  # noqa: BLE001
+            url = "?"
+        cabecalho = (self._contar(C.CABECALHO.xpath_conhecido)
+                     or self._contar(C.CABECALHO.xpath_sufixo))
+        pelo_sufixo = self._contar(primeiro_campo.xpath_sufixo)
+        primeiro_id = self._id_real(primeiro_campo) if pelo_sufixo else ""
+        de_hoje = self._contar(primeiro_campo.xpath_conhecido) > 0
+        modal = self._contar(XPATH_DIALOGO) > 0
+        detalhe = f", primeiro: '{primeiro_id}'" if primeiro_id else ""
+        callback_log(
+            f"      [!] Diagnóstico da aba '{nome}': url {url}; cabeçalho "
+            f"'Conditions_Header': {sim_nao(cabecalho)}; elementos com id terminando em "
+            f"'-{primeiro_campo.sufixo}': {pelo_sufixo} elemento(s){detalhe}; id de hoje "
+            f"na tela: {sim_nao(de_hoje)}; modal aberto: {sim_nao(modal)}.")
 
     def _escrever(self, seletor, texto, nome_campo, callback_log=None):
         """Escreve DIZENDO por que falhou, em vez de engolir.
@@ -690,8 +872,12 @@ class UploadAutomation:
         Ele **não engole** a falha: loga o motivo e repassa, para o bloco da
         seção continuar registrando a pendência como sempre registrou.
         """
+        # A parada vale ENTRE campos: checa antes de cada escrita.
+        self._parar_se_pedido()
         try:
             self.engine.fill_estrito(seletor, str(texto))
+        except NavegadorFechado:
+            raise  # sem navegador não há o que dizer sobre o campo
         except Exception as erro:  # noqa: BLE001 -- ver docstring
             if callback_log:
                 callback_log(f"      [!] Não consegui escrever em '{nome_campo}': "
@@ -731,6 +917,8 @@ class UploadAutomation:
             time.sleep(PAUSA_CAMPO_ASSENTAR)
             try:
                 atual = str(self.engine.get_value(seletor) or "")
+            except NavegadorFechado:
+                raise
             except Exception:  # noqa: BLE001
                 return True  # não dá para conferir; não inventa pendência
             if mesmo_valor(alvo, atual):
@@ -766,10 +954,14 @@ class UploadAutomation:
         # O App chama 'abrir_portal' ANTES de pedir o login.
         lote_completas = []
         lote_incompletas = []
+        self._log_sel = callback_log
+        self._id_novo_logado = False
+        interrompido = None  # None | "usuario" | "navegador"
 
         for ficha in lista_fichas:
             if self.portal.deve_parar():
                 if callback_log: callback_log("Automação Web interrompida pelo usuário.")
+                interrompido = "usuario"
                 break  # Quebra o loop principal e vai para o finally de fechamento
 
             pmib = ficha['pmib_codigo']
@@ -781,6 +973,7 @@ class UploadAutomation:
             # `_secoes_todas_confirmadas`.
             pendencias = []
             salvas = {}
+            self._prefixos = {}  # o prefixo aprendido vale por ficha
 
             try:
                 # 1. Busca e abre a ficha em modo de edição.
@@ -804,26 +997,37 @@ class UploadAutomation:
                 )
 
                 # --- ABA 1: CONDIÇÕES (ARMAZENAMENTO) ---
+                self._parar_se_pedido()
                 try:
-                    self.safe_click('//*[@id="b10-Conditions_Header"]/button')
+                    self.safe_click(self._sel(C.CABECALHO))
+                except NavegadorFechado:
+                    raise
                 except Exception as e:
                     if callback_log: callback_log(f"ERRO: Não abriu aba Condições. {e}")
                     continue  # Pula ficha se falhar a aba principal
 
+                # Portão: espera o 1º campo de Armazenamento. Sem ele, uma linha
+                # de diagnóstico e a ficha é encerrada (hoje seriam ~15 esperas
+                # de 20 s).
+                self._abrir_aba_ou_falhar("Armazenamento", None,
+                                          C.PRIMEIRO_CAMPO["Armazenamento"], callback_log)
+
                 try:
-                    self.preencher_conferindo('//*[@id="b10-b17-b1-Input_PackingLength"]', ficha["dimensoes"]["comprimento"],
+                    self._parar_se_pedido()
+                    self.preencher_conferindo(self._sel(C.ARM_COMPRIMENTO), ficha["dimensoes"]["comprimento"],
                                               "Input_PackingLength", callback_log, pendencias)
-                    self.preencher_conferindo('//*[@id="b10-b17-b1-Input_PackagingWidth"]', ficha["dimensoes"]["largura"],
+                    self.preencher_conferindo(self._sel(C.ARM_LARGURA), ficha["dimensoes"]["largura"],
                                               "Input_PackagingWidth", callback_log, pendencias)
-                    self.preencher_conferindo('//*[@id="b10-b17-b1-Input_PackagingHeight"]', ficha["dimensoes"]["altura"],
+                    self.preencher_conferindo(self._sel(C.ARM_ALTURA), ficha["dimensoes"]["altura"],
                                               "Input_PackagingHeight", callback_log, pendencias)
                 except Exception as e:
                     _registrar_pendencia(pendencias, "nas Dimensões", e, callback_log)
 
                 try:
+                    self._parar_se_pedido()
                     controle_temp_data = ficha["controle_temperatura"]
                     if controle_temp_data["necessidade"] == "SIM":
-                        self.safe_click('//*[@id="b10-b17-b1-RadioButton5-input"]')
+                        self.safe_click(self._sel(C.ARM_TEMP_SIM))
                         if controle_temp_data["climatizacao"]["ativo"]:
                             # CP 5.3: `wait.until(clickable).send_keys(TAB)` +
                             # `driver.switch_to.active_element.send_keys(...)`
@@ -833,8 +1037,9 @@ class UploadAutomation:
                             # trocar isso por seletor direto é o tipo de
                             # mudança que o plano reserva para depois do módulo
                             # estar estável no motor novo.
-                            self.check_or_uncheck(XPATH_CHECK_CLIMATIZACAO, True)
-                            self.engine.focar(XPATH_CHECK_CLIMATIZACAO)
+                            check_clima = self._sel(C.ARM_CHECK_CLIMATIZACAO)
+                            self.check_or_uncheck(check_clima, True)
+                            self.engine.focar(check_clima)
                             self.engine.press("TAB")
                             time.sleep(PAUSA_DIGITACAO)
                             self.engine.digitar_no_foco(controle_temp_data["climatizacao"]["temp_max"])
@@ -844,8 +1049,9 @@ class UploadAutomation:
                             self.engine.digitar_no_foco(controle_temp_data["climatizacao"]["temp_min"])
                             time.sleep(PAUSA_ENTRE_CAMPOS)
                         if controle_temp_data["umidade"]["ativo"]:
-                            self.check_or_uncheck(XPATH_CHECK_UMIDADE, True)
-                            self.engine.focar(XPATH_CHECK_UMIDADE)
+                            check_umid = self._sel(C.ARM_CHECK_UMIDADE)
+                            self.check_or_uncheck(check_umid, True)
+                            self.engine.focar(check_umid)
                             self.engine.press("TAB")
                             time.sleep(PAUSA_DIGITACAO)
                             self.engine.digitar_no_foco(controle_temp_data["umidade"]["hr_max"])
@@ -855,157 +1061,160 @@ class UploadAutomation:
                             self.engine.digitar_no_foco(controle_temp_data["umidade"]["hr_min"])
                             time.sleep(PAUSA_ENTRE_CAMPOS)
                     else:
-                        self.safe_click('//*[@id="b10-b17-b1-RadioButton4-input"]')
+                        self.safe_click(self._sel(C.ARM_TEMP_NAO))
                 except Exception as e:
                     _registrar_pendencia(pendencias, "em Temperatura", e, callback_log)
 
                 try:
+                    self._parar_se_pedido()
                     posicoes = {
-                        "Vertical": '//*[@id="b10-b17-b1-RadioButton-input"]',
-                        "Horizontal": '//*[@id="b10-b17-b1-RadioButton7-input"]',
-                        "Indiferente": '//*[@id="b10-b17-b1-RadioButton8-input"]'
+                        "Vertical": C.ARM_POS_VERTICAL,
+                        "Horizontal": C.ARM_POS_HORIZONTAL,
+                        "Indiferente": C.ARM_POS_INDIFERENTE,
                     }
                     if ficha.get("posicao_armazenamento") in posicoes:
-                        self.safe_click(posicoes[ficha["posicao_armazenamento"]])
+                        self.safe_click(self._sel(posicoes[ficha["posicao_armazenamento"]]))
                 except Exception as e:
                     _registrar_pendencia(pendencias, "na Posição", e, callback_log)
 
                 try:
+                    self._parar_se_pedido()
                     nocivo_data = ficha["nocivo"]
                     if nocivo_data["status"] == "Nocivo":
-                        self.safe_click('//*[@id="b10-b17-b1-RadioButton2-input"]')
-                        self.preencher_conferindo('//*[@id="b10-b17-b1-TextArea_StorageCareES"]', nocivo_data["cuidado_es"],
+                        self.safe_click(self._sel(C.ARM_NOCIVO_SIM))
+                        self.preencher_conferindo(self._sel(C.ARM_CUIDADO_ES), nocivo_data["cuidado_es"],
                                                   "TextArea_StorageCareES", callback_log, pendencias)
-                        self.preencher_conferindo('//*[@id="b10-b17-b1-TextArea_StorageCarePT"]', nocivo_data["cuidado_pt"],
+                        self.preencher_conferindo(self._sel(C.ARM_CUIDADO_PT), nocivo_data["cuidado_pt"],
                                                   "TextArea_StorageCarePT", callback_log, pendencias)
                     else:
-                        self.safe_click('//*[@id="b10-b17-b1-RadioButton1-input"]')
+                        self.safe_click(self._sel(C.ARM_NOCIVO_NAO))
                 except Exception as e:
                     _registrar_pendencia(pendencias, "em Nocivo", e, callback_log)
 
                 try:
-                    self.preencher_conferindo('//*[@id="b10-b17-b1-Input_LiquidWeight"]', ficha["peso"]["liquido"],
+                    self._parar_se_pedido()
+                    self.preencher_conferindo(self._sel(C.ARM_PESO_LIQUIDO), ficha["peso"]["liquido"],
                                               "Input_LiquidWeight", callback_log, pendencias)
-                    self.preencher_conferindo('//*[@id="b10-b17-b1-Input_GrossWeight"]', ficha["peso"]["bruto"],
+                    self.preencher_conferindo(self._sel(C.ARM_PESO_BRUTO), ficha["peso"]["bruto"],
                                               "Input_GrossWeight", callback_log, pendencias)
                 except Exception as e:
                     _registrar_pendencia(pendencias, "nos Pesos", e, callback_log)
 
                 if ficha["controle_temperatura"]["necessidade"] == "NÃO":
                     try:
-                        self.check_or_uncheck('//*[@id="b10-b17-b1-Checkbox3"]', ficha.get("sujeito_intemperie") == "SIM")
+                        self.check_or_uncheck(self._sel(C.ARM_INTEMPERIE), ficha.get("sujeito_intemperie") == "SIM")
                     except Exception as e:
                         _registrar_pendencia(pendencias, "em Intempérie", e, callback_log)
 
                 try:
+                    self._parar_se_pedido()
                     mapa_protecao = {
-                        "SN": '//*[@id="b10-b17-b1-Checkbox6"]',
-                        "UV": '//*[@id="b10-b17-b1-Checkbox7"]',
-                        "EL": '//*[@id="b10-b17-b1-Checkbox8"]'
+                        "SN": C.ARM_PROT_SN,
+                        "UV": C.ARM_PROT_UV,
+                        "EL": C.ARM_PROT_EL,
                     }
                     for loc in mapa_protecao.values():
-                        self.check_or_uncheck(loc, False)
+                        self.check_or_uncheck(self._sel(loc), False)
                     for prot in ficha.get("protecao", []):
                         if prot in mapa_protecao:
-                            self.check_or_uncheck(mapa_protecao[prot], True)
+                            self.check_or_uncheck(self._sel(mapa_protecao[prot]), True)
                 except Exception as e:
                     _registrar_pendencia(pendencias, "na Proteção", e, callback_log)
 
                 try:
-                    self.preencher_conferindo('//*[@id="b10-b17-b1-Input_Stacking"]', ficha.get("empilhamento", ""),
+                    self._parar_se_pedido()
+                    self.preencher_conferindo(self._sel(C.ARM_EMPILHAMENTO), ficha.get("empilhamento", ""),
                                               "Input_Stacking", callback_log, pendencias)
                 except Exception as e:
                     _registrar_pendencia(pendencias, "no Empilhamento", e, callback_log)
 
                 try:
+                    self._parar_se_pedido()
                     cuidados_data = ficha["outros_cuidados"]
                     if cuidados_data["status"] == "SIM":
-                        self.safe_click('//*[@id="b10-b17-b1-RadioButton6-input"]')
-                        self.preencher_conferindo('//*[@id="b10-b17-b1-TextArea_OtherCareES"]', cuidados_data["cuidado_es"],
+                        self.safe_click(self._sel(C.ARM_OUTROS_SIM))
+                        self.preencher_conferindo(self._sel(C.ARM_OUTROS_ES), cuidados_data["cuidado_es"],
                                                   "TextArea_OtherCareES", callback_log, pendencias)
-                        self.preencher_conferindo('//*[@id="b10-b17-b1-TextArea_OtherCarePT"]', cuidados_data["cuidado_pt"],
+                        self.preencher_conferindo(self._sel(C.ARM_OUTROS_PT), cuidados_data["cuidado_pt"],
                                                   "TextArea_OtherCarePT", callback_log, pendencias)
                     else:
-                        self.safe_click('//*[@id="b10-b17-b1-RadioButton3-input"]')
+                        self.safe_click(self._sel(C.ARM_OUTROS_NAO))
                 except Exception as e:
                     _registrar_pendencia(pendencias, "em Outros Cuidados", e, callback_log)
 
-                salvas["Armazenamento"] = self.safe_save_with_pause('//*[@id="b10-b17-b1-b35-Button"]/button', "Armazenamento", callback_log, callback_pause)
+                salvas["Armazenamento"] = self.safe_save_with_pause(self._sel(C.SALVAR_ARMAZENAMENTO), "Armazenamento", callback_log, callback_pause)
 
                 # --- ABA 2: TRANSPORTE ---
                 try:
                     # A aba re-renderiza ao abrir e limpava o 1º campo escrito.
-                    self.abrir_aba('//*[@id="b10-b17-Title"]/div[3]',
-                                   '//*[@id="b10-b17-b3-TextArea_TransportPackagingES"]', "Transporte", callback_log)
-                    self.preencher_conferindo('//*[@id="b10-b17-b3-TextArea_TransportPackagingES"]', ficha.get("embalagem_transp_es", ""),
+                    self._abrir_aba_ou_falhar("Transporte", C.ABA_TRANSPORTE, C.TRA_EMBALAGEM_ES, callback_log)
+                    self.preencher_conferindo(self._sel(C.TRA_EMBALAGEM_ES), ficha.get("embalagem_transp_es", ""),
                                               "TextArea_TransportPackagingES", callback_log, pendencias)
-                    self.preencher_conferindo('//*[@id="b10-b17-b3-TextArea_TransportPackagingPT"]', ficha.get("embalagem_transp_pt", ""),
+                    self.preencher_conferindo(self._sel(C.TRA_EMBALAGEM_PT), ficha.get("embalagem_transp_pt", ""),
                                               "TextArea_TransportPackagingPT", callback_log, pendencias)
-                    self.preencher_conferindo('//*[@id="b10-b17-b3-TextArea_PositionCareES"]', ficha.get("posicao_icagem_es", ""),
+                    self.preencher_conferindo(self._sel(C.TRA_POSICAO_ES), ficha.get("posicao_icagem_es", ""),
                                               "TextArea_PositionCareES", callback_log, pendencias)
-                    self.preencher_conferindo('//*[@id="b10-b17-b3-TextArea_PositionCarePT"]', ficha.get("posicao_icagem_pt", ""),
+                    self.preencher_conferindo(self._sel(C.TRA_POSICAO_PT), ficha.get("posicao_icagem_pt", ""),
                                               "TextArea_PositionCarePT", callback_log, pendencias)
                 except Exception as e:
                     _registrar_pendencia(pendencias, "na aba Transporte", e, callback_log)
 
-                salvas["Transporte"] = self.safe_save_with_pause('//*[@id="b10-b17-$b3"]/div[3]/button', "Transporte", callback_log, callback_pause)
+                salvas["Transporte"] = self.safe_save_with_pause(self._sel(C.SALVAR_TRANSPORTE), "Transporte", callback_log, callback_pause)
 
                 # --- ABA 3: MANUTENÇÃO ---
                 try:
                     # A aba re-renderiza ao abrir e limpava o 1º campo escrito.
-                    self.abrir_aba('//*[@id="b10-b17-Title"]/div[4]',
-                                   '//*[@id="b10-b17-b4-TextArea_PreservationCareES"]', "Manutenção", callback_log)
-                    self.preencher_conferindo('//*[@id="b10-b17-b4-TextArea_PreservationCareES"]', ficha.get("cuidad_preserv_es", ""),
+                    self._abrir_aba_ou_falhar("Manutenção", C.ABA_MANUTENCAO, C.MAN_PRESERV_ES, callback_log)
+                    self.preencher_conferindo(self._sel(C.MAN_PRESERV_ES), ficha.get("cuidad_preserv_es", ""),
                                               "TextArea_PreservationCareES", callback_log, pendencias)
-                    self.preencher_conferindo('//*[@id="b10-b17-b4-TextArea_PreservationCarePT"]', ficha.get("cuidad_preserv_pt", ""),
+                    self.preencher_conferindo(self._sel(C.MAN_PRESERV_PT), ficha.get("cuidad_preserv_pt", ""),
                                               "TextArea_PreservationCarePT", callback_log, pendencias)
-                    self.preencher_conferindo('//*[@id="b10-b17-b4-TextArea_CleaningMethodES"]', ficha.get("limpeza_secagem_es", ""),
+                    self.preencher_conferindo(self._sel(C.MAN_LIMPEZA_ES), ficha.get("limpeza_secagem_es", ""),
                                               "TextArea_CleaningMethodES", callback_log, pendencias)
-                    self.preencher_conferindo('//*[@id="b10-b17-b4-TextArea_CleaningMethodPT"]', ficha.get("limpeza_secagem_pt", ""),
+                    self.preencher_conferindo(self._sel(C.MAN_LIMPEZA_PT), ficha.get("limpeza_secagem_pt", ""),
                                               "TextArea_CleaningMethodPT", callback_log, pendencias)
-                    self.preencher_conferindo('//*[@id="b10-b17-b4-TextArea_ToolPreservationES"]', ficha.get("ferramentas_es", ""),
+                    self.preencher_conferindo(self._sel(C.MAN_FERRAMENTAS_ES), ficha.get("ferramentas_es", ""),
                                               "TextArea_ToolPreservationES", callback_log, pendencias)
-                    self.preencher_conferindo('//*[@id="b10-b17-b4-TextArea_ToolPreservationPT"]', ficha.get("ferramentas_pt", ""),
+                    self.preencher_conferindo(self._sel(C.MAN_FERRAMENTAS_PT), ficha.get("ferramentas_pt", ""),
                                               "TextArea_ToolPreservationPT", callback_log, pendencias)
                 except Exception as e:
                     _registrar_pendencia(pendencias, "na aba Manutenção", e, callback_log)
 
-                salvas["Manutenção"] = self.safe_save_with_pause('//*[@id="b10-b17-$b4"]/div[4]/button', "Manutenção", callback_log, callback_pause)
+                salvas["Manutenção"] = self.safe_save_with_pause(self._sel(C.SALVAR_MANUTENCAO), "Manutenção", callback_log, callback_pause)
 
                 # --- ABA 4: DESCARTE ---
                 try:
                     # A aba re-renderiza ao abrir e limpava o 1º campo escrito.
-                    self.abrir_aba('//*[@id="b10-b17-Title"]/div[5]',
-                                   '//*[@id="b10-b17-b5-TextArea_TypeLegislationES"]', "Descarte", callback_log)
-                    self.preencher_conferindo('//*[@id="b10-b17-b5-TextArea_TypeLegislationES"]', ficha.get("legislacao_es", ""),
+                    self._abrir_aba_ou_falhar("Descarte", C.ABA_DESCARTE, C.DES_LEGISLACAO_ES, callback_log)
+                    self.preencher_conferindo(self._sel(C.DES_LEGISLACAO_ES), ficha.get("legislacao_es", ""),
                                               "TextArea_TypeLegislationES", callback_log, pendencias)
-                    self.preencher_conferindo('//*[@id="b10-b17-b5-TextArea_TypeLegislationPT"]', ficha.get("legislacao_pt", ""),
+                    self.preencher_conferindo(self._sel(C.DES_LEGISLACAO_PT), ficha.get("legislacao_pt", ""),
                                               "TextArea_TypeLegislationPT", callback_log, pendencias)
 
                     if ficha.get("perigoso_10004") == "SIM":
-                        self.safe_click('//*[@id="b10-b17-b5-RadioButton1-input"]')
+                        self.safe_click(self._sel(C.DES_PERIGOSO_SIM))
                     else:
-                        self.safe_click('//*[@id="b10-b17-b5-RadioButton2-input"]')
+                        self.safe_click(self._sel(C.DES_PERIGOSO_NAO))
 
-                    self.preencher_conferindo('//*[@id="b10-b17-b5-TextArea_DiscardTypeES"]', ficha.get("descarte_es", ""),
+                    self.preencher_conferindo(self._sel(C.DES_TIPO_ES), ficha.get("descarte_es", ""),
 
                                               "TextArea_DiscardTypeES", callback_log, pendencias)
-                    self.preencher_conferindo('//*[@id="b10-b17-b5-TextArea_DiscardTypePT"]', ficha.get("descarte_pt", ""),
+                    self.preencher_conferindo(self._sel(C.DES_TIPO_PT), ficha.get("descarte_pt", ""),
                                               "TextArea_DiscardTypePT", callback_log, pendencias)
 
                     logistica_rev = ficha.get("logistica_reversa", {})
                     if logistica_rev.get("status") == "SIM":
-                        self.safe_click('//*[@id="b10-b17-b5-Applies-input"]')
-                        self.preencher_conferindo('//*[@id="b10-b17-b5-TextArea_ReserveLogisticES"]', logistica_rev.get("logistica_reversa_es", ""),
+                        self.safe_click(self._sel(C.DES_LOGISTICA_SIM))
+                        self.preencher_conferindo(self._sel(C.DES_LOGISTICA_ES), logistica_rev.get("logistica_reversa_es", ""),
                                                   "TextArea_ReserveLogisticES", callback_log, pendencias)
-                        self.preencher_conferindo('//*[@id="b10-b17-b5-TextArea_ReserveLogisticPT"]', logistica_rev.get("logistica_reversa_pt", ""),
+                        self.preencher_conferindo(self._sel(C.DES_LOGISTICA_PT), logistica_rev.get("logistica_reversa_pt", ""),
                                                   "TextArea_ReserveLogisticPT", callback_log, pendencias)
                     else:
-                        self.safe_click('//*[@id="b10-b17-b5-DoesNotApply-input"]')
+                        self.safe_click(self._sel(C.DES_LOGISTICA_NAO))
                 except Exception as e:
                     _registrar_pendencia(pendencias, "na aba Descarte", e, callback_log)
 
-                salvas["Descarte"] = self.safe_save_with_pause('//*[@id="b10-b17-$b5"]/div[5]/button', "Descarte", callback_log, callback_pause)
+                salvas["Descarte"] = self.safe_save_with_pause(self._sel(C.SALVAR_DESCARTE), "Descarte", callback_log, callback_pause)
 
                 # --- COMPLETO só com prova ------------------------------
                 # "Ele só deve fazer isso se tiver certeza que preencheu os
@@ -1037,6 +1246,24 @@ class UploadAutomation:
                     self.atualizar_status_excel(caminho_status, pmib, "COMPLETO", callback_log, callback_ask)
                     lote_completas.append(pmib)
 
+            except _ParadaSolicitada:
+                if callback_log: callback_log("Automação Web interrompida pelo usuário.")
+                lote_incompletas.append(pmib)
+                interrompido = "usuario"
+                break
+            except NavegadorFechado:
+                # Um aviso só: sem navegador, os campos, as abas e os "Salvando"
+                # seguintes falhariam todos com a mesma exceção.
+                if callback_log:
+                    callback_log("Automação Web interrompida: o navegador foi fechado.")
+                lote_incompletas.append(pmib)
+                interrompido = "navegador"
+                break
+            except _AbaNaoMontou as e:
+                if callback_log:
+                    callback_log(f"{pmib}: INCOMPLETO -- {e}; o _STATUS_PMIB NÃO foi marcado.")
+                lote_incompletas.append(pmib)
+                continue
             except Exception as e:
                 if callback_log: callback_log(f"!!! ERRO CRÍTICO processando {pmib}: {e} !!!")
                 try:
@@ -1047,6 +1274,10 @@ class UploadAutomation:
                 lote_incompletas.append(pmib)
 
         if callback_log:
+            if interrompido:
+                motivo = ("pelo usuário" if interrompido == "usuario"
+                          else "porque o navegador foi fechado")
+                callback_log(f"\n=== Lote interrompido {motivo}: as fichas seguintes não foram processadas.")
             callback_log(
                 f"\n=== Fim do lote: {len(lote_completas)} ficha(s) marcada(s) COMPLETO, "
                 f"{len(lote_incompletas)} com pendência."
@@ -1076,6 +1307,8 @@ class UploadAutomation:
         try:
             if callback_log: callback_log(f"Salvando {section_name}...")
             self.safe_click(locator)
+        except NavegadorFechado:
+            raise  # sem navegador não há intervenção manual possível
         except Exception:
             if callback_log: callback_log(f"Falha ao salvar {section_name}. Aguardando intervenção manual.")
             if callback_pause:

@@ -103,6 +103,11 @@ class _EngineFake:
         return ""
 
     # -- resto do contrato usado no caminho ------------------------------
+    def wait_visible(self, seletor):
+        """O portão da aba (2026-11-12) espera o 1º campo: aqui ele sempre
+        aparece. Os casos em que NÃO aparece estão em
+        `test_condicoes_seletores_robustos.py`."""
+
     def esta_marcado(self, seletor):
         return False
 
