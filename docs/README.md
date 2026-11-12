@@ -34,6 +34,7 @@ código e revisada. Um arquivo por módulo:
 | `15-docpack.md` | `sigft/services/docpack.py` (aba DocPack do PMIB Manager) |
 | `16-lista-de-precos.md` | `sigft/services/lista_precos_arquivo.py` (módulo Lista de Preços) |
 | `16-upload-fotos.md` | `sigft/services/upload_fotos.py` (Upload de Fotos) |
+| `17-gerar-aplicacao-lmr.md` | `sigft/services/gerar_lmr_*.py` e `sigft/app_qt/views/gerar_aplicacao_lmr.py` (módulo Gerar Aplicação LMR) |
 
 ## Refatoração (`refatoracao/`)
 
