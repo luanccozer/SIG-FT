@@ -304,6 +304,13 @@ sub-aba você conta N, lê o bloco N+1 que já sumiu, e `engine.texto` gasta os
 |---|---|
 | `StoragePosition`, `Stacking`, `Classification`, `TypeLegislation`, `TypeDiscart`, `Reserve` | ✅ semânticos, use |
 | `Input_PackingLength`, `TextArea_…PT/ES`, `RadioButtonN-input`, `CheckboxN` | ✅ estáveis (o prefixo é que muda) |
+
+**O prefixo do id é gerado: case pelo sufixo.** XPath 1.0 não tem `ends-with`:
+use `substring(@id, string-length(@id) - string-length('-SUFIXO') + 1) = '-SUFIXO'`
+(`seletor_por_sufixo`, em `core/rpa/seletores_condicoes.py`). `contains()` casaria
+`Checkbox40` com `Checkbox4`. Sufixo repetido entre sub-abas (`RadioButton1-input`
+em `b1` e `b5`) se escopa pelo prefixo da sub-aba ou se recusa — nunca "o primeiro
+do documento". Mantenha o id de hoje como 1ª tentativa.
 | `b12-b20-b1-$b3`, `vscomp-search-input-5442`, `filepond--browser-h1d4zvekk` | ❌ gerados — ver `IDS_GERADOS_NAO_USAR` |
 
 ---
