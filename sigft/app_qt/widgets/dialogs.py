@@ -6,9 +6,10 @@ thread do robô fica presa em `Event.wait()` para sempre.
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QRect, QSize, Qt
+from PySide6.QtCore import QEvent, QRect, QSize, Qt, QTimer
 from PySide6.QtWidgets import (
-    QDialog, QFrame, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QStyledItemDelegate, QVBoxLayout,
+    QDialog, QFrame, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QPlainTextEdit, QStyledItemDelegate,
+    QVBoxLayout,
 )
 
 from sigft.app.idioma import t
@@ -162,6 +163,110 @@ class RetryLockDialog(_DialogoDeAcaoManual):
 
     def _ao_fechar_sem_decidir(self) -> None:
         self._responder(False)
+
+
+class IntervencaoDialog(SoltaAoFechar, QDialog):
+    """"Atenção: Intervenção Necessária": o robô da ficha duplicada pede conferência.
+
+    Fase 1: os motivos, a contagem regressiva e dois botões. "Continuar" segue;
+    "Editar" para a contagem e passa à Fase 2 (a pessoa corrige a ficha no
+    navegador, sem limite de tempo, e clica "Continuar" quando terminar). A
+    contagem a zero segue sozinha. O robô lê `resultado["resposta"]`.
+
+    Fechar no "X"/Esc solta o worker com a resposta mais segura para a fase:
+    "continuar" na Fase 1, "editar" na Fase 2 (a pessoa já estava mexendo).
+    """
+
+    # Valores de `resultado["resposta"]`. Literais de propósito, para o widget
+    # não importar o serviço: são os `RESPOSTA_*` de `services/duplicadas_robo.py`
+    # (`tests/test_qt_intervencao.py` confere que continuam iguais).
+    EDITAR = "editar"
+    CONTINUAR = "continuar"
+    SEM_RESPOSTA = "sem_resposta"
+
+    def __init__(self, parent, *, ficha: str, motivos: list[str], segundos: int,
+                 evento_espera, resultado: dict) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(t("Atenção: Intervenção Necessária"))
+        self.setFixedSize(520, 400)
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+        self._decidido = False
+        self._evento = evento_espera
+        self._resultado = resultado
+        self._ficha = ficha
+        self._restam = int(segundos)
+        self._editando = False
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
+        self.rotulo = QLabel(t("A ficha {ficha} terminou com pontos que precisam de conferência:", ficha=ficha))
+        self.rotulo.setWordWrap(True)
+        self.rotulo.setStyleSheet("font-size: 13px;")
+        layout.addWidget(self.rotulo)
+        # Podem ser muitos motivos: caixa só de leitura, com rolagem.
+        self.caixa_motivos = QPlainTextEdit()
+        self.caixa_motivos.setReadOnly(True)
+        self.caixa_motivos.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.caixa_motivos.setPlainText("\n".join(f"- {m}" for m in motivos))
+        layout.addWidget(self.caixa_motivos, 1)
+        self.rotulo_contagem = QLabel()
+        self.rotulo_contagem.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.rotulo_contagem)
+        linha = QHBoxLayout()
+        linha.setSpacing(20)
+        linha.addStretch()
+        self.botao_editar = blocos.botao(t("Editar"), variante="contorno", largura=150, altura=40)
+        self.botao_continuar = blocos.botao(t("Continuar"), variante="primario", largura=150, altura=40)
+        for botao in (self.botao_editar, self.botao_continuar):
+            sem_tecla(botao)
+            linha.addWidget(botao)
+        linha.addStretch()
+        layout.addLayout(linha)
+        self.botao_editar.clicked.connect(self._editar)
+        self.botao_continuar.clicked.connect(self._continuar)
+
+        self._atualizar_contagem()
+        self._timer = QTimer(self)
+        self._timer.setInterval(1000)
+        self._timer.timeout.connect(self._tique)
+        self._timer.start()
+
+    def _atualizar_contagem(self) -> None:
+        self.rotulo_contagem.setText(t("Sem resposta, continuo sozinho em {segundos} s.", segundos=self._restam))
+
+    def _tique(self) -> None:
+        """Um segundo a menos; a zero o robô segue sozinho."""
+        if self._decidido or self._editando:
+            return
+        self._restam -= 1
+        if self._restam <= 0:
+            self._responder(self.SEM_RESPOSTA)
+            self.accept()
+            return
+        self._atualizar_contagem()
+
+    def _responder(self, resposta: str) -> None:
+        self._decidido = True
+        self._timer.stop()
+        self._resultado["resposta"] = resposta
+        self._evento.set()
+
+    def _editar(self) -> None:
+        """Fase 2: sem limite de tempo; só o "Continuar" fecha."""
+        self._editando = True
+        self._timer.stop()
+        self.botao_editar.hide()
+        self.rotulo_contagem.hide()
+        self.rotulo.setText(t("Corrija a ficha {ficha} no navegador (ela está aberta para edição) e salve cada "
+                              "seção. Quando terminar, clique em Continuar.", ficha=self._ficha))
+
+    def _continuar(self) -> None:
+        self._responder(self.EDITAR if self._editando else self.CONTINUAR)
+        self.accept()
+
+    def _ao_fechar_sem_decidir(self) -> None:
+        self._responder(self.EDITAR if self._editando else self.CONTINUAR)
 
 
 class _DelegadoDaCaixa(QStyledItemDelegate):

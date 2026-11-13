@@ -363,6 +363,10 @@ class ModuloCopiaFichas(ModuleFrame):
                 callback_progresso=lambda fracao: self._progresso_do_lote(fracao, len(fichas)),
                 portal=portal,
                 log_auditoria=log_auditoria,
+                # Antes da próxima ficha, uma que terminou com erro ou dúvida
+                # abre a janela Editar/Continuar (esta thread espera).
+                callback_intervencao=lambda resultado, motivos, segundos: self.pedir_intervencao(
+                    resultado.pmib_alvo, motivos, segundos),
             )
 
             # Marca o `_STATUS_PMIB` seção a seção: COMPLETO só onde TUDO deu
@@ -377,6 +381,10 @@ class ModuloCopiaFichas(ModuleFrame):
                       + (f", {len(falhas)} falha(s)." if falhas else "."))
             registrar("[Robô novo] Confira no portal o que o log marcou como "
                       "pendência antes de mudar o status das fichas.")
+            # O fecho do log: todos os pedidos de intervenção, inclusive os sem
+            # resposta, para conferir ao voltar.
+            for linha in duplicadas_robo.relatorio_de_intervencoes(resultados):
+                registrar(linha)
         except Exception as erro:  # noqa: BLE001 -- vira log, como lá
             registrar(f"[Robô novo] Falha: {type(erro).__name__}: {erro}")
         finally:

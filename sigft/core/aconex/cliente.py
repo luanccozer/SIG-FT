@@ -14,6 +14,9 @@ requisição. A navegação entre as páginas é a do DocManager (KB §18.2 e §
 * depois da 5ª tentativa, `ErroAconex`: resultado parcial nunca passa por completo;
 * a versão vigente de um código sai da busca exata do download do DocManager
   (código entre aspas, sem histórico, uma página de 25);
+* uma revisão antiga sai do histórico do código e, quando não está nele, do histórico
+  do Tracking ID: a lista que mudou de código (o RDS-PP mudou) guarda as revisões de
+  antes com o código antigo (`docs/ACONEX_API.md`, "Achados do SIG-FT");
 * nenhuma mensagem de `ErroAconex` traz o segredo ou o token.
 """
 from __future__ import annotations
@@ -42,6 +45,11 @@ CAMPOS_STRING = (
     "TipoDeDocumentoDcc_singleSelect,ControlCmi_singleLineText"
 )
 CAMPOS_DAS_VERSOES = "docno,current,filename,revision,versionnumber"
+# [2026-11-12] O histórico de um código traz também o Tracking ID: a revisão que não está
+# nele pode estar com o código antigo da lista, no histórico do Tracking ID. A busca da
+# versão vigente (a do DocManager) continua com os campos dela.
+CAMPOS_DO_HISTORICO = CAMPOS_DAS_VERSOES + ",trackingId"
+BUSCA_POR_TRACKING_ID = "trackingid:{id}"   # filtra, com ou sem aspas no id (G1, 27/10/2026)
 
 MAPA_COLUNAS = {
     "ControlDelEmisor_singleLineText": "Controle do Emissor",
@@ -89,10 +97,11 @@ class ErroAconex(RuntimeError):
 @dataclass(frozen=True)
 class Versao:
     document_id: str
-    codigo: str
+    codigo: str            # o código da versão: na lista que mudou de código, o antigo
     revisao: str
     versao: int
     current: bool
+    tracking_id: str = ""  # só nas buscas do histórico (`CAMPOS_DO_HISTORICO`)
 
 
 @dataclass(frozen=True)
@@ -145,8 +154,15 @@ def _ler_versoes(conteudo: bytes) -> list[Versao]:
         except ValueError:
             numero = 0
         versoes.append(Versao(document_id, campos.get("DocumentNumber", ""), campos.get("Revision", ""),
-                              numero, campos.get("Current", "").lower() == "true"))
+                              numero, campos.get("Current", "").lower() == "true",
+                              campos.get("TrackingId", "")))
     return versoes
+
+
+def _maior_da_revisao(versoes: list[Versao], revisao: str) -> Versao | None:
+    """A versão de maior número entre as da `revisao` (comparada sem caixa nem espaço)."""
+    da_revisao = [v for v in versoes if status_real.revisoes_iguais(v.revisao, revisao)]
+    return max(da_revisao, key=lambda v: v.versao, default=None)
 
 
 def classificar_fonte(fonte) -> str:
@@ -317,8 +333,15 @@ class ClienteAconex:
         return Pagina([], 0) if fim else pagina
 
     def versoes_do_codigo(self, codigo: str) -> list[Versao]:
-        """Todas as versões do documento de código exato (busca entre aspas, com histórico)."""
-        return self._paginas(f'"{codigo}"', True, CAMPOS_DAS_VERSOES, PAGE_SIZE_EXATA, _ler_versoes)
+        """Todas as versões do documento de código exato (busca entre aspas, com histórico),
+        com o Tracking ID de cada uma."""
+        return self._paginas(f'"{codigo}"', True, CAMPOS_DO_HISTORICO, PAGE_SIZE_EXATA, _ler_versoes)
+
+    def versoes_do_tracking_id(self, tracking_id: str) -> list[Versao]:
+        """Todas as versões do documento, também as de outro código: a lista que mudou de
+        código continua no mesmo Tracking ID (no G1, 15 versões onde a busca exata trouxe 7)."""
+        return self._paginas(BUSCA_POR_TRACKING_ID.format(id=tracking_id), True, CAMPOS_DO_HISTORICO,
+                             PAGE_SIZE_EXATA, _ler_versoes)
 
     def versao_vigente(self, codigo: str) -> Versao | None:
         """A versão vigente, pela busca exata do download do DocManager (`_buscar_doc_atual`):
@@ -330,9 +353,17 @@ class ClienteAconex:
         return next((v for v in versoes if v.current), versoes[0] if versoes else None)
 
     def versao(self, codigo: str, revisao: str) -> Versao | None:
-        """A versão de maior número entre as da `revisao` (comparada sem caixa nem espaço)."""
-        da_revisao = [v for v in self.versoes_do_codigo(codigo) if status_real.revisoes_iguais(v.revisao, revisao)]
-        return max(da_revisao, key=lambda v: v.versao, default=None)
+        """A versão de maior número entre as da `revisao` (comparada sem caixa nem espaço): no
+        histórico do código e, se ela não estiver lá, no do Tracking ID dele. É onde fica a
+        revisão de antes de a lista mudar de código (o Luan, em 12/11/2026: a 0C da
+        `#ST00=B01BMU10TA010&EPB020` é a `#ST00=B01MSE10&EPB020`); o `codigo` da versão diz qual."""
+        exatas = self.versoes_do_codigo(codigo)
+        achada = _maior_da_revisao(exatas, revisao)
+        tracking = next((v.tracking_id for v in exatas if v.tracking_id), "")
+        if achada is not None or not tracking:
+            return achada
+        self._log(f"A revisão {revisao} não está no histórico de {codigo}: procurando no Tracking ID {tracking}...")
+        return _maior_da_revisao(self.versoes_do_tracking_id(tracking), revisao)
 
     def baixar(self, document_id: str) -> bytes:
         """O PDF da versão (`/markedup`, como o `baixar_documentos` do DocManager). O 401

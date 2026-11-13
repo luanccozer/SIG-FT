@@ -38,16 +38,19 @@ import pathlib
 import pytest
 
 from sigft.core.rpa import portal as portal_mod
+from sigft.core.rpa import seletores_condicoes as sc
 from sigft.core.rpa.portal import PMIBPortal
 from sigft.services import upload_conditions
 
 
-BOTOES_DE_SALVAR = {
-    '//*[@id="b10-b17-b1-b35-Button"]/button': "Armazenamento",
-    '//*[@id="b10-b17-$b3"]/div[3]/button': "Transporte",
-    '//*[@id="b10-b17-$b4"]/div[4]/button': "Manutenção",
-    '//*[@id="b10-b17-$b5"]/div[5]/button': "Descarte",
+# O SALVAR de cada sub-aba é achado pela ÂNCORA (o 1º campo dela), não por id.
+# O duplo reconhece a fórmula do portal (`XPATH_SALVAR_*_DO_BLOCO`) aplicada a
+# uma dessas âncoras e faz o clique cair na seção dona dela.
+ANCORAS = {
+    sc.PRIMEIRO_CAMPO[nome].xpath_conhecido: nome
+    for nome in ("Armazenamento", "Transporte", "Manutenção", "Descarte")
 }
+BOTOES_DE_SALVAR = {nome: nome for nome in ANCORAS.values()}
 
 MENSAGEM = {
     "Armazenamento": "As condições de armazenamento foram modificadas com sucesso!",
@@ -75,11 +78,27 @@ class _EngineFake:
     # -- o que `safe_click`/`safe_fill` do portal chamam -------------------
     def click(self, seletor):
         self.cliques.append(seletor)
-        secao = BOTOES_DE_SALVAR.get(seletor)
+
+    @staticmethod
+    def _secao_da_formula(seletor, formula):
+        """A seção cuja âncora, posta na `formula`, dá exatamente `seletor`."""
+        for ancora, secao in ANCORAS.items():
+            if seletor == formula.format(ancora=ancora):
+                return secao
+        return None
+
+    def click_raw(self, seletor):
+        self.cliques.append(seletor)
+        secao = self._secao_da_formula(
+            seletor.removeprefix("(").removesuffix(")[1]"),
+            portal_mod.XPATH_SALVAR_SUBINDO_DO_BLOCO)
         if secao and secao not in self.secoes_mudas:
             # O portal não limpa o toast anterior na hora -- ele "fica um
             # tempo". Acumular reproduz isso.
             self.toasts.append(MENSAGEM[secao])
+
+    def scroll_to(self, seletor):
+        pass
 
     def fill_estrito(self, seletor, texto):
         """`preencher_conferindo` escreve pelo caminho ESTRITO, para a falha
@@ -94,6 +113,10 @@ class _EngineFake:
     def contar(self, seletor):
         if seletor == portal_mod.XPATH_MENSAGEM_DE_FEEDBACK:
             return len(self.toasts)
+        # Na seção o botão está ao lado do campo, não dentro dele: só a
+        # fórmula SUBINDO acha, e acha UM.
+        if self._secao_da_formula(seletor, portal_mod.XPATH_SALVAR_SUBINDO_DO_BLOCO):
+            return 1
         return 0
 
     def texto(self, seletor):
@@ -103,6 +126,11 @@ class _EngineFake:
         return ""
 
     # -- resto do contrato usado no caminho ------------------------------
+    def wait_visible(self, seletor):
+        """O portão da aba (2026-11-12) espera o 1º campo: aqui ele sempre
+        aparece. Os casos em que NÃO aparece estão em
+        `test_condicoes_seletores_robustos.py`."""
+
     def esta_marcado(self, seletor):
         return False
 

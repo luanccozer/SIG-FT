@@ -260,8 +260,9 @@ def robo(tela, monkeypatch):
     LogFalso.criados = []
 
     def processar_lote(fichas, callback_log=None, callback_progresso=None, portal=None,
-                       log_auditoria=None):
+                       log_auditoria=None, callback_intervencao=None):
         estado["fichas"] = fichas
+        estado["callback_intervencao"] = callback_intervencao
         estado["log_auditoria"] = log_auditoria
         estado["liberar"].wait(3)
         callback_log("ficha 1 ok")
@@ -319,6 +320,34 @@ def test_robo_completo_com_auditoria(tela, robo, qtbot):
     assert robo["log_auditoria"] is log
     assert "[Robô novo] Marcando o _STATUS_PMIB..." in log.linhas
     qtbot.waitUntil(lambda: tela.progress.value() > 0, timeout=2000)
+
+
+def test_robo_passa_o_callback_de_intervencao_e_fecha_o_log_com_o_relatorio(tela, robo, qtbot, monkeypatch):
+    pedidos = []
+    monkeypatch.setattr(tela, "pedir_intervencao", lambda ficha, motivos, segundos: (
+        pedidos.append((ficha, motivos, segundos)) or "editar"))
+    resultado = duplicadas_robo.ResultadoDaFicha("4500063672.0002", "4500063671.0002")
+    resultado.intervencao = duplicadas_robo.Intervencao(["seção pdm: falhou"], "sem_resposta")
+    recebido = {}
+
+    def processar_lote(fichas, callback_log=None, callback_progresso=None, portal=None,
+                       log_auditoria=None, callback_intervencao=None):
+        recebido["resposta"] = callback_intervencao(resultado, ["seção pdm: falhou"], 60)
+        return [resultado]
+
+    monkeypatch.setattr(duplicadas_robo, "processar_lote", processar_lote)
+    tela.run_robo_novo_thread()
+    qtbot.waitUntil(lambda: "SEM RESPOSTA" in _texto(tela), timeout=3000)
+    qtbot.waitUntil(tela.btn_robo_novo.isEnabled, timeout=2000)
+
+    # O callback que a tela entrega ao serviço leva a ficha ALVO e a resposta volta.
+    assert pedidos == [("4500063672.0002", ["seção pdm: falhou"], 60)]
+    assert recebido["resposta"] == "editar"
+    # O relatório é o fecho do log, depois do "Confira no portal".
+    texto = _texto(tela)
+    assert texto.index("Confira no portal") < texto.index("=== Pedidos de intervenção: 1 ficha(s)")
+    assert "4500063672.0002: SEM RESPOSTA (segui sozinho)" in texto
+    assert "seção pdm: falhou" in texto
 
 
 def test_robo_sem_auditoria(tela, robo, qtbot):

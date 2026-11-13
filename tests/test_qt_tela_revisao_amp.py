@@ -5,6 +5,7 @@ a rodada tem os testes dela em `test_revisao_amp_rodada.py`. Desenho:
 """
 from __future__ import annotations
 
+import dataclasses
 from datetime import datetime
 from types import SimpleNamespace
 
@@ -48,11 +49,14 @@ class _ClienteAmp:
 
 
 def _lista(tmp_path, codigo, falta=""):
+    """A falta de um PDF é o PDF que não está (`None`), como no serviço."""
     pasta = tmp_path / codigo[-6:]
     pasta.mkdir(parents=True, exist_ok=True)
     dados = cr.ListaNaMapeadora(codigo, "0B", "Em Processo", "Aprovado", "0A", "x")
-    return ra.ListaParaAmp(cr.ItemConferencia(dados, "aprovada", pasta), pasta / "s.xlsx", pasta / "a.pdf",
-                           pasta / "b.pdf", "0B", falta)
+    em_uso = None if "em uso" in falta else pasta / "a.pdf"
+    atual = None if "atual" in falta else pasta / "b.pdf"
+    return ra.ListaParaAmp(cr.ItemConferencia(dados, "aprovada", pasta), pasta / "s.xlsx", em_uso, atual, "0B",
+                           falta)
 
 
 @pytest.fixture
@@ -66,10 +70,11 @@ def servico(monkeypatch, tmp_path):
     """Dublê do serviço: as listas, a rodada e o teste. Guarda o que a tela pediu."""
     falso = SimpleNamespace(listas=[_lista(tmp_path, CODIGO), _lista(tmp_path, OUTRO, "falta: PDF da revisão atual"),
                                     _lista(tmp_path, TERCEIRO)],
-                            resultados=None, chamadas=[], testes=[], cancelado=None, rodada=None)
+                            resultados=None, chamadas=[], testes=[], cancelado=None, rodada=None, downloads=[])
 
     def listas_para_amp(conferencia, downloads, pasta_mapeadora, pasta_raiz):
         falso.chamadas.append(("listas", pasta_mapeadora, pasta_raiz))
+        falso.downloads.append(list(downloads))
         return falso.listas
 
     def revisar_listas(listas, cliente, *, versao_sigft, url, chave_posta, log_cb, progress_cb=None,
@@ -369,3 +374,147 @@ def test_testar_conexao_escreve_e_grava(qt_interface, qtbot, servico):
     [arquivo] = list((dados_usuario.pasta_logs() / "amp").glob("amp_teste_*.log"))
     texto = arquivo.read_text(encoding="utf-8")
     assert "OK      Ping" in texto and CHAVE not in texto
+
+
+# ------------------------------------------------------------------ reler as pastas e baixar o que falta
+# [2026-11-12] O Luan: a lista sem o PDF da revisão em uso não tinha botão para baixá-lo, e o PDF
+# posto à mão na pasta não destravava a lista ("ainda tá travado").
+
+AVISO_OCUPADA = "Espere a tarefa em andamento terminar."
+AVISO_NADA_A_BAIXAR = "Não falta PDF em nenhuma lista da tabela."
+AVISO_TABELA_REFEITA_BAIXAR = ("A conferência mudou: a tabela foi refeita com as listas dela. Clique de novo "
+                               "para baixar o que falta.")
+SEM_PERFIL = "Nenhum perfil do Aconex neste Windows: cadastre-o no DocManager."
+
+
+@pytest.fixture
+def informacoes(monkeypatch):
+    """Os QMessageBox.information do clique (thread da interface)."""
+    lista = []
+    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *a: lista.append(a[1:])))
+    return lista
+
+
+@pytest.fixture
+def aconex(monkeypatch, servico, tmp_path):
+    """Dublê do perfil, do login e do download. O download "traz" o PDF que faltava: a lista do
+    meio volta sem falta na releitura."""
+    falso = SimpleNamespace(perfil=SimpleNamespace(nome="Luan Cozer"), cliente=object(), pedidos=[], logins=[],
+                            baixado=cr.Download(OUTRO, "0B", tmp_path / "b.pdf", "baixado"))
+
+    def conectar_aconex(perfil, log):
+        falso.logins.append(perfil)
+        return falso.cliente
+
+    def baixar_o_que_falta(listas, cliente, *, log_cb, progress_cb=None, cancelado_cb=None):
+        falso.pedidos.append(([lista.item.lista.codigo for lista in listas], cliente))
+        log_cb("linha do download")
+        servico.listas = [servico.listas[0], _lista(tmp_path, OUTRO), servico.listas[2]]
+        return [falso.baixado]
+
+    monkeypatch.setattr(tela_mod, "perfil_do_aconex", lambda _pai: falso.perfil)
+    monkeypatch.setattr(tela_mod, "conectar_aconex", conectar_aconex)
+    monkeypatch.setattr(tela_mod.revisao_amp_svc, "baixar_o_que_falta", baixar_o_que_falta)
+    return falso
+
+
+def _relida(tela, qtbot, servico, chamadas=2):
+    qtbot.waitUntil(lambda: len(servico.chamadas) == chamadas and not tela.rodando(), timeout=5000)
+
+
+def test_reler_as_pastas_da_caixa_a_lista_que_ganhou_o_pdf_e_mantem_as_marcas(qt_interface, qtbot, servico,
+                                                                               ultima, tmp_path):
+    tela = _carregada(_tela(qtbot, ultima=ultima), qtbot)
+    tela.tabela.topLevelItem(2).setCheckState(0, Qt.CheckState.Unchecked)   # a escolha fica
+    servico.listas = [servico.listas[0], _lista(tmp_path, OUTRO), servico.listas[2]]   # o PDF posto à mão
+    tela.btn_reler.click()
+    _relida(tela, qtbot, servico)
+    assert _caixas(tela) == [True, True, False]
+    assert _coluna_amp(tela)[1] == ""
+    _no_console(tela, qtbot, "Pastas relidas: 3 de 3 lista(s) podem ir ao AMP, 0 com falta.")
+    _no_console(tela, qtbot, f"✓ {OUTRO}: não falta mais nada, e a lista ficou marcada")
+
+
+def test_reler_mantem_o_que_o_amp_devolveu(qt_interface, qtbot, servico, ultima, monkeypatch):
+    abertos = []
+    monkeypatch.setattr(tela_mod.plataforma, "abrir_no_sistema", abertos.append)
+    tela = _carregada(_tela(qtbot, ultima=ultima), qtbot)
+    _revisar(tela, qtbot, 2)
+    tela.btn_reler.click()
+    _relida(tela, qtbot, servico)
+    assert _caixas(tela) == [False, None, False]
+    assert _coluna_amp(tela) == ["HTML pronto: x.html", "falta: PDF da revisão atual", "HTML pronto: x.html"]
+    tela.tabela.itemDoubleClicked.emit(tela.tabela.topLevelItem(0), 0)
+    assert abertos == [servico.listas[0].item.pasta / "x.html"]
+
+
+def test_reler_sem_conferencia_avisa(qt_interface, qtbot, servico, avisos):
+    tela = _tela(qtbot, ultima=None)
+    tela.btn_reler.click()
+    assert avisos == [(TITULO, "Confira as revisões antes.")]
+    assert servico.chamadas == []
+
+
+def test_baixar_do_aconex_so_o_que_falta_e_reler(qt_interface, qtbot, servico, ultima, aconex):
+    tela = _carregada(_tela(qtbot, ultima=ultima), qtbot)
+    tela.btn_baixar.click()
+    _relida(tela, qtbot, servico)
+    assert aconex.pedidos == [([OUTRO], aconex.cliente)]    # só a lista sem o PDF
+    assert aconex.logins == [aconex.perfil]
+    assert servico.downloads[-1] == [aconex.baixado]        # a releitura leva o que veio
+    assert _caixas(tela) == [True, True, True]
+    _no_console(tela, qtbot, "linha do download")
+
+
+def test_baixar_sem_falta_avisa_e_nao_chama_o_aconex(qt_interface, qtbot, servico, ultima, aconex, informacoes):
+    servico.listas = [servico.listas[0], servico.listas[2]]
+    tela = _carregada(_tela(qtbot, ultima=ultima), qtbot)
+    tela.btn_baixar.click()
+    assert informacoes == [(TITULO, AVISO_NADA_A_BAIXAR)]
+    assert aconex.pedidos == [] and aconex.logins == []
+
+
+def test_baixar_sem_perfil_do_aconex_avisa_no_console(qt_interface, qtbot, servico, ultima, aconex, monkeypatch):
+    monkeypatch.setattr(tela_mod, "perfil_do_aconex", lambda _pai: None)
+    tela = _carregada(_tela(qtbot, ultima=ultima), qtbot)
+    tela.btn_baixar.click()
+    _no_console(tela, qtbot, "[AVISO] " + SEM_PERFIL)
+    assert aconex.pedidos == [] and aconex.logins == []
+
+
+def test_baixar_com_conferencia_nova_refaz_a_tabela_e_nao_baixa(qt_interface, qtbot, servico, avisos, ultima,
+                                                                aconex, tmp_path):
+    tela = _carregada(_tela(qtbot, ultima=ultima), qtbot)
+    tela.fonte.ultima = UltimaConferencia(ultima.mapeadora, ultima.conferencia, [], tmp_path / "outra")
+    tela.btn_baixar.click()
+    assert avisos == [(TITULO, AVISO_TABELA_REFEITA_BAIXAR)]
+    _relida(tela, qtbot, servico)
+    assert aconex.pedidos == []
+
+
+def test_baixar_e_reler_com_a_conferencia_rodando_avisam(qt_interface, qtbot, servico, avisos, ultima, aconex):
+    tela = _tela(qtbot, ultima=ultima, rodando=True)
+    tela.btn_reler.click()
+    tela.btn_baixar.click()
+    assert avisos == [(TITULO, "A conferência ainda está rodando: espere ela terminar.")] * 2
+    assert servico.chamadas == [] and aconex.pedidos == []
+
+
+def test_uma_tarefa_por_vez_na_aba(qt_interface, qtbot, servico, avisos, ultima, aconex, monkeypatch):
+    # Baixar e reler refazem a tabela, e a rodada escreve nela: nada começa com outra tarefa rodando.
+    tela = _carregada(_tela(qtbot, ultima=ultima), qtbot)
+    monkeypatch.setattr(tela, "rodando", lambda: True)
+    tela.btn_reler.click()
+    tela.btn_baixar.click()
+    tela.btn_amp.click()
+    assert avisos == [(TITULO, AVISO_OCUPADA)] * 3
+    assert servico.rodada is None and len(servico.chamadas) == 1 and aconex.pedidos == []
+
+
+def test_pdf_com_outro_codigo_aparece_no_console(qt_interface, qtbot, servico, ultima):
+    lista = servico.listas[0]
+    antigo = lista.item.pasta / cr.nome_do_pdf("#ST00=B01MSE10&EPB020", "0A")
+    servico.listas[0] = dataclasses.replace(lista, pdf_em_uso=antigo)
+    tela = _carregada(_tela(qtbot, ultima=ultima), qtbot)
+    _no_console(tela, qtbot, f"{CODIGO}: {antigo.name} tem outro código no nome")
+    assert _caixas(tela) == [True, None, True]
