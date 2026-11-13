@@ -24,6 +24,7 @@ MENU = [
     ("botao", marcar("5. Upload duplicadas"), "CopiaFichas"),
     ("botao", marcar("6. AutoSpec AI (RAG)"), "AutoSpec"),
     ("botao", marcar("7. Aplicação LMR"), "LMR"),
+    ("botao", marcar("7.1. Gerar Aplicação LMR"), "GerarLMR"),
     ("secao", marcar("Gestão")),
     ("botao", marcar("8. PMIB Manager"), "PMIBManager"),
     ("botao", marcar("8.1. Conferência de Listas"), "ConferenciaListas"),
@@ -47,6 +48,7 @@ ICONE_DA_TELA = {
     "CopiaFichas": "copy",
     "AutoSpec": "sparkles",
     "LMR": "tag",
+    "GerarLMR": "clipboard-check",
     "PMIBManager": "folder-kanban",
     "ConferenciaListas": "list-checks",
     "DocPack": "folder-plus",
@@ -89,6 +91,9 @@ MODULOS = [
     ("LMR", marcar("Aplicação LMR"),
      marcar("Cadastra as aplicações (TAGs) das fichas no portal, e apaga quando "
             "preciso. As duas coisas ficam em abas da mesma seção.")),
+    ("GerarLMR", marcar("Gerar Aplicação LMR"),
+     marcar("Lê os PDFs de um sistema, extrai o texto e monta a planilha da Aplicação LMR a partir "
+            "de um CSV, com a validação de cada linha.")),
     ("PMIBManager", marcar("PMIB Manager"),
      marcar("Atualiza o mapeamento a partir do Aconex, renomeia pelo RDS-PP e calcula o "
             "avanço de cada lista de sobressalentes.")),

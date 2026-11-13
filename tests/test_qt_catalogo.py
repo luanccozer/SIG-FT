@@ -49,6 +49,10 @@ MODULOS_DA_HOME = [('CriaFichas',
   'Aplicação LMR',
   'Cadastra as aplicações (TAGs) das fichas no portal, e apaga quando preciso. As duas coisas ficam em abas '
   'da mesma seção.'),
+ ('GerarLMR',
+  'Gerar Aplicação LMR',
+  'Lê os PDFs de um sistema, extrai o texto e monta a planilha da Aplicação LMR a partir de um CSV, com a '
+  'validação de cada linha.'),
  ('PMIBManager',
   'PMIB Manager',
   'Atualiza o mapeamento a partir do Aconex, renomeia pelo RDS-PP e calcula o avanço de cada lista de '
@@ -136,7 +140,7 @@ def test_abertura_que_falha_mostra_o_motivo_e_sai_com_1(qt_interface, monkeypatc
 def test_menu_tem_as_telas_dos_cards_e_na_ordem_da_barra():
     telas_menu = [item[2] for item in catalogo.MENU if item[0] == "botao"]
     assert telas_menu == ["CriaFichas", "PDM", "Analyzer", "UploadConditions", "Translator",
-                          "UploadSpecs", "CorrecaoPDM", "UploadFotos", "CopiaFichas", "AutoSpec", "LMR",
+                          "UploadSpecs", "CorrecaoPDM", "UploadFotos", "CopiaFichas", "AutoSpec", "LMR", "GerarLMR",
                           "PMIBManager", "ConferenciaListas", "DocPack", "ListaPrecos",
                           "SearchPMIB"]
     assert {m[0] for m in catalogo.MODULOS} == set(telas_menu)

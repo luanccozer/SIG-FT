@@ -64,6 +64,9 @@ datas = [
     # (`Path(__file__).parent / "idiomas"`, também dentro do .exe). Sem eles o app
     # abre em português sem aviso: o `--smoke` do Release reprova (`idioma.conferir`).
     (os.path.join("sigft", "app", "idiomas"), os.path.join("sigft", "app", "idiomas")),
+    # O template da Aplicação LMR (módulo Gerar Aplicação LMR): `services/gerar_lmr_planilha.py` o procura em
+    # `sigft/dados/lmr/`, também dentro do .exe.
+    (os.path.join("sigft", "dados", "lmr", "Template_Aplicação_LMR.xlsx"), os.path.join("sigft", "dados", "lmr")),
 ]
 
 # =============================================================================

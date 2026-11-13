@@ -183,6 +183,7 @@ def test_textos_iguais_aos_da_home_antiga():
         "docpack_pasta": "Etapa 1: Estrutura (DocPack):",
         "docpack_conteudo": "Etapa 2: Conteúdo (DocPack):",
         "revisao_amp": "Revisão no AMP (Conferência de Listas):",
+        "aplicacao_lmr": "Análise no AMP (Gerar Aplicação LMR):",
     }
 
 

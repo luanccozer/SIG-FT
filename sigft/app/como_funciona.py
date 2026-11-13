@@ -292,6 +292,33 @@ TEXTOS: dict[str, Texto] = {
             marcar("Item novo entra sem preço; o que saiu do _STATUS_PMIB sai da lista e vai para o log."),
         ),
     ),
+    "GerarLMR.extracao": Texto(
+        marcar("Lê os PDFs de um sistema com o Docling e deixa o texto pronto em LMR\\EXTRACAO."),
+        (
+            marcar("Escolha a pasta do sistema e o _STATUS_PMIB; os PDFs da pasta aparecem marcados."),
+            marcar("Extrair documentos roda o componente à parte; PDF que falha não para os outros."),
+            marcar("Páginas sem texto no PDF são lidas por OCR e ficam marcadas no índice."),
+            marcar("Só entram nos lotes as páginas com TAG, RDS-PP, elevação ou código de material."),
+        ),
+    ),
+    "GerarLMR.analise": Texto(
+        marcar("Manda a extração ao agente do AMP, que devolve o CSV da aplicação."),
+        (
+            marcar("Configurar IA guarda o endereço e a chave do webhook; Testar conexão não chama o agente."),
+            marcar("Enviar ao AMP manda o índice, o Status e os lotes numa chamada só, sem repetir sozinho."),
+            marcar("O CSV volta em LMR\\EXTRACAO\\RESPOSTA_AMP.csv; o anterior fica como (anterior)."),
+            marcar("Lote que o agente não leu é avisado no console: o CSV sai incompleto, e a aba 3 o valida."),
+        ),
+    ),
+    "GerarLMR.aplicacao": Texto(
+        marcar("Gera a planilha da Aplicação LMR e a de validação a partir do CSV."),
+        (
+            marcar("Escolha o CSV (a resposta do AMP, se existir, já vem preenchida) e o nome curto do sistema."),
+            marcar("Escopo, subsistema e trechos valem para o sistema todo; LISTA pede os trechos."),
+            marcar("As planilhas saem em LMR\\SAIDA ATUAL, e linha bloqueada fica só na validação."),
+            marcar("Nada é gravado se o arquivo estiver aberto no Excel ou o caminho for comprido demais."),
+        ),
+    ),
     "SearchPMIB": Texto(
         marcar("Procura um código ou descrição nos _STATUS_PMIB de uma pasta inteira, de uma vez."),
         (
@@ -312,6 +339,7 @@ ABAS_DAS_SECOES: dict[str, tuple[str, ...]] = {
     "ConferenciaListas": ("ConferenciaListas.conferencia", "ConferenciaListas.amp"),  # nao-e-interface
     "DocPack": ("DocPack.etapa1", "DocPack.etapa2"),  # nao-e-interface
     "ListaPrecos": ("ListaPrecos.criar", "ListaPrecos.conferir"),  # nao-e-interface
+    "GerarLMR": ("GerarLMR.extracao", "GerarLMR.analise", "GerarLMR.aplicacao"),  # nao-e-interface
 }
 
 

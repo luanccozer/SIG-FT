@@ -21,6 +21,7 @@ ROTULOS = {
     # [2026-11-05] Módulos que só rodam por um workflow do AMP (`SO_WORKFLOW`).
     "docpack_conteudo": marcar("Etapa 2: Conteúdo (DocPack):"),
     "revisao_amp": marcar("Revisão no AMP (Conferência de Listas):"),
+    "aplicacao_lmr": marcar("Análise no AMP (Gerar Aplicação LMR):"),
 }
 
 # [2026-11-05] Os módulos que NÃO são uma tarefa de LLM: só rodam pelo workflow do AMP, e o
@@ -31,6 +32,7 @@ SO_WORKFLOW = {
     "docpack_conteudo": ("AMP_CRIACAO_STATUS_PMIB_URL", "AMP_CRIACAO_STATUS_PMIB_CHAVE", None),
     "revisao_amp": ("AMP_REVISAO_LISTAS_URL", "AMP_REVISAO_LISTAS_CHAVE",
                     ("AMP_WEBHOOK_URL", "AMP_WEBHOOK_CHAVE")),
+    "aplicacao_lmr": ("AMP_APLICACAO_LMR_URL", "AMP_APLICACAO_LMR_CHAVE", None),
 }
 DICA_SO_WORKFLOW = marcar("Este módulo só roda pelo workflow do AMP.")
 
@@ -44,6 +46,7 @@ TAREFAS_DA_TELA = {
     # A seção DocPack (abas embutidas, sem cabeçalho): o botão fica no cabeçalho da seção.
     "ModuloDocPackSecao": ("docpack_pasta", "docpack_conteudo"),
     "ModuloConferenciaListas": ("revisao_amp",),
+    "ModuloGerarAplicacaoLMR": ("aplicacao_lmr",),
     # 2026-11-05, pedido do Luan: o AutoSpec (tela do Rafael) ganha o botão como as outras.
     "ModuloAutoSpec": ("autospec",),
 }
