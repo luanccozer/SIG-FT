@@ -38,12 +38,21 @@ MENSAGEM = {
 }
 
 
+SECAO_DA_ABA = {"b1": "Armazenamento", "b3": "Transporte", "b4": "Manutenção", "b5": "Descarte"}
+
+
 def _html(ids, troca, sem):
     """Monta o DOM a partir dos ids conhecidos. `troca` = (velho, novo) aplicado
     ao começo de cada id (simula o portal que mudou o prefixo); `sem` = sufixos
-    que NÃO existem na página."""
+    que NÃO existem na página.
+
+    Cada sub-aba é uma `<section data-secao>` com os seus campos e UM botão
+    SALVAR (texto, sem id: é assim que o robô o acha). Fora delas há o SALVAR de
+    Informações Gerais -- o que NUNCA pode ser clicado no lugar de um destes.
+    """
     velho, novo = troca
-    partes = []
+    fora = []
+    secoes = {nome: [] for nome in SECAO_DA_ABA.values()}
     vistos = set()
     for campo in ids:
         if campo.sufixo in sem:
@@ -54,15 +63,19 @@ def _html(ids, troca, sem):
         vistos.add(id_real)
         if campo.sufixo == "Title":
             interno = "<div></div>" * 5
-        elif campo.sufixo.startswith("$b"):
-            n = int(campo.sufixo[2:])
-            interno = "<div></div>" * (n - 1) + "<div><button></button></div>"
         elif campo.depois == "/button":
             interno = "<button></button>"
         else:
             interno = ""
-        partes.append(f'<div id="{id_real}">{interno}</div>')
-    return "<html><body>" + "".join(partes) + "</body></html>"
+        pedaco = f'<div id="{id_real}">{interno}</div>'
+        secao = SECAO_DA_ABA.get(campo.aba)
+        (secoes[secao] if secao else fora).append(pedaco)
+    corpo = "".join(fora)
+    corpo += '<div data-secao="InformacoesGerais"><button>SALVAR</button></div>'
+    for nome, pedacos in secoes.items():
+        corpo += (f'<section data-secao="{nome}">' + "".join(pedacos)
+                  + "<div><button>SALVAR</button></div></section>")
+    return "<html><body>" + corpo + "</body></html>"
 
 
 class DomFalso:
@@ -82,6 +95,7 @@ class DomFalso:
         self.valores = {}
         self.marcados = {}
         self.tocados = []          # (acao, id real)
+        self.salvos = []           # seção de cada botão SALVAR clicado
         self.esperas_longas = 0    # esperas que estouraram (20 s no portal)
         self.esperou = []
         self.escritas = 0
@@ -104,12 +118,9 @@ class DomFalso:
 
     @staticmethod
     def _secao_do_botao(elemento):
-        acima = [e.get("id", "") for e in elemento.iterancestors()]
-        for id_ in acima:
-            for marca, secao in (("b35-Button", "Armazenamento"), ("$b3", "Transporte"),
-                                 ("$b4", "Manutenção"), ("$b5", "Descarte")):
-                if id_.endswith(marca):
-                    return secao
+        for acima in elemento.iterancestors():
+            if acima.get("data-secao"):
+                return acima.get("data-secao")
         return None
 
     # -- leitura -----------------------------------------------------------
@@ -152,11 +163,23 @@ class DomFalso:
     def click(self, seletor):
         el = self._um(seletor)
         self.tocados.append(("click", el.get("id") or seletor))
+        self._clicou(el)
+
+    def click_raw(self, seletor):
+        el = self._um(seletor)
+        self.tocados.append(("click_raw", el.get("id") or seletor))
+        self._clicou(el)
+
+    def scroll_to(self, seletor):
+        self._um(seletor)
+
+    def _clicou(self, el):
         secao = self._secao_do_botao(el) if el.tag == "button" else None
         if secao:
+            self.salvos.append(secao)
             if self.ao_clicar_salvar:
                 self.ao_clicar_salvar(secao)
-            if secao not in self.secoes_mudas:
+            if secao in MENSAGEM and secao not in self.secoes_mudas:
                 self.toasts.append(MENSAGEM[secao])
 
     def click_dom(self, seletor):
@@ -290,7 +313,7 @@ def test_todo_literal_de_id_do_modulo_virou_constante():
 
     assert "b10-b17" not in fonte
     assert "b10-Conditions_Header" not in fonte
-    assert len(sc.todos_os_campos()) >= 50
+    assert len(sc.todos_os_campos()) >= 45
 
 
 def test_os_sufixos_repetidos_entre_sub_abas_estao_levantados():
@@ -547,3 +570,110 @@ def test_xpath_de_sufixo_e_valido_no_chromium_real():
     finally:
         navegador.close()
         pw.stop()
+
+
+# =============================================================================
+# O SALVAR de cada sub-aba é achado pelo TEXTO, a partir do 1º campo (2026-11-12)
+#
+# Execução real da rc.6: os campos eram preenchidos, mas o SALVAR de Transporte,
+# Manutenção e Descarte (ids `$bN` gerados, com o prefixo velho) nunca era
+# clicado. Plano `2026-11-12-condicoes-botao-salvar.md`.
+# =============================================================================
+PORTAL_NOVO = ("b10-b17-", "b10-b18-")
+SECOES = ("Armazenamento", "Transporte", "Manutenção", "Descarte")
+
+
+def test_as_quatro_sub_abas_salvam_pelo_botao_da_propria_secao_com_o_prefixo_novo():
+    engine = DomFalso(troca=PORTAL_NOVO)
+    _a, linhas, (completas, incompletas) = _rodar(engine)
+
+    assert engine.salvos == list(SECOES), "um SALVAR por sub-aba, na ordem, cada um o seu"
+    assert "InformacoesGerais" not in engine.salvos
+    assert completas == ["4500063671.1234"] and incompletas == []
+    assert sum("Portal confirmou" in l for l in linhas) == 4
+
+
+def test_nenhum_clique_usa_mais_os_ids_gerados_dos_botoes():
+    engine = DomFalso(troca=PORTAL_NOVO)
+    chamados = []
+    original = engine._achar
+
+    def espiar(seletor):
+        chamados.append(seletor)
+        return original(seletor)
+
+    engine._achar = espiar
+    _rodar(engine)
+
+    assert not any("$b3" in c or "$b4" in c or "$b5" in c or "b35-Button" in c
+                   for c in chamados), "algum seletor ainda pede o id gerado do botão"
+
+
+def test_a_ancora_de_cada_secao_e_o_1o_campo_dela_ja_com_o_prefixo_novo():
+    engine = DomFalso(troca=PORTAL_NOVO)
+    ancoras = []
+    original = PMIBPortal.salvar_e_confirmar
+
+    def espiar(self, nome, callback_log=None, **kw):
+        ancoras.append((nome, kw.get("ancora")))
+        return original(self, nome, callback_log, **kw)
+
+    PMIBPortal.salvar_e_confirmar = espiar
+    try:
+        _rodar(engine)
+    finally:
+        PMIBPortal.salvar_e_confirmar = original
+
+    assert [n for n, _ in ancoras] == list(SECOES)
+    for nome, ancora in ancoras:
+        campo = sc.PRIMEIRO_CAMPO[nome]
+        assert ancora == f'//*[@id="b10-b18-{campo.id_conhecido.split("b10-b17-")[1]}"]'
+
+
+def test_secao_sem_salvar_unico_nao_clica_nada_loga_o_motivo_e_pede_ajuda():
+    engine = DomFalso(troca=PORTAL_NOVO)
+    # Duas seções dentro do mesmo contêiner: o SALVAR deixa de ser único.
+    for botao in engine.doc.xpath("//section[@data-secao='Transporte']/div[last()]"):
+        botao.append(etree.fromstring("<button>SALVAR</button>"))
+    pausas = []
+    automacao = _automacao(engine)
+    linhas = []
+    completas, incompletas = automacao.processar_lista(
+        [dict(FICHA)], "/tmp/s.xlsx", callback_log=linhas.append,
+        callback_pause=pausas.append)
+
+    assert "Transporte" not in engine.salvos
+    assert engine.salvos == ["Armazenamento", "Manutenção", "Descarte"]
+    assert any("botões SALVAR" in l and "Transporte" in l for l in linhas), "diz o motivo"
+    assert pausas == ["Transporte"]
+    assert completas == [] and incompletas == ["4500063671.1234"]
+    assert automacao.marcadas == []
+
+
+def test_toast_de_outra_secao_ainda_na_tela_nao_confirma_a_seguinte():
+    engine = DomFalso(troca=PORTAL_NOVO, secoes_mudas=["Transporte"])
+    engine.toasts.append(MENSAGEM["Armazenamento"])
+    automacao, linhas, (completas, _i) = _rodar(engine, automacao=_automacao(engine))
+
+    assert "Transporte" in engine.salvos, "clicou"
+    assert automacao.marcadas == [] and completas == []
+    assert any("Transporte" in l and "confirma" in l for l in linhas)
+
+
+def test_navegador_fechado_no_clique_do_salvar_nao_pede_pausa_manual_nem_confirma():
+    engine = DomFalso(troca=PORTAL_NOVO)
+
+    def fechar(secao):
+        if secao == "Transporte":
+            engine.fechado = True
+
+    engine.ao_clicar_salvar = fechar
+    pausas = []
+    automacao = _automacao(engine)
+    linhas = []
+    automacao.processar_lista([dict(FICHA)], "/tmp/s.xlsx", callback_log=linhas.append,
+                              callback_pause=pausas.append)
+
+    assert pausas == []
+    assert not any("Salvando Manutenção" in l for l in linhas)
+    assert automacao.marcadas == []

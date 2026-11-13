@@ -1142,7 +1142,7 @@ class UploadAutomation:
                 except Exception as e:
                     _registrar_pendencia(pendencias, "em Outros Cuidados", e, callback_log)
 
-                salvas["Armazenamento"] = self.safe_save_with_pause(self._sel(C.SALVAR_ARMAZENAMENTO), "Armazenamento", callback_log, callback_pause)
+                salvas["Armazenamento"] = self.safe_save_with_pause(self._sel(C.ARM_COMPRIMENTO), "Armazenamento", callback_log, callback_pause)
 
                 # --- ABA 2: TRANSPORTE ---
                 try:
@@ -1159,7 +1159,7 @@ class UploadAutomation:
                 except Exception as e:
                     _registrar_pendencia(pendencias, "na aba Transporte", e, callback_log)
 
-                salvas["Transporte"] = self.safe_save_with_pause(self._sel(C.SALVAR_TRANSPORTE), "Transporte", callback_log, callback_pause)
+                salvas["Transporte"] = self.safe_save_with_pause(self._sel(C.TRA_EMBALAGEM_ES), "Transporte", callback_log, callback_pause)
 
                 # --- ABA 3: MANUTENÇÃO ---
                 try:
@@ -1180,7 +1180,7 @@ class UploadAutomation:
                 except Exception as e:
                     _registrar_pendencia(pendencias, "na aba Manutenção", e, callback_log)
 
-                salvas["Manutenção"] = self.safe_save_with_pause(self._sel(C.SALVAR_MANUTENCAO), "Manutenção", callback_log, callback_pause)
+                salvas["Manutenção"] = self.safe_save_with_pause(self._sel(C.MAN_PRESERV_ES), "Manutenção", callback_log, callback_pause)
 
                 # --- ABA 4: DESCARTE ---
                 try:
@@ -1214,7 +1214,7 @@ class UploadAutomation:
                 except Exception as e:
                     _registrar_pendencia(pendencias, "na aba Descarte", e, callback_log)
 
-                salvas["Descarte"] = self.safe_save_with_pause(self._sel(C.SALVAR_DESCARTE), "Descarte", callback_log, callback_pause)
+                salvas["Descarte"] = self.safe_save_with_pause(self._sel(C.DES_LEGISLACAO_ES), "Descarte", callback_log, callback_pause)
 
                 # --- COMPLETO só com prova ------------------------------
                 # "Ele só deve fazer isso se tiver certeza que preencheu os
@@ -1286,43 +1286,56 @@ class UploadAutomation:
                 callback_log("    Sem marcação no _STATUS_PMIB: " + ", ".join(lote_incompletas))
         return lote_completas, lote_incompletas
 
-    def safe_save_with_pause(self, locator, section_name, callback_log=None, callback_pause=None):
-        """Salva a seção e **confere se o portal confirmou**. Devolve bool.
+    def safe_save_with_pause(self, ancora, section_name, callback_log=None, callback_pause=None):
+        """Salva a seção pelo SALVAR **da própria sub-aba** e confere o toast.
 
-        O clique é o que sempre foi. O que muda (2026-08-18) é o que vem
-        depois: em vez de um `time.sleep` fixo e fé, espera o toast do próprio
-        portal ("As condições de armazenamento foram modificadas com
-        sucesso!") e confere se ele é DESTA seção.
+        Devolve bool. `ancora` é o XPath de um campo DESTA sub-aba (o 1º campo,
+        o mesmo do portão da aba, já resolvido por `_sel`): é a partir dele que
+        `PMIBPortal.salvar_e_confirmar` acha o botão pelo TEXTO "SALVAR", dentro
+        da seção ou subindo dela, e exige que seja UM.
 
-        Também é mais rápido no caso bom: a espera devolve assim que a
-        mensagem casa, em vez de dormir o tempo cheio.
+        ⚠️ Até 2026-11-12 o botão era achado por id (`$b3`/`$b4`/`$b5`, ids
+        GERADOS pelo portal). Com o prefixo novo (`b10-b18-`) o id velho não
+        existia, o clique tolerante falhava em silêncio e o log só dizia
+        "Salvando Transporte..." seguido de "não vi confirmação": os campos
+        eram preenchidos e o SALVAR nunca era apertado. É o mesmo mecanismo,
+        validado no portal, que o módulo de fichas duplicadas usa para estas
+        mesmas quatro sub-abas (`duplicadas_condicoes.ancora_da_subaba`).
 
-        O `PAUSA_SALVAMENTO` de sempre CONTINUA, e continua incondicional. A
-        tentação era pulá-lo quando o toast confirma -- economizaria 4 s por
-        ficha. Mas isso seria empacotar uma mudança de ritmo do RPA dentro de
-        uma correção de correção: se o robô ficasse instável depois, não
-        haveria como saber qual das duas mudanças causou. A conferência é
-        aditiva; a velocidade se discute noutro dia, com o portal na frente.
+        O nome da seção vai CRU porque é a chave de `PALAVRA_DA_SECAO`: o toast
+        remanescente de OUTRA sub-aba não confirma esta. Quem não acha um SALVAR
+        único RECUSA (não clica nada da página) e diz o motivo no log; aí vale a
+        pausa para intervenção manual de sempre.
+
+        O `PAUSA_SALVAMENTO` continua depois, incondicional (o ritmo do RPA não
+        muda de carona). `NavegadorFechado` sobe: sem navegador não há
+        intervenção manual, e a parada pedida nunca corta entre o clique e a
+        confirmação -- `salvar_e_confirmar` termina antes de qualquer checagem.
         """
+        if callback_log:
+            callback_log(f"Salvando {section_name}...")
+        confirmou = False
         try:
-            if callback_log: callback_log(f"Salvando {section_name}...")
-            self.safe_click(locator)
+            confirmou = self.portal.salvar_e_confirmar(
+                section_name, callback_log, ancora=ancora)
         except NavegadorFechado:
             raise  # sem navegador não há intervenção manual possível
-        except Exception:
-            if callback_log: callback_log(f"Falha ao salvar {section_name}. Aguardando intervenção manual.")
+        except Exception as erro:  # noqa: BLE001 -- salvar é UMA etapa, não a ficha
+            if callback_log:
+                callback_log(f"Falha ao salvar {section_name} ({type(erro).__name__}).")
+        if not confirmou and not self.portal.salvar_clicou:
+            # O botão não foi achado (ou não deu para clicar): o motivo já está
+            # no log, escrito por `clicar_salvar_do_bloco`. Sem clique não há
+            # confirmação a esperar -- a pessoa salva à mão.
+            if callback_log:
+                callback_log(f"Falha ao salvar {section_name}. Aguardando intervenção manual.")
             if callback_pause:
                 callback_pause(section_name)  # Chama o Frontend para mostrar a janela e pausar
             else:
                 time.sleep(PAUSA_FALLBACK_SALVAMENTO)  # Fallback caso falte o callback
             return False
-
-        # A conferência vem ANTES da pausa: o toast "aparece relativamente
-        # rápido" e some depois, então dormir primeiro é arriscar perdê-lo.
-        confirmou, _mensagem = self.portal.esperar_confirmacao_de_salvamento(
-            section_name, callback_log=callback_log)
         time.sleep(PAUSA_SALVAMENTO)
-        return confirmou
+        return bool(confirmou)
 
     def atualizar_status_excel(self, caminho, pmib, status, callback_log=None, callback_ask=None):
         """Atualiza o Excel com loop de retentativa caso esteja aberto.

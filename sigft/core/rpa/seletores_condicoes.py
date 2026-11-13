@@ -83,12 +83,10 @@ CABECALHO = Campo("Conditions_Header", "b10-Conditions_Header", None, "/button")
 ABA_TRANSPORTE = Campo("Title", f"{PREFIXO_CONHECIDO}Title", None, "/div[3]")
 ABA_MANUTENCAO = Campo("Title", f"{PREFIXO_CONHECIDO}Title", None, "/div[4]")
 ABA_DESCARTE = Campo("Title", f"{PREFIXO_CONHECIDO}Title", None, "/div[5]")
-SALVAR_ARMAZENAMENTO = _c("b1", "b35-Button", "/button")
-# Os `$bN` são ids GERADOS (ver `IDS_GERADOS_NAO_USAR`): nenhum prefixo de aba
-# vale para eles, só o casamento por sufixo com UM elemento.
-SALVAR_TRANSPORTE = Campo("$b3", f"{PREFIXO_CONHECIDO}$b3", None, "/div[3]/button")
-SALVAR_MANUTENCAO = Campo("$b4", f"{PREFIXO_CONHECIDO}$b4", None, "/div[4]/button")
-SALVAR_DESCARTE = Campo("$b5", f"{PREFIXO_CONHECIDO}$b5", None, "/div[5]/button")
+# Os botões SALVAR das quatro sub-abas NÃO têm constante aqui, de propósito: eram
+# ids GERADOS (`b35-Button`, `$b3`/`$b4`/`$b5`) e deixaram de existir quando o
+# prefixo mudou (2026-11-12). O SALVAR se acha pelo TEXTO, a partir do 1º campo
+# da sub-aba (`PMIBPortal.salvar_e_confirmar(..., ancora=)`).
 
 # --- Armazenamento (b1) -------------------------------------------------------
 ARM_COMPRIMENTO = _c("b1", "Input_PackingLength")

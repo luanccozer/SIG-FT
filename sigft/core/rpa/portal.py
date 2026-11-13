@@ -626,6 +626,7 @@ class PMIBPortal:
     def __init__(self, engine: "RPAEngine | None" = None) -> None:
         self.engine = engine
         self.parar_solicitado = False
+        self.salvar_clicou = False
 
     # =========================================================================
     # Stop-flag -- ver docstring do módulo: só as 4 ocorrências reais (2
@@ -1200,6 +1201,9 @@ class PMIBPortal:
         O texto lido vai para o log mesmo quando não confirma -- é assim que a
         redação real aparece, sem ninguém precisar inspecionar a tela.
         """
+        # Chamador que precisa separar "não cliquei" de "cliquei e o portal não
+        # confirmou" lê isto depois (`upload_conditions.safe_save_with_pause`).
+        self.salvar_clicou = False
         if not self.esperar_confirmacao_anterior_sumir(nome_secao, sleep_fn=sleep_fn):
             if callback_log:
                 callback_log(f"      [!] A confirmação anterior de {nome_secao!r} "
@@ -1216,6 +1220,7 @@ class PMIBPortal:
             clicou = self.clicar_salvar_visivel(nome_secao, callback_log)
         if not clicou:
             return False
+        self.salvar_clicou = True
 
         confirmou, mensagem = self.esperar_confirmacao_nova(
             nome_secao, antes, timeout_s=timeout_s, callback_log=callback_log,
