@@ -15,7 +15,7 @@ no template.
 ## O que está pronto
 
 Todo o código do plano está escrito e testado. Com dados reais, até aqui, só o motor e a leitura do Status
-(ver "Provado com dados reais"); a extração, o AMP e a tela numa janela ainda não rodaram com um sistema real.
+(ver "Provado com dados reais"); a extração e o AMP ainda não rodaram com um sistema real.
 
 | Tarefa | O quê | Onde |
 |---|---|---|
@@ -62,8 +62,9 @@ Suíte inteira nesta máquina (Python 3.14): 9368 passam, 4 falham. As 4 são de
 - [ ] Ficaram da revisão, sem correção: **Parar** só é visto quando a DLC imprime uma linha (PDF pesado demora);
   nada impede **Enviar ao AMP** com a extração rodando; o teste de arquivo aberto em `gerar_lmr_planilha.py`
   recusa antes de o diálogo "tentar de novo" aparecer.
-- [ ] Abrir o app numa janela de verdade e passar pelas três abas. Até aqui a tela só abriu em modo de teste
-  (offscreen).
+- [x] App aberto numa janela de verdade (2026-11-13): as três abas desenham certo e o botão **Gerar aplicação**
+  fez a Água Pura (3580 linhas). Os avisos em laranja das abas 1 e 2 ficavam espremidos; corrigido. Não foram
+  clicados na janela: **Instalar componente**, **Extrair** e **Enviar ao AMP** (dependem da DLC e do AMP).
 - [x] Aplicação e validação da Água Pura (dados reais, 3580 linhas) abrem no Excel sem reparo (2026-11-13).
 - [ ] PR para `claude/checkpoint-01-refactor-executor-5lawtu`, com a lista das zonas do Luan.
 

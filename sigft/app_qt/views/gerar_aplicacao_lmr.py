@@ -59,12 +59,14 @@ WEBHOOK_NAO_CONFIGURADO = marcar("Workflow AMP sem configurar: use Configurar IA
 MOTIVO_SEM_EXTRACAO = marcar("Sem a extração desta pasta: rode a aba 1 antes de enviar.")
 
 
-def _linha(*widgets) -> QHBoxLayout:
+def _linha(*widgets, estica=None) -> QHBoxLayout:
+    """`estica`: o widget que fica com a sobra da linha (um aviso que quebra em linhas se espreme sem isso)."""
     linha_ = QHBoxLayout()
     linha_.setSpacing(10)
     for widget in widgets:
-        linha_.addWidget(widget)
-    linha_.addStretch()
+        linha_.addWidget(widget, 1 if widget is estica else 0)
+    if estica is None:
+        linha_.addStretch()
     return linha_
 
 
@@ -138,7 +140,7 @@ class ModuloGerarAplicacaoLMR(ModuleFrame):
         self.btn_instalar.clicked.connect(self._instalar)
         self.aviso_dlc.hide()
         self.btn_instalar.hide()
-        lay.addLayout(_linha(self.aviso_dlc, self.btn_instalar))
+        lay.addLayout(_linha(self.btn_instalar, self.aviso_dlc, estica=self.aviso_dlc))
 
         self.lista_pdfs = QListWidget()
         self.lista_pdfs.setMinimumHeight(40)  # cabe no notebook de 1366x768 (tests/test_qt_tela_1366.py)
@@ -161,7 +163,8 @@ class ModuloGerarAplicacaoLMR(ModuleFrame):
         self.lbl_motivo_amp = blocos.rotulo(t(MOTIVO_SEM_EXTRACAO), alinhar="esquerda", papel="aviso")
         lay.addWidget(self.rotulo_analise)
         lay.addWidget(self.lbl_webhook)
-        lay.addLayout(_linha(self.btn_testar_amp, self.btn_enviar_amp, self.lbl_motivo_amp))
+        lay.addLayout(_linha(self.btn_testar_amp, self.btn_enviar_amp, self.lbl_motivo_amp,
+                             estica=self.lbl_motivo_amp))
 
     def _aba_aplicacao(self, lay) -> None:
         cartao = blocos.cartao(lay)
