@@ -178,7 +178,7 @@ O que se vê de cada rodada:
 | HTTP 404 | o workflow não está publicado, ou o endereço é a Test URL (`/webhook-test/`) |
 | HTTP 400, etapa `arquivos` | os arquivos não chegaram completos: veja a aba Binary do Webhook na execução e o nó **Passa os arquivos** (*Include Other Input Fields = All*) |
 | Etapa `agente`, "nenhum lote foi lido pelo agente" | o agente falhou em todos os lotes: veja a saída de erro do nó **AMP Agent** na execução e confira o agente e a credencial |
-| "O AMP recebeu N lote(s) e foram enviados M" | o workflow percorreu menos lotes do que foram enviados: veja o laço (suposição 6). Nada foi gravado |
+| "O AMP recebeu N lote(s) e foram enviados M" | o workflow percorreu menos lotes do que foram enviados: veja o laço (suposição 6). O CSV é gravado assim mesmo, incompleto (aviso no console) |
 | "A resposta do AMP não tem um CSV válido" | o agente devolveu texto no lugar do CSV: o corpo está no diagnóstico. Melhore o system prompt no AMP |
 | "O agente não leu os lotes ..." (aviso) | o CSV saiu incompleto: o que faltou são as linhas desses lotes. Rode de novo ou resgate da execução |
 | "Sem a extração em LMR\EXTRACAO" | a aba 1 não rodou nessa pasta, ou faltam o índice, o Status ou os lotes |
