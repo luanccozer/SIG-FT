@@ -131,3 +131,11 @@ def test_arquivo_aberto_no_excel(tmp_path, entradas, monkeypatch):
         rodar(*entradas, tmp_path)
     assert aberto.read_bytes() == b"original"
     assert not (pasta / "VALIDAÇÃO - SISTEMA TESTE.xlsx").exists()
+
+
+def test_texto_que_comeca_com_igual_nao_vira_formula(tmp_path, entradas, xl):
+    csv, status = entradas
+    csv.write_text("\n".join([CAB, csv_linha(F1, "XV101", doc="=M00MKF10&MPB020")]), encoding="utf-8")
+    saida, _ = rodar(csv, status, tmp_path / "S")
+    celula = xl.load_workbook(saida.aplicacao)["DOCS DE REFERÊNCIA"].cell(row=7, column=4)
+    assert (celula.value, celula.data_type) == ("=M00MKF10&MPB020", "s")

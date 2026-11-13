@@ -59,6 +59,13 @@ def _salvar(wb, destino: Path, retry_lock) -> None:
         raise NaoDaParaGravar(f"Feche o arquivo no Excel e tente de novo: {destino.name}") from exc
 
 
+def _celula(ws, linha: int, coluna: int, valor) -> None:
+    """Grava como texto: o openpyxl faz fórmula de qualquer texto que começa com `=` (um código RDS começa)."""
+    c = ws.cell(row=linha, column=coluna, value=valor)
+    if isinstance(valor, str) and valor.startswith("="):
+        c.data_type = "s"
+
+
 def _gravar_aplicacao(openpyxl, destino: Path, nome: str, subsistema: str, resultado, linhas_csv, catalogo, retry_lock) -> None:
     wb = openpyxl.load_workbook(TEMPLATE)
     docs = wb["DOCS DE REFERÊNCIA"]
@@ -72,14 +79,14 @@ def _gravar_aplicacao(openpyxl, destino: Path, nome: str, subsistema: str, resul
         r = _PRIMEIRA_LINHA_DOCS + i
         m = catalogo[ficha]
         for col, valor in enumerate((ficha, m.pn, m.descricao, documento_da_ficha.get(ficha, "")), 1):
-            docs.cell(row=r, column=col, value=valor)
+            _celula(docs, r, col, valor)
         for col in range(1, 8):  # as linhas novas herdam o estilo da primeira
             docs.cell(row=r, column=col)._style = copy(docs.cell(row=_PRIMEIRA_LINHA_DOCS, column=col)._style)
 
     ap = wb["APLICAÇÃO - LMR"]
     for i, (ficha, codigo, tag) in enumerate(resultado.linhas, 2):
         for col, valor in enumerate((ficha, codigo, tag), 1):
-            ap.cell(row=i, column=col, value=valor)
+            _celula(ap, i, col, valor)
     ap.auto_filter.ref = f"A1:C{len(resultado.linhas) + 1}"
     _salvar(wb, destino, retry_lock)
 
@@ -89,8 +96,9 @@ def _gravar_validacao(openpyxl, destino: Path, achados: list[Achado], retry_lock
     ws = wb.active
     ws.title = "VALIDAÇÃO"
     ws.append(_COLUNAS_VALIDACAO)
-    for a in achados:
-        ws.append((a.linha_csv, a.ficha, a.trecho, a.regra, a.severidade, a.mensagem))
+    for i, a in enumerate(achados, 2):
+        for col, valor in enumerate((a.linha_csv, a.ficha, a.trecho, a.regra, a.severidade, a.mensagem), 1):
+            _celula(ws, i, col, valor)
     ws.auto_filter.ref = f"A1:F{len(achados) + 1}"
     _salvar(wb, destino, retry_lock)
 

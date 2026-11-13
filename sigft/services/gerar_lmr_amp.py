@@ -89,9 +89,10 @@ def enviar_ao_amp(pasta_sistema: Path, cliente, *, escopo: str, subsistema: str,
         return _falha(erro, resposta.execucao)
     recebidos = resposta.dados.get("lotes_recebidos")
     if recebidos != len(lotes):
-        erro = f"O AMP recebeu {recebidos} lote(s) e foram enviados {len(lotes)}: nada foi gravado."
-        _diagnostico(resposta, erro, log_cb)
-        return _falha(erro, resposta.execucao)
+        # não joga fora o que o agente leu (minutos de execução): grava e avisa que está incompleto
+        aviso = f"O AMP recebeu {recebidos} lote(s) e foram enviados {len(lotes)}: o CSV está incompleto."
+        log_cb(aviso, "warn")
+        _diagnostico(resposta, aviso, log_cb)
     texto = str(resposta.dados.get("csv") or "")
     try:
         linhas, achados = ler_csv(texto)
@@ -118,7 +119,3 @@ def enviar_ao_amp(pasta_sistema: Path, cliente, *, escopo: str, subsistema: str,
     log_cb(f"Resposta gravada em {destino} ({len(linhas)} linha(s), execução {resposta.execucao or '?'}).")
     return RespostaLmr(True, destino, len(linhas), com_erro, resposta.execucao, "")
 
-
-def testar_conexao(cliente) -> list[str]:
-    """As linhas do "Testar conexão com o AMP": só o `ping`, sem chamar o agente nem mandar documento."""
-    return revisao_amp.testar_conexao(cliente)

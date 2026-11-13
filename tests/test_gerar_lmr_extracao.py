@@ -213,3 +213,29 @@ def test_dlc_instalada(tmp_path, monkeypatch):
 
     monkeypatch.setattr(ex.subprocess, "run", quebra)
     assert ex.dlc_instalada() is False
+
+
+def test_extrair_de_novo_tira_a_resposta_antiga_do_amp(tmp_path):
+    pasta = tmp_path / "LMR" / "EXTRACAO"
+    pasta.mkdir(parents=True)
+    (pasta / "RESPOSTA_AMP.csv").write_text("antiga", encoding="utf-8")
+    rodar(tmp_path, [tmp_path / PDF1], dlc_falsa({PDF1: [(COM_TAG, False)]}))
+    assert not (pasta / "RESPOSTA_AMP.csv").exists()
+    assert (pasta / "RESPOSTA_AMP (anterior).csv").read_text(encoding="utf-8") == "antiga"
+
+
+def test_dlc_que_cai_num_pdf_segue_com_os_proximos(tmp_path):
+    boa = dlc_falsa({PDF1: [(COM_TAG, False)], PDF2: [(COM_TAG, False)], SEM_CODIGO: [(COM_TAG, False)]})
+    chamadas = []
+
+    def executar(args, **kw):
+        chamadas.append([Path(a).name for a in args[2:]])
+        if len(chamadas) == 1:  # lê o primeiro, cai no segundo e não fala mais nada
+            proc = boa([*args[:2], args[2]], **kw)
+            proc.returncode = 3221225477
+            return proc
+        return boa(args, **kw)
+
+    extracao, log, _ = rodar(tmp_path, [tmp_path / PDF1, tmp_path / PDF2, tmp_path / SEM_CODIGO], executar)
+    assert chamadas == [[PDF1, PDF2, SEM_CODIGO], [SEM_CODIGO]]
+    assert extracao.documentos == 2 and extracao.nao_lidos == [PDF2]

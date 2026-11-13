@@ -54,7 +54,7 @@ def servicos(monkeypatch):
             self.url, self.chave = url, chave
 
     monkeypatch.setattr(tela_mod.amp_svc, "enviar_ao_amp", enviar_ao_amp)
-    monkeypatch.setattr(tela_mod.amp_svc, "testar_conexao", lambda cliente: ["OK      Ping: workflow 2026-11-11"])
+    monkeypatch.setattr(tela_mod.revisao_amp, "testar_conexao", lambda cliente: ["OK      Ping: workflow 2026-11-11"])
     monkeypatch.setattr(tela_mod, "ClienteAmp", ClienteFalso)
     monkeypatch.setattr(tela_mod.ext_svc, "extrair", extrair)
     monkeypatch.setattr(tela_mod.plan_svc, "realizar_aplicacao", realizar)

@@ -84,10 +84,12 @@ def test_grava_o_csv_e_guarda_o_anterior(sistema):
     assert (extracao / "RESPOSTA_AMP (anterior).csv").read_text(encoding="utf-8") == "antigo"
 
 
-def test_contagem_de_lotes_errada_nao_grava_nada(sistema):
-    resposta, _ = enviar(sistema, ClienteFalso(_resposta(lotes=1)))
-    assert not resposta.ok and "1" in resposta.erro and "2" in resposta.erro
-    assert not (sistema / "LMR" / "EXTRACAO" / "RESPOSTA_AMP.csv").exists()
+def test_contagem_de_lotes_errada_grava_o_que_veio_e_avisa(sistema):
+    # o que o agente leu custou minutos: fica gravado, com o aviso de que está incompleto
+    resposta, log = enviar(sistema, ClienteFalso(_resposta(lotes=1)))
+    assert resposta.ok and resposta.linhas == 2
+    assert (sistema / "LMR" / "EXTRACAO" / "RESPOSTA_AMP.csv").exists()
+    assert any(nivel == "warn" and "incompleto" in msg for nivel, msg in log)
 
 
 def test_lote_com_erro_grava_o_parcial_e_avisa(sistema):
@@ -137,15 +139,6 @@ def test_a_chave_nunca_aparece_em_log_nem_diagnostico(sistema, tmp_path):
     tudo = [resposta.erro, *(m for _, m in log)]
     tudo += [p.read_text(encoding="utf-8") for p in (tmp_path / "logs").rglob("*") if p.is_file()]
     assert not resposta.ok and not any(CHAVE in texto for texto in tudo)
-
-
-def test_testar_conexao_so_chama_o_ping():
-    class C:
-        def ping(self):
-            return am.RespostaAmp(True, "ping", 200, 0.4, "{}", {"versao_workflow": "2026-11-11", "execucao": "5"})
-
-    linhas = svc.testar_conexao(C())
-    assert len(linhas) == 1 and linhas[0].startswith("OK") and "2026-11-11" in linhas[0]
 
 
 # --- o contrato com o gerador do workflow (amp/aplicacao_lmr/gerar_workflow.py) --------------------

@@ -32,6 +32,7 @@ from sigft.core.amp.cliente import ClienteAmp
 from sigft.services import gerar_lmr_amp as amp_svc
 from sigft.services import gerar_lmr_extracao as ext_svc
 from sigft.services import gerar_lmr_planilha as plan_svc
+from sigft.services import revisao_amp
 from sigft.services.gerar_lmr_csv import CsvInvalido
 
 TITULO = marcar("Gerar Aplicação LMR")
@@ -42,7 +43,7 @@ CHAVE_PASTA = "gerarlmr.pasta"
 CHAVE_STATUS = "gerarlmr.status"
 CHAVE_CSV = "gerarlmr.csv"
 OPCOES_DE_TRECHOS = ("TODAS", "ÍMPARES", "PARES", "LISTA", "AMD", "AMC")  # nao-e-interface: o serviço lê estes valores
-RESPOSTA_DO_AMP = "RESPOSTA_AMP.csv"
+RESPOSTA_DO_AMP = ext_svc.RESPOSTA_DO_AMP
 CHAVES_DO_WEBHOOK = chaves_do_webhook_so("aplicacao_lmr")
 
 AVISO_SEM_PASTA = marcar("Selecione a pasta do sistema antes.")
@@ -275,6 +276,9 @@ class ModuloGerarAplicacaoLMR(ModuleFrame):
             self.avisar(t(TITULO), t(AVISO_SEM_PDF), "aviso")
             return
         self._parar.clear()
+        if Path(self.csv).name == RESPOSTA_DO_AMP:  # a resposta do AMP é da extração que vai ser refeita
+            self.csv = ""
+            self.lbl_csv.setText(t("Não selecionado"))
         self.iniciar_tarefa(self._worker_extrair, pdfs, self.status, self.pasta, botao=self.btn_extrair)
 
     def _worker_extrair(self, pdfs, status: str, pasta: str) -> None:
@@ -323,7 +327,7 @@ class ModuloGerarAplicacaoLMR(ModuleFrame):
             saida = plan_svc.realizar_aplicacao(
                 csv, status, pasta, nome=nome, escopo=escopo, subsistema=subsistema, opcao_trechos=opcao,
                 lista_trechos=lista, log_cb=self.log, retry_lock=self.perguntar_retry_excel)
-        except (CsvInvalido, plan_svc.NaoDaParaGravar, ValueError) as erro:
+        except (CsvInvalido, plan_svc.NaoDaParaGravar, ValueError, OSError) as erro:
             self._erro(erro)
             return
         self.log(f"Aplicação em {saida.aplicacao.parent}: {saida.linhas} linhas, {saida.bloqueadas} "
@@ -392,7 +396,7 @@ class ModuloGerarAplicacaoLMR(ModuleFrame):
 
     def _worker_testar_amp(self, url: str, chave: str) -> None:
         self.log(f"Testando o AMP: {url} (a chave não aparece no log)")
-        for linha in amp_svc.testar_conexao(ClienteAmp(url, chave, log_cb=self.log)):
+        for linha in revisao_amp.testar_conexao(ClienteAmp(url, chave, log_cb=self.log)):
             self.log(linha)
 
     def _trechos_para_o_amp(self) -> str:

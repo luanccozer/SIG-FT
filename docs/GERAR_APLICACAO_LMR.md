@@ -59,9 +59,13 @@ Suíte inteira nesta máquina (Python 3.14): 9368 passam, 4 falham. As 4 são de
   `RESPOSTA_AMP.csv` aberto no Excel; troca de pasta que mantinha CSV e Status do sistema anterior;
   `.paginas.json` pela metade que derrubava a geração; nome com `/ : * ?` no arquivo; CSV salvo pelo Excel em
   cp1252; linha do CSV com coluna a mais; índice e lotes velhos depois de extração interrompida.
-- [ ] Ficaram da revisão, sem correção: **Parar** só é visto quando a DLC imprime uma linha (PDF pesado demora);
-  nada impede **Enviar ao AMP** com a extração rodando; o teste de arquivo aberto em `gerar_lmr_planilha.py`
-  recusa antes de o diálogo "tentar de novo" aparecer.
+- [x] Auditoria do módulo (2026-11-13), corrigido: a resposta do AMP é gravada mesmo com contagem de lotes
+  diferente (com aviso); extrair de novo tira a `RESPOSTA_AMP.csv` antiga do caminho; texto que começa com `=`
+  não vira fórmula na planilha; **Parar** encerra a DLC em meio segundo; se a DLC cai num PDF, os seguintes
+  ganham outra chamada; teste do `catalogo_do_status` com o openpyxl de verdade.
+- [ ] Ficou sem correção: fechar o SIG-FT com a extração rodando deixa o processo da DLC vivo; o teste de
+  arquivo aberto em `gerar_lmr_planilha.py` recusa antes de o diálogo "tentar de novo" aparecer (é o que evita
+  gravar a Aplicação sem a Validação).
 - [x] App aberto numa janela de verdade (2026-11-13): as três abas desenham certo e o botão **Gerar aplicação**
   fez a Água Pura (3580 linhas). Os avisos em laranja das abas 1 e 2 ficavam espremidos; corrigido. Não foram
   clicados na janela: **Instalar componente**, **Extrair** e **Enviar ao AMP** (dependem da DLC e do AMP).

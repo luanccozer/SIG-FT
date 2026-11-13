@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,6 +24,7 @@ PASTA_DA_DLC = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "SIG-FT" / 
 VERSAO_DA_DLC = "1"
 LIMITE_DA_LINHA = 30_000  # o CreateProcess do Windows aceita 32.767 caracteres; sobra margem
 _EXE = "docling_sigft.exe"
+RESPOSTA_DO_AMP = "RESPOSTA_AMP.csv"
 
 _TAG = re.compile(r"\b[A-Z]{1,3}\d{2,3}[A-Z]?\b")
 _RDS = re.compile(r"#ST|=M\d\d")
@@ -101,6 +103,26 @@ def _ler_saida(proc, pdfs: list[Path], log_cb, progresso_cb, parar, feitos: int 
     nomes = [p.name for p in pdfs]
     lidos: set[str] = set()
     falhas: dict[str, str] = {}
+    fim = threading.Event()
+
+    def vigiar() -> None:  # a leitura abaixo trava até a DLC imprimir; um PDF pesado leva minutos sem linha
+        while not fim.wait(0.5):
+            if parar():
+                proc.terminate()
+                return
+
+    threading.Thread(target=vigiar, daemon=True).start()
+    try:
+        _ler_linhas(proc, nomes, lidos, falhas, log_cb, progresso_cb, parar, feitos, total_geral)
+    finally:
+        fim.set()
+    if parar():  # pedido depois da última linha, ou o vigia encerrou a DLC
+        _encerrar(proc)
+    proc.wait()
+    return lidos, falhas
+
+
+def _ler_linhas(proc, nomes, lidos, falhas, log_cb, progresso_cb, parar, feitos, total_geral) -> None:
     for linha in proc.stdout:
         if parar():
             _encerrar(proc)
@@ -122,10 +144,6 @@ def _ler_saida(proc, pdfs: list[Path], log_cb, progresso_cb, parar, feitos: int 
             achado = _nome_da_falha(linha[6:], nomes)
             if achado:
                 falhas[achado[0]] = achado[1] or "sem motivo"
-    if parar():  # pedido depois da última linha
-        _encerrar(proc)
-    proc.wait()
-    return lidos, falhas
 
 
 def extrair(pdfs, status, pasta_sistema, *, log_cb, progresso_cb, parar=lambda: False,
@@ -137,18 +155,32 @@ def extrair(pdfs, status, pasta_sistema, *, log_cb, progresso_cb, parar=lambda: 
     # índice e lotes da extração anterior saem já: se esta for interrompida, o AMP não recebe lotes velhos
     (pasta / "INDICE.md").unlink(missing_ok=True)
     shutil.rmtree(pasta / "LOTES", ignore_errors=True)
+    try:  # a resposta do AMP era da extração anterior: sai do caminho para a aba 3 não usar por engano
+        (pasta / RESPOSTA_DO_AMP).replace(pasta / "RESPOSTA_AMP (anterior).csv")
+    except OSError:
+        pass  # não existe, ou está aberta no Excel
 
     exe = str(PASTA_DA_DLC / _EXE)
     lidos: set[str] = set()
     falhas: dict[str, str] = {}
     feitos = 0
     for grupo in _em_chamadas(pdfs, len(exe) + len(str(pasta)) + 6):
-        proc = executar([exe, str(pasta), *map(str, grupo)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                        text=True, encoding="utf-8", errors="replace",
-                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        ok, falha = _ler_saida(proc, grupo, log_cb, progresso_cb, parar, feitos, len(pdfs))
-        lidos |= ok
-        falhas.update(falha)
+        pendentes = list(grupo)
+        while pendentes:
+            proc = executar([exe, str(pasta), *map(str, pendentes)], stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
+                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            ok, falha = _ler_saida(proc, pendentes, log_cb, progresso_cb, parar,
+                                   feitos + len(grupo) - len(pendentes), len(pdfs))
+            lidos |= ok
+            falhas.update(falha)
+            sem_resposta = [p for p in pendentes if p.name not in ok and p.name not in falha]
+            if not sem_resposta or getattr(proc, "returncode", 0) in (0, 1):  # 0 e 1 são os fins normais da DLC
+                break
+            # a DLC caiu: o primeiro sem resposta é o que a derrubou; os de depois ganham outra chamada
+            falhas[sem_resposta[0].name] = "o componente de leitura caiu neste arquivo"
+            log_cb(f"{sem_resposta[0].name}: o componente de leitura caiu; seguindo com os próximos.", "warn")
+            pendentes = sem_resposta[1:]
         feitos += len(grupo)
 
     documentos: list[dict] = []
@@ -182,7 +214,6 @@ def extrair(pdfs, status, pasta_sistema, *, log_cb, progresso_cb, parar=lambda: 
 
     lotes = montar_lotes(documentos, {m.pn for m in catalogo.values() if m.pn})
     pasta_lotes = pasta / "LOTES"
-    shutil.rmtree(pasta_lotes, ignore_errors=True)  # lotes de uma extração anterior não ficam sobrando
     pasta_lotes.mkdir()
     for i, lote in enumerate(lotes, 1):
         (pasta_lotes / f"lote_{i:02d}.md").write_text(lote, encoding="utf-8")

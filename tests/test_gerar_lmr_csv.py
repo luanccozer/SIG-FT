@@ -266,3 +266,19 @@ def test_involucro_da_extracao_devolve_o_mesmo_catalogo(monkeypatch, tmp_path):
     _com_livro(monkeypatch, LINHAS_STATUS)
     caminho = tmp_path / "_STATUS_PMIB.xlsx"
     assert extracao.catalogo_do_status(caminho) == c.catalogo_do_status(caminho)
+
+
+def test_catalogo_do_status_com_o_openpyxl_de_verdade(tmp_path):
+    from _openpyxl_de_verdade import openpyxl_de_verdade
+
+    with openpyxl_de_verdade() as xl:
+        wb = xl.Workbook()
+        wb.active.append(["capa"])
+        ws = wb.create_sheet("STATUS")
+        for linha in LINHAS_STATUS:
+            ws.append(linha)
+        wb.save(tmp_path / "_STATUS_PMIB.xlsx")
+        cat = c.catalogo_do_status(tmp_path / "_STATUS_PMIB.xlsx")
+    assert set(cat) == {"4500000000.0001", "4500000000.0002", "4500000000.0004"}
+    assert cat["4500000000.0001"] == Material("4500000000.0001", "VALVULA ESFERA", "PN-777", False)
+    assert cat["4500000000.0002"].granel is True and cat["4500000000.0004"].pn == ""
