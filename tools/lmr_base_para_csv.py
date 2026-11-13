@@ -19,7 +19,7 @@ if str(RAIZ) not in sys.path:  # rodado como script, `sigft` não está no camin
     sys.path.insert(0, str(RAIZ))
 
 from sigft.services.gerar_lmr_csv import catalogo_do_status, gravar_csv, ler_csv  # noqa: E402
-from sigft.services.gerar_lmr_motor import LinhaCsv, Resultado, gerar  # noqa: E402
+from sigft.services.gerar_lmr_motor import LinhaCsv, Material, Resultado, gerar  # noqa: E402
 from sigft.services.gerar_lmr_regras import normaliza_trecho, trechos_do_projeto  # noqa: E402
 
 # colunas da aba BASE do lmr.js (COLUNAS_BASE)
@@ -98,10 +98,36 @@ def converter(base: Path, saida: Path) -> None:
     gravar_csv(Path(saida), ler_base(Path(base))[0])
 
 
-def gerar_da_base(base: Path, status: Path, saida_csv: Path | None = None, *, opcao_trechos: str | None = None,
-                  lista_trechos: list[str] | None = None) -> Resultado:
+def catalogo_da_base(caminho: Path) -> dict[str, Material]:
+    """Descrição da aba BASE e PART NUMBER da aba DOCS DE REFERÊNCIA, que é de onde o Workflow B (`geraLote`
+    do lmr.js) tira os dois. Sem granel: o `geraLote` gera QTD POR TRECHO linhas para qualquer unidade."""
+    import openpyxl
+
+    livro = openpyxl.load_workbook(caminho, read_only=True, data_only=True)
+    try:
+        def aba(nome: str) -> list[dict]:
+            if nome not in livro.sheetnames:
+                return []
+            linhas = [list(r) for r in livro[nome].iter_rows(values_only=True)]
+            cab = [_txt(c).upper() for c in linhas[0]] if linhas else []
+            return [dict(zip(cab, r)) for r in linhas[1:]]
+
+        pn = {_txt(r.get("CÓDIGO PMIB")).lstrip("'"): _txt(r.get("PART NUMBER")) for r in aba("DOCS DE REFERÊNCIA")}
+        catalogo: dict[str, Material] = {}
+        for r in aba("BASE"):
+            ficha = _txt(r.get("FICHA_PMIB")).lstrip("'")
+            if ficha and ficha not in catalogo:
+                catalogo[ficha] = Material(ficha, _txt(r.get("DESCRIÇÃO")), pn.get(ficha, ""), False)
+        return catalogo
+    finally:
+        livro.close()
+
+
+def gerar_da_base(base: Path, status: Path | None = None, saida_csv: Path | None = None, *,
+                  opcao_trechos: str | None = None, lista_trechos: list[str] | None = None) -> Resultado:
     """BASE antiga → CSV → `ler_csv` → `gerar`, o mesmo caminho da Aplicação. O projeto é `opcao_trechos`
-    (como no formulário do `lmr.js`) ou, sem ela, os trechos que a BASE cita."""
+    (como no formulário do `lmr.js`) ou, sem ela, os trechos que a BASE cita. Sem `status`, o catálogo é o
+    da própria BASE: é a comparação justa com o `lmr.js`."""
     _, escopo, subsistema, usados = ler_base(Path(base))
     with tempfile.TemporaryDirectory() as pasta:
         csv = Path(saida_csv) if saida_csv else Path(pasta) / "base.csv"
@@ -109,7 +135,8 @@ def gerar_da_base(base: Path, status: Path, saida_csv: Path | None = None, *, op
         linhas, _ = ler_csv(csv.read_text(encoding="utf-8-sig"))
     projeto = (trechos_do_projeto(opcao_trechos, lista_trechos) if opcao_trechos
                else trechos_do_projeto("LISTA", usados))
-    return gerar(linhas, catalogo_do_status(Path(status)), escopo=escopo, subsistema=subsistema, projeto=projeto)
+    catalogo = catalogo_do_status(Path(status)) if status else catalogo_da_base(Path(base))
+    return gerar(linhas, catalogo, escopo=escopo, subsistema=subsistema, projeto=projeto)
 
 
 def main(argv: list[str] | None = None) -> int:

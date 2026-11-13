@@ -123,8 +123,9 @@ Separador `;`, UTF-8 com BOM, uma linha por material numa posição. O cabeçalh
 
 `ler_csv` aceita frase antes do cabeçalho, cerca de código, separador `,` e cabeçalho repetido. Sem
 cabeçalho ou com coluna faltando, levanta `CsvInvalido` dizendo qual. Linha com colunas a menos ou sem
-ficha é descartada com aviso. Linhas com a mesma chave (tudo menos trechos, quantidade, documento e
-página) são unidas, com os trechos somados; quantidade diferente fica com a primeira e avisa.
+ficha é descartada com aviso, e linha com coluna a mais também. Linhas com a mesma posição (tudo menos
+trechos, quantidade, documento e página) e a mesma quantidade são unidas, com os trechos somados. Quantidade
+diferente em trechos separados fica em linhas separadas; se os trechos se cruzam, fica a primeira e avisa.
 
 ## Aba 3: Realizar a Aplicação LMR
 

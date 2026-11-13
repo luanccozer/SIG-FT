@@ -62,6 +62,9 @@ def ler_csv(texto: str) -> tuple[list[LinhaCsv], list[Achado]]:
         if len(campos) < len(cabecalho):
             achados.append(_achado(n, "", f"linha ignorada: {len(campos)} colunas em vez de {len(cabecalho)}"))
             continue
+        if any(x.strip() for x in campos[len(cabecalho):]):  # `;` solto num campo desloca tudo; `;` no fim não
+            achados.append(_achado(n, "", f"linha ignorada: {len(campos)} colunas em vez de {len(cabecalho)}"))
+            continue
         v = {col: campos[i].strip() for col, i in pos.items()}
         ficha = normalize_pmib(v["FICHA_PMIB"])
         if not ficha:
@@ -85,15 +88,27 @@ def _lista(trechos: str) -> list[str]:
     return [x for x in re.split(r"[,;\s]+", trechos) if x]
 
 
+def _cruzam(a: str, b: str) -> bool:
+    """Duas listas de trechos têm trecho em comum? TODAS/50HZ/60HZ contam como cruzar (não dá para saber aqui)."""
+    if a.upper() in _PALAVRAS_DE_TRECHO or b.upper() in _PALAVRAS_DE_TRECHO:
+        return True
+    return bool({x.upper() for x in _lista(a)} & {x.upper() for x in _lista(b)})
+
+
 def _unir(lidas: list[LinhaCsv], achados: list[Achado]) -> tuple[list[LinhaCsv], list[Achado]]:
-    """Linhas com a mesma chave (tudo menos trechos, quantidade, documento e página) viram uma."""
+    """Linhas com a mesma posição (tudo menos trechos, quantidade, documento e página) e a mesma quantidade
+    viram uma. Quantidade diferente só é conflito se os trechos se cruzam; em trechos separados é dado."""
     unidas: dict[tuple, LinhaCsv] = {}
+    por_posicao: dict[tuple, list[LinhaCsv]] = {}
     for lc in lidas:
-        chave = (lc.ficha, lc.area, lc.rds, lc.tag, lc.tag_com_rds, tuple((p["tag"], p["rds"]) for p in lc.pais),
-                 lc.local, lc.elevacao, lc.eixo)
-        base = unidas.get(chave)
+        posicao = (lc.ficha, lc.area, lc.rds, lc.tag, lc.tag_com_rds, tuple((p["tag"], p["rds"]) for p in lc.pais),
+                   lc.local, lc.elevacao, lc.eixo)
+        base = unidas.get((posicao, lc.qtd))
         if base is None:
-            unidas[chave] = lc
+            base = next((o for o in por_posicao.get(posicao, []) if _cruzam(o.trechos, lc.trechos)), None)
+        if base is None:
+            unidas[(posicao, lc.qtd)] = lc
+            por_posicao.setdefault(posicao, []).append(lc)
             continue
         a, b = base.trechos.upper(), lc.trechos.upper()
         if "TODAS" in (a, b):
@@ -182,9 +197,12 @@ def conferir_com_extracao(linhas: list[LinhaCsv], pasta_docling: Path) -> list[A
             arq = arquivos.get(nome)
             cache[nome] = None
             if arq:
-                paginas = json.loads(arq.read_text(encoding="utf-8"))["paginas"]
-                cache[nome] = (_compacto(" ".join(p["texto"] for p in paginas)),
-                               {str(p["n"]): bool(p.get("ocr")) for p in paginas})
+                try:
+                    paginas = json.loads(arq.read_text(encoding="utf-8"))["paginas"]
+                    cache[nome] = (_compacto(" ".join(p["texto"] for p in paginas)),
+                                   {str(p["n"]): bool(p.get("ocr")) for p in paginas})
+                except (OSError, ValueError, KeyError, TypeError):
+                    pass  # extração interrompida deixa JSON pela metade: vira "não existe na extração", não erro
         return cache[nome]
 
     for lc in linhas:

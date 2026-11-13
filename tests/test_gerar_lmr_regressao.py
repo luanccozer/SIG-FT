@@ -131,9 +131,9 @@ def test_regressao_contra_o_lmr_js(xl):
     diferentes = []
     for sistema, d in esperado.items():
         base = pasta / d.get("base", f"BASE LMR - {sistema}.xlsx")
-        assert d.get("status"), f"{sistema}: informe 'status' (o Status PMIB do sistema) no assinaturas.json"
-        res = conversor.gerar_da_base(base, pasta / d["status"], opcao_trechos=d.get("opcao_trechos"),
-                                      lista_trechos=d.get("lista_trechos"))
+        # sem "status": descrição e PN saem da própria BASE, como no Workflow B que gerou a assinatura
+        res = conversor.gerar_da_base(base, pasta / d["status"] if d.get("status") else None,
+                                      opcao_trechos=d.get("opcao_trechos"), lista_trechos=d.get("lista_trechos"))
         obtido = (res.assinatura, res.bloqueadas)
         if obtido != (d["assinatura"], d["bloqueadas"]):
             diferentes.append(f"{sistema}: esperado {(d['assinatura'], d['bloqueadas'])}, obtido {obtido}")

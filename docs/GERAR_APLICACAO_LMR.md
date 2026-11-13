@@ -1,6 +1,6 @@
 # Módulo Aplicação LMR (Gerar Aplicação LMR): caderno da frente
 
-Estado em 2026-11-12. Branch `joao/modulo-aplicacao-lmr`. Dono da frente: João.
+Estado em 2026-11-13. Branch `joao/modulo-aplicacao-lmr`. Dono da frente: João.
 
 O módulo "7.1. Gerar Aplicação LMR" leva os PDFs de um sistema e o `_STATUS_PMIB` até a planilha da
 Aplicação LMR: Docling (componente à parte) → pasta de extração → agente do AMP pelo n8n → CSV → aplicação
@@ -14,7 +14,8 @@ no template.
 
 ## O que está pronto
 
-Todo o código do plano está escrito e testado **com dados fictícios**. Nada rodou ainda com um sistema real.
+Todo o código do plano está escrito e testado. Com dados reais, até aqui, só o motor e a leitura do Status
+(ver "Provado com dados reais"); a extração, o AMP e a tela numa janela ainda não rodaram com um sistema real.
 
 | Tarefa | O quê | Onde |
 |---|---|---|
@@ -45,10 +46,6 @@ Suíte inteira nesta máquina (Python 3.14): 9368 passam, 4 falham. As 4 são de
 - [ ] **Tarefa 3, sonda.** Rodar o pacote **sem rede** com os PDFs da Água Pura e da SFC, medir o tempo por
   documento e passar o portão da spec §2.2 (toda TAG da aplicação emitida aparece na extração; páginas
   escaneadas saem com texto). O roteiro e o script da contagem estão no LEIA-ME da DLC.
-- [ ] **Tarefa 8, assinaturas.** Rodar o `lmr.js` do Box nas BASEs da Água Pura, Aeração, CCAR, Reg. Vel.,
-  SFC e Banco AUTO e preencher `tests/fixtures/lmr/assinaturas.json` (hoje `{}`), com a opção de trechos
-  de cada sistema. Depois rodar `tests/test_gerar_lmr_regressao.py` com `LMR_BASES`. Portão da spec §2.1:
-  as seis iguais. Diferença se corrige no port, nunca na referência.
 - [ ] **Tarefa 11, publicar a DLC.** `git tag docling-v1 && git push origin docling-v1`, com o job já na
   branch oficial, e instalar pela tela (**Instalar componente**) na máquina da empresa.
 - [ ] **Tarefa 16, AMP.** Criar o agente e importar o workflow pelo `amp/aplicacao_lmr/LEIA-ME.md`, conferir
@@ -58,10 +55,16 @@ Suíte inteira nesta máquina (Python 3.14): 9368 passam, 4 falham. As 4 são de
 
 ### 2. Revisão final (Tarefa 17)
 
-- [ ] Revisar a branch inteira contra a spec e o "Foco da revisão" do plano.
+- [x] Revisão da branch (2026-11-13): nada grave. Corrigidos: resposta do AMP que se perdia com o
+  `RESPOSTA_AMP.csv` aberto no Excel; troca de pasta que mantinha CSV e Status do sistema anterior;
+  `.paginas.json` pela metade que derrubava a geração; nome com `/ : * ?` no arquivo; CSV salvo pelo Excel em
+  cp1252; linha do CSV com coluna a mais; índice e lotes velhos depois de extração interrompida.
+- [ ] Ficaram da revisão, sem correção: **Parar** só é visto quando a DLC imprime uma linha (PDF pesado demora);
+  nada impede **Enviar ao AMP** com a extração rodando; o teste de arquivo aberto em `gerar_lmr_planilha.py`
+  recusa antes de o diálogo "tentar de novo" aparecer.
 - [ ] Abrir o app numa janela de verdade e passar pelas três abas. Até aqui a tela só abriu em modo de teste
   (offscreen).
-- [ ] Abrir no Excel uma aplicação e uma validação geradas e ver que não pedem reparo.
+- [x] Aplicação e validação da Água Pura (dados reais, 3580 linhas) abrem no Excel sem reparo (2026-11-13).
 - [ ] PR para `claude/checkpoint-01-refactor-executor-5lawtu`, com a lista das zonas do Luan.
 
 ### 3. Para combinar com o Luan antes do PR
@@ -86,8 +89,24 @@ Suíte inteira nesta máquina (Python 3.14): 9368 passam, 4 falham. As 4 são de
   seção e marca/modelo.
 - **Aba `DOCS DE REFERÊNCIA`, célula C3** (especificação técnica / capítulo) fica vazia: a tela não pede esse dado.
 - **A lista de PDFs olha só a pasta escolhida**, sem subpastas.
-- **O leitor une linhas do CSV com a mesma chave.** Se uma BASE antiga tiver linha repetida de propósito, a
-  assinatura da regressão sai diferente; a correção é no leitor.
+- **O leitor une linhas do CSV com a mesma posição e a mesma quantidade.** Quantidade diferente em trechos
+  separados fica em linhas separadas (as BASEs reais têm isso); só é conflito, com aviso, se os trechos se cruzam.
+- **Descrição e PN vêm do Status, não da BASE.** Na Reg. Vel. três fichas da BASE não estão no Status de exemplo
+  e três descrições diferem só em espaço ou quebra de linha: com o Status, essas linhas saem diferentes da
+  aplicação antiga. A regressão compara com o catálogo da própria BASE, como o Workflow B fazia.
+
+## Provado com dados reais (2026-11-13)
+
+- **Motor igual ao `lmr.js` do Box em cinco aplicações** (assinatura e bloqueadas): Água Pura, SFC, Aeração,
+  Reg. Vel. e CCAR, pelo caminho BASE → CSV → `ler_csv` → `gerar`. As assinaturas estão em
+  `tests/fixtures/lmr/assinaturas.json`. O Banco AUTO não tem BASE no Box e ficou de fora.
+  Para repetir: copiar `motor\saidaases\*.xlsx` do Box para uma pasta local e rodar
+  `tests/test_gerar_lmr_regressao.py` com `LMR_BASES` apontando para ela. A referência sai de
+  `geraLote` do `lmr.js` (TAGs da aba BASE, PN da aba DOCS DE REFERÊNCIA) com `node`.
+- **`catalogo_do_status` lê os cinco `_STATUS_PMIB` de exemplo** com o openpyxl real e acha o mesmo número de
+  fichas que o `lerStatusPmib` do `lmr.js` (87, 14, 57, 141 e 41).
+- **Aba 3 de ponta a ponta com a Água Pura**: CSV convertido da BASE + Status real → `realizar_aplicacao` →
+  3580 linhas, 0 bloqueadas, a mesma assinatura do `lmr.js` (`3580-4B02203E`).
 
 ## Armadilhas já pagas
 

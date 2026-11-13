@@ -194,6 +194,12 @@ class ModuloGerarAplicacaoLMR(ModuleFrame):
             self.definir_pasta(pasta)
 
     def definir_pasta(self, pasta: str) -> None:
+        if self.pasta and self.pasta != pasta:  # trocou de sistema: CSV, Status e saída do anterior não valem
+            self.csv = self.status = ""
+            self.pasta_de_saida = None
+            self.lbl_csv.setText(t("Não selecionado"))
+            self.lbl_status.setText(t("Não selecionado"))
+            self.btn_abrir.setEnabled(False)
         self.pasta = pasta
         blocos.marcar_arquivo_escolhido(self.btn_pasta, self.lbl_pasta, pasta)
         raiz = Path(pasta)

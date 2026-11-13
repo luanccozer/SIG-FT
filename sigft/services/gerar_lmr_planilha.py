@@ -5,6 +5,7 @@ Não importa Qt. Saídas em `<pasta do sistema>\\LMR\\SAIDA ATUAL\\`.
 
 from __future__ import annotations
 
+import re
 import time
 from copy import copy
 from dataclasses import dataclass
@@ -101,11 +102,17 @@ def realizar_aplicacao(csv: Path, status: Path, pasta_sistema: Path, *, nome: st
     inicio = time.monotonic()
     log_cb(f"Gerando a Aplicação LMR de {nome}...")
     pasta = Path(pasta_sistema) / "LMR"
-    aplicacao = pasta / "SAIDA ATUAL" / f"APLICAÇÃO LMR - {nome}.xlsx"
-    validacao = pasta / "SAIDA ATUAL" / f"VALIDAÇÃO - {nome}.xlsx"
+    no_arquivo = re.sub(r'[\\/:*?"<>|]', "_", nome).strip(" .") or "sem nome"  # o nome é digitado na tela
+    aplicacao = pasta / "SAIDA ATUAL" / f"APLICAÇÃO LMR - {no_arquivo}.xlsx"
+    validacao = pasta / "SAIDA ATUAL" / f"VALIDAÇÃO - {no_arquivo}.xlsx"
     _conferir_antes_de_gravar([aplicacao, validacao])
 
-    linhas_csv, achados = ler_csv(Path(csv).read_text(encoding="utf-8-sig"))
+    bruto = Path(csv).read_bytes()
+    try:
+        texto_csv = bruto.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        texto_csv = bruto.decode("cp1252")  # CSV corrigido e salvo pelo Excel como "CSV (separado por vírgulas)"
+    linhas_csv, achados = ler_csv(texto_csv)
     catalogo = catalogo_do_status(Path(status))
     resultado = gerar(linhas_csv, catalogo, escopo=escopo, subsistema=subsistema,
                       projeto=trechos_do_projeto(opcao_trechos, lista_trechos))

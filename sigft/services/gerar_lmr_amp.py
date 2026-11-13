@@ -101,9 +101,15 @@ def enviar_ao_amp(pasta_sistema: Path, cliente, *, escopo: str, subsistema: str,
         return _falha(erro, resposta.execucao)
 
     destino = extracao / "RESPOSTA_AMP.csv"
-    if destino.exists():
-        destino.replace(extracao / "RESPOSTA_AMP (anterior).csv")
-    destino.write_text(texto, encoding="utf-8-sig", newline="")
+    try:
+        if destino.exists():
+            destino.replace(extracao / "RESPOSTA_AMP (anterior).csv")
+        destino.write_text(texto, encoding="utf-8-sig", newline="")
+    except OSError:
+        # arquivo aberto no Excel: a resposta custou minutos de agente, grava com outro nome em vez de perder
+        destino = extracao / f"RESPOSTA_AMP {datetime.now():%Y%m%d-%H%M%S}.csv"
+        destino.write_text(texto, encoding="utf-8-sig", newline="")
+        log_cb(f"RESPOSTA_AMP.csv está aberto em outro programa: a resposta foi gravada em {destino.name}.", "warn")
     com_erro = _inteiros(resposta.dados.get("lotes_com_erro"))
     if com_erro:
         log_cb(f"O agente não leu os lotes {', '.join(map(str, com_erro))}: o CSV está incompleto.", "warn")

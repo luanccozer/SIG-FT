@@ -102,6 +102,20 @@ def test_uniao_com_todas_e_quantidade_diferente():
     assert "2" in achados[0].mensagem and "3" in achados[0].mensagem
 
 
+def test_quantidade_diferente_em_trechos_diferentes_nao_se_une():
+    # 2 na U-03 e 1 na U-05 é dado legítimo (as BASEs reais têm): unir daria 2 nas duas
+    linhas, achados = ler(linha(trechos="U-03", qtd="2"), linha(trechos="U-05", qtd="1"),
+                          linha(trechos="U-07", qtd="1"))
+    assert achados == []
+    assert [(lc.trechos, lc.qtd) for lc in linhas] == [("U-03", 2), ("U-05;U-07", 1)]
+
+
+def test_quantidade_diferente_no_mesmo_trecho_fica_a_primeira_com_aviso():
+    linhas, achados = ler(linha(trechos="U-03;U-05", qtd="2"), linha(trechos="U-05", qtd="3"))
+    assert [(lc.trechos, lc.qtd) for lc in linhas] == [("U-03;U-05", 2)]
+    assert len(achados) == 1 and "2" in achados[0].mensagem and "3" in achados[0].mensagem
+
+
 def test_chaves_diferentes_nao_se_unem():
     linhas, _ = ler(linha(), linha(eixo="BC"), linha(pais="MA101 | #ST00=M00ABC10UZ010-UZ001"))
     assert len(linhas) == 3
@@ -177,6 +191,19 @@ def test_conferencia_pagina_lida_por_ocr(tmp_path):
     lc, _ = ler(linha(pag="1"))
     achados = c.conferir_com_extracao(lc, tmp_path)
     assert len(achados) == 1 and "lida por OCR" in achados[0].mensagem
+
+
+def test_conferencia_json_pela_metade_vira_aviso_e_nao_erro(tmp_path):
+    (tmp_path / "#ST00=M00ABC10UZ010&MPA010.paginas.json").write_text('{"paginas": [{"n": 1, "tex', encoding="utf-8")
+    lc, _ = ler(linha())
+    achados = c.conferir_com_extracao(lc, tmp_path)
+    assert len(achados) == 1 and achados[0].severidade == "aviso"
+
+
+def test_linha_com_coluna_a_mais_e_ignorada_mas_ponto_e_virgula_no_fim_nao():
+    linhas, achados = ler(linha() + ";", linha(ficha=F2, pais="MA101 | X ; GP101 | Y").replace('"', ""))  # PAIS sem aspas
+    assert [lc.ficha for lc in linhas] == [F1]
+    assert len(achados) == 1 and "linha ignorada" in achados[0].mensagem
 
 
 def test_conferencia_documento_inexistente(tmp_path):

@@ -51,7 +51,8 @@ def dlc_instalada() -> bool:
     if not exe.is_file():
         return False
     try:
-        r = subprocess.run([str(exe), "--versao"], capture_output=True, text=True, timeout=60)
+        r = subprocess.run([str(exe), "--versao"], capture_output=True, text=True, timeout=60,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except (OSError, subprocess.SubprocessError):
         return False
     return r.stdout.strip() == VERSAO_DA_DLC
@@ -133,6 +134,9 @@ def extrair(pdfs, status, pasta_sistema, *, log_cb, progresso_cb, parar=lambda: 
     pasta.mkdir(parents=True, exist_ok=True)
     pdfs = [Path(p) for p in pdfs]
     catalogo = catalogo_do_status(Path(status))
+    # índice e lotes da extração anterior saem já: se esta for interrompida, o AMP não recebe lotes velhos
+    (pasta / "INDICE.md").unlink(missing_ok=True)
+    shutil.rmtree(pasta / "LOTES", ignore_errors=True)
 
     exe = str(PASTA_DA_DLC / _EXE)
     lidos: set[str] = set()
